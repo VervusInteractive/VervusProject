@@ -1,6 +1,6 @@
 const { Pool } = require('pg');
 
-const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://admin:uvoiezjFb5HyfK7zsy3jZJLN2BuVIfVM@dpg-d7l34lm47okc73b5oe10-a/versus_data';
+const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://admin:uvoiezjFb5HyfK7zsy3jZJLN2BuVIfVM@dpg-d7l34lm47okc73b5oe10-a/Vervus_data';
 
 const pool = new Pool({
   connectionString: DATABASE_URL,

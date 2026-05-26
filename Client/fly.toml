@@ -1,9 +1,9 @@
-# fly.toml app configuration file generated for versus-client on 2026-04-09T08:21:30Z
+# fly.toml app configuration file generated for Vervus-client on 2026-04-09T08:21:30Z
 #
 # See https://fly.io/docs/reference/configuration/ for information about how to use this file.
 #
 
-app = 'versus-client'
+app = 'Vervus-client'
 primary_region = 'ams'
 
 [build]

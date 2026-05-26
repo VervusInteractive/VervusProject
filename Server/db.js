@@ -1,0 +1,176 @@
+const { Pool } = require('pg');
+
+const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://admin:uvoiezjFb5HyfK7zsy3jZJLN2BuVIfVM@dpg-d7l34lm47okc73b5oe10-a/versus_data';
+
+const pool = new Pool({
+  connectionString: DATABASE_URL,
+  ssl: { rejectUnauthorized: false }
+});
+
+async function testDbConnection() { await pool.query('SELECT 1'); }
+async function ensurePlayerProfileTables() {
+  await pool.query(`CREATE TABLE IF NOT EXISTS glitch_data.player_profiles (id UUID PRIMARY KEY, display_name TEXT, created_at TIMESTAMPTZ NOT NULL DEFAULT now(), last_seen_at TIMESTAMPTZ NOT NULL DEFAULT now());`);
+  await pool.query(`CREATE TABLE IF NOT EXISTS glitch_data.player_profile_entitlements (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), player_profile_id UUID NOT NULL REFERENCES glitch_data.player_profiles(id) ON DELETE CASCADE, starts_at TIMESTAMPTZ NOT NULL DEFAULT now(), expires_at TIMESTAMPTZ NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT now(), game_mode_id UUID REFERENCES glitch_data.game_modes(id) ON DELETE CASCADE);`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_player_profile_entitlements_active ON glitch_data.player_profile_entitlements(player_profile_id, game_mode_id, expires_at);`);
+}
+async function upsertPlayerProfile({ profileId, displayName }) {
+  await ensurePlayerProfileTables();
+  await pool.query(`INSERT INTO glitch_data.player_profiles (id, display_name, last_seen_at) VALUES ($1::uuid, $2, now()) ON CONFLICT (id) DO UPDATE SET display_name = COALESCE(EXCLUDED.display_name, glitch_data.player_profiles.display_name), last_seen_at = now();`, [profileId, displayName || null]);
+}
+async function grantPlayerProfileEntitlement({ profileId, productKey='glitch_party_pack', hours=24 }) {
+  await ensurePlayerProfileTables();
+  const { rows } = await pool.query(
+    `WITH target_modes AS (
+       SELECT DISTINCT pm.mode_id
+       FROM glitch_data.products p
+       JOIN glitch_data.product_modes pm ON pm.product_id = p.id
+       WHERE p.product_key = $2
+         AND p.status = 'active'::glitch_data.product_status
+     ), entitlement_base AS (
+       SELECT tm.mode_id,
+              COALESCE(
+                MAX(ppe.expires_at) FILTER (WHERE ppe.expires_at > now()),
+                now()
+              ) AS base_expires_at
+       FROM target_modes tm
+       LEFT JOIN glitch_data.player_profile_entitlements ppe
+         ON ppe.player_profile_id = $1::uuid
+        AND ppe.game_mode_id = tm.mode_id
+       GROUP BY tm.mode_id
+     ), inserted AS (
+       INSERT INTO glitch_data.player_profile_entitlements (player_profile_id, game_mode_id, starts_at, expires_at)
+       SELECT $1::uuid,
+              eb.mode_id,
+              eb.base_expires_at,
+              eb.base_expires_at + make_interval(hours => $3::int)
+       FROM entitlement_base eb
+       RETURNING expires_at
+     )
+     SELECT MAX(expires_at) AS expires_at
+     FROM inserted;`,
+    [profileId, productKey, hours]
+  );
+  return rows[0]?.expires_at || null;
+}
+async function getActivePlayerProfileEntitlement({ profileId, productKey = null }) {
+  await ensurePlayerProfileTables();
+  const query = productKey
+    ? `SELECT ppe.expires_at
+       FROM glitch_data.player_profile_entitlements ppe
+       JOIN glitch_data.game_modes gm ON gm.id = ppe.game_mode_id
+       JOIN glitch_data.product_modes pm ON pm.mode_id = gm.id
+       JOIN glitch_data.products p ON p.id = pm.product_id
+       WHERE ppe.player_profile_id = $1::uuid
+         AND p.product_key = $2
+         AND ppe.expires_at > now()
+         AND p.status = 'active'::glitch_data.product_status
+       ORDER BY ppe.expires_at DESC
+       LIMIT 1`
+    : `SELECT ppe.expires_at
+       FROM glitch_data.player_profile_entitlements ppe
+       WHERE ppe.player_profile_id = $1::uuid
+         AND ppe.expires_at > now()
+       ORDER BY ppe.expires_at DESC
+       LIMIT 1`;
+  const params = productKey ? [profileId, productKey] : [profileId];
+  const { rows } = await pool.query(query, params);
+  return rows[0]?.expires_at || null;
+}
+async function getActiveEntitledModeKeys({ profileId }) {
+  await ensurePlayerProfileTables();
+  const { rows } = await pool.query(
+    `SELECT DISTINCT gm.mode_key
+     FROM glitch_data.player_profile_entitlements ppe
+     JOIN glitch_data.game_modes gm ON gm.id = ppe.game_mode_id
+     WHERE ppe.player_profile_id = $1::uuid
+       AND ppe.expires_at > now()`,
+    [profileId]
+  );
+  return rows.map((row) => row.mode_key).filter(Boolean);
+}
+async function getActiveEntitlementExpiriesByMode({ profileId }) {
+  await ensurePlayerProfileTables();
+  const { rows } = await pool.query(
+    `SELECT gm.mode_key, MAX(ppe.expires_at) AS expires_at
+     FROM glitch_data.player_profile_entitlements ppe
+     JOIN glitch_data.game_modes gm ON gm.id = ppe.game_mode_id
+     WHERE ppe.player_profile_id = $1::uuid
+       AND ppe.expires_at > now()
+     GROUP BY gm.mode_key`,
+    [profileId]
+  );
+  return rows.reduce((acc, row) => {
+    if (!row.mode_key || !row.expires_at) return acc;
+    acc[row.mode_key] = new Date(row.expires_at).getTime();
+    return acc;
+  }, {});
+}
+async function getProductByKey(productKey = 'glitch_party_pack') {
+  const { rows } = await pool.query(
+    `SELECT id, product_key, product_name, price_cents, currency_code, validity_duration_hours, stripe_price_id
+     FROM glitch_data.products
+     WHERE product_key = $1 AND status = 'active'::glitch_data.product_status
+     LIMIT 1`,
+    [productKey]
+  );
+  return rows[0] || null;
+}
+async function createPendingPurchase({ playerId, productId, amountCents, currencyCode }) {
+  const { rows } = await pool.query(
+    `INSERT INTO glitch_data.purchases (player_id, product_id, amount_cents, currency_code, payment_status)
+     VALUES ($1::uuid, $2::uuid, $3::int, $4, 'pending'::glitch_data.payment_status)
+     RETURNING id`,
+    [playerId, productId, amountCents, currencyCode]
+  );
+  return rows[0]?.id || null;
+}
+async function attachStripeSessionToPurchase({ purchaseId, stripeCheckoutSessionId }) {
+  await pool.query(
+    `UPDATE glitch_data.purchases
+     SET stripe_checkout_session_id = $2
+     WHERE id = $1::uuid`,
+    [purchaseId, stripeCheckoutSessionId]
+  );
+}
+async function completePurchaseByStripeSession({ stripeCheckoutSessionId, stripePaymentIntentId }) {
+  const { rows } = await pool.query(
+    `UPDATE glitch_data.purchases
+      SET payment_status = 'paid'::glitch_data.payment_status,
+          stripe_payment_intent_id = COALESCE($2, stripe_payment_intent_id),
+          paid_at = now()
+      WHERE stripe_checkout_session_id = $1
+      RETURNING player_id, product_id`,
+    [stripeCheckoutSessionId, stripePaymentIntentId || null]
+  );
+  return rows[0] || null;
+}
+async function markPurchaseFailedByStripeSession({ stripeCheckoutSessionId }) {
+  await pool.query(
+    `UPDATE glitch_data.purchases
+      SET payment_status = 'failed'::glitch_data.payment_status,
+          failed_at = now()
+      WHERE stripe_checkout_session_id = $1`,
+    [stripeCheckoutSessionId]
+  );
+}
+async function getProductById(productId) {
+  const { rows } = await pool.query(
+    `SELECT product_key, validity_duration_hours
+     FROM glitch_data.products
+     WHERE id = $1::uuid
+     LIMIT 1`,
+    [productId]
+  );
+  return rows[0] || null;
+}
+
+// existing functions
+async function createRoomRecord({ roomCode, status = 'lobby', maxPlayers = 4 }) { await pool.query(`INSERT INTO glitch_data.rooms (room_code, status, max_players) VALUES ($1, $2::glitch_data.room_status, $3) ON CONFLICT (room_code) DO UPDATE SET status = EXCLUDED.status`, [roomCode, status, maxPlayers]); }
+async function addPlayerRecord({ roomCode, playerId, displayName, isHost = false, slot }) { await pool.query(`INSERT INTO glitch_data.players (id, room_id, display_name, is_host, connection_status, is_ready, last_seen_at, player_slot) SELECT $2::uuid, r.id, $3, $4, 'connected', false, now(), $5 FROM glitch_data.rooms r WHERE r.room_code = $1 ON CONFLICT (id) DO UPDATE SET display_name = EXCLUDED.display_name, connection_status = 'connected', last_seen_at = now(), left_at = null`, [roomCode, playerId, displayName, isHost, slot]); if (isHost) await pool.query(`UPDATE glitch_data.rooms SET host_player_id = $2::uuid WHERE room_code = $1`, [roomCode, playerId]); }
+async function updatePlayerReady({ playerId, isReady }) { await pool.query('UPDATE glitch_data.players SET is_ready = $2, last_seen_at = now() WHERE id = $1::uuid', [playerId, isReady]); }
+async function updatePlayerConnection({ playerId, status }) { const isDisconnected = status !== 'connected'; await pool.query(`UPDATE glitch_data.players SET connection_status = $2, last_seen_at = now(), left_at = CASE WHEN $3 THEN now() ELSE null END WHERE id = $1::uuid`, [playerId, status, isDisconnected]); }
+async function deletePlayerRecord(playerId) { await pool.query('DELETE FROM glitch_data.players WHERE id = $1::uuid', [playerId]); }
+async function updateRoomStatus({ roomCode, status }) { await pool.query(`UPDATE glitch_data.rooms SET status = $2::glitch_data.room_status, started_at = CASE WHEN $2 = 'active' THEN now() ELSE started_at END, ended_at = CASE WHEN $2 = 'ended' THEN now() ELSE ended_at END WHERE room_code = $1`, [roomCode, status]); }
+async function deleteRoomRecord(roomCode) { await pool.query('DELETE FROM glitch_data.rooms WHERE room_code = $1', [roomCode]); }
+
+module.exports = { pool, testDbConnection, ensurePlayerProfileTables, upsertPlayerProfile, grantPlayerProfileEntitlement, getActivePlayerProfileEntitlement, getActiveEntitledModeKeys, getActiveEntitlementExpiriesByMode, getProductByKey, createPendingPurchase, attachStripeSessionToPurchase, completePurchaseByStripeSession, markPurchaseFailedByStripeSession, getProductById, createRoomRecord, addPlayerRecord, updatePlayerReady, updatePlayerConnection, deletePlayerRecord, updateRoomStatus, deleteRoomRecord };

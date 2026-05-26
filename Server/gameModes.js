@@ -99,21 +99,21 @@ function getCorruptionBand(modeId = "standard", combo = 0) {
 }
 
 async function hydrateStandardModeFromDb() {
-  const modeResult = await pool.query(`SELECT id, display_name FROM glitch_data.game_modes WHERE mode_key = 'standard' LIMIT 1`);
+  const modeResult = await pool.query(`SELECT id, display_name FROM vervus_data.game_modes WHERE mode_key = 'standard' LIMIT 1`);
   if (modeResult.rowCount === 0) return false;
 
   const modeDbId = modeResult.rows[0].id;
 
   const configResult = await pool.query(
     `SELECT has_last_chance, result_lock_ms, transition_beat_ms, good_run_round
-     FROM glitch_data.mode_configs
+     FROM vervus_data.mode_configs
      WHERE mode_id = $1`,
     [modeDbId]
   );
 
   const bandsResult = await pool.query(
     `SELECT id, combo_min, decision_time_ms, glitch_chance_percent
-     FROM glitch_data.mode_difficulty_bands
+     FROM vervus_data.mode_difficulty_bands
      WHERE mode_id = $1
      ORDER BY sort_order ASC`,
     [modeDbId]
@@ -125,13 +125,13 @@ async function hydrateStandardModeFromDb() {
   const [deviationMixResult, falseTwinMixResult] = await Promise.all([
     pool.query(
       `SELECT difficulty_band_id, deviation_type, weight_percent
-       FROM glitch_data.mode_deviation_mix
+       FROM vervus_data.mode_deviation_mix
        WHERE difficulty_band_id = ANY($1::uuid[])`,
       [bandIds]
     ),
     pool.query(
       `SELECT difficulty_band_id, false_twin_type, weight_percent
-       FROM glitch_data.mode_false_twin_mix
+       FROM vervus_data.mode_false_twin_mix
        WHERE difficulty_band_id = ANY($1::uuid[])`,
       [bandIds]
     )
@@ -193,8 +193,8 @@ async function hydrateHeatSurgeConfigsFromDb() {
             hsc.timer_reduction_ms,
             hsc.intensity_bonus_levels,
             hsc.transition_warning_ms
-     FROM glitch_data.mode_heat_surge_configs hsc
-     JOIN glitch_data.game_modes gm ON gm.id = hsc.mode_id`
+     FROM vervus_data.mode_heat_surge_configs hsc
+     JOIN vervus_data.game_modes gm ON gm.id = hsc.mode_id`
   );
 
   for (const [modeKey] of Object.entries(MODE_HEAT_SURGE_CONFIGS)) {
@@ -227,8 +227,8 @@ async function hydrateModeCorruptionBandsFromDb() {
             mcb.visual_effects,
             mcb.audio_effects,
             mcb.intensity_level
-     FROM glitch_data.mode_corruption_bands mcb
-     JOIN glitch_data.game_modes gm ON gm.id = mcb.mode_id
+     FROM vervus_data.mode_corruption_bands mcb
+     JOIN vervus_data.game_modes gm ON gm.id = mcb.mode_id
      ORDER BY gm.mode_key ASC, mcb.combo_min ASC`
   );
 
@@ -253,8 +253,8 @@ async function hydrateModeCorruptionBandsFromDb() {
 
 async function getGameModesFromDb() {
   const result = await pool.query(`SELECT gm.id, gm.mode_key, gm.display_name, mc.orientation_lock
-     FROM glitch_data.game_modes gm
-     LEFT JOIN glitch_data.mode_configs mc ON mc.mode_id = gm.id
+     FROM vervus_data.game_modes gm
+     LEFT JOIN vervus_data.mode_configs mc ON mc.mode_id = gm.id
      ORDER BY gm.display_name ASC`);
   for (const row of result.rows) {
     if (row.id && row.mode_key) {

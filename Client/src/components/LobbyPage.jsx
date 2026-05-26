@@ -43,7 +43,7 @@ function LobbyPage({
 
   return (
     <section className="panel">
-      <h1 className="panel-title">Versus Lobby</h1>
+      <h1 className="panel-title">Vervus Lobby</h1>
       <p className="panel-subtitle">Create a room or join with an invite code.</p>
       <p className="panel-meta"><strong>Ping:</strong> {pingMs === null ? "-" : `${pingMs} ms`}</p>
 

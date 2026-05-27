@@ -477,14 +477,27 @@ function GlitchGamePage({ roomId, playerId, players, myGame, serverNow, onSubmit
       });
 
       const context = audioContextRef.current;
-      if (context?.state === "suspended") {
+      if (context && (context.state === "suspended" || context.state === "interrupted")) {
         context.resume().catch(() => {});
       }
     };
 
+    const handlePageReactivation = () => {
+      if (document.visibilityState === "visible") {
+        unlockAudio();
+      }
+    };
+
     document.addEventListener("pointerdown", unlockAudio, { once: true });
+    document.addEventListener("visibilitychange", handlePageReactivation);
+    window.addEventListener("pageshow", handlePageReactivation);
+    window.addEventListener("focus", handlePageReactivation);
+
     return () => {
       document.removeEventListener("pointerdown", unlockAudio);
+      document.removeEventListener("visibilitychange", handlePageReactivation);
+      window.removeEventListener("pageshow", handlePageReactivation);
+      window.removeEventListener("focus", handlePageReactivation);
     };
   }, []);
 

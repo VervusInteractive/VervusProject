@@ -64,6 +64,47 @@ const voteSendAudioPool = createAudioPool(voteSendAudio);
 const successPurchaseAudioPool = createAudioPool(successPurchaseAudio);
 const failedPurchaseAudioPool = createAudioPool(failedPurchaseAudio);
 
+let audioUnlockInFlight = null;
+let isAudioUnlocked = false;
+
+const unlockAudioPools = () => {
+  if (isAudioUnlocked) return Promise.resolve(true);
+  if (audioUnlockInFlight) return audioUnlockInFlight;
+
+  const allPools = [
+    clickAudioPool,
+    voteSendAudioPool,
+    successPurchaseAudioPool,
+    failedPurchaseAudioPool
+  ];
+
+  audioUnlockInFlight = Promise.allSettled(
+    allPools.flat().map((audio) => {
+      if (!audio) return Promise.resolve();
+      const previousTime = audio.currentTime;
+      audio.muted = true;
+      audio.currentTime = 0;
+      return audio.play()
+        .then(() => {
+          audio.pause();
+          audio.currentTime = previousTime;
+          audio.muted = false;
+        })
+        .catch(() => {
+          audio.currentTime = previousTime;
+          audio.muted = false;
+        });
+    })
+  ).then(() => {
+    isAudioUnlocked = true;
+    return true;
+  }).finally(() => {
+    audioUnlockInFlight = null;
+  });
+
+  return audioUnlockInFlight;
+};
+
 const playFromPool = (pool) => {
   if (!pool.length) return Promise.resolve(false);
 
@@ -71,6 +112,7 @@ const playFromPool = (pool) => {
 
   const attemptPlay = (audio) => {
     if (!audio) return Promise.resolve(false);
+    audio.pause();
     audio.muted = false;
     audio.currentTime = 0;
     return audio.play()
@@ -78,11 +120,13 @@ const playFromPool = (pool) => {
       .catch(() => false);
   };
 
-  const firstChoice = pickPlayableAudio();
-  return attemptPlay(firstChoice).then((didPlay) => {
-    if (didPlay) return true;
-    const fallbackChoice = pool.find((audio) => audio !== firstChoice && (audio.paused || audio.ended));
-    return attemptPlay(fallbackChoice);
+  return unlockAudioPools().then(() => {
+    const firstChoice = pickPlayableAudio();
+    return attemptPlay(firstChoice).then((didPlay) => {
+      if (didPlay) return true;
+      const fallbackChoice = pool.find((audio) => audio !== firstChoice && (audio.paused || audio.ended));
+      return attemptPlay(fallbackChoice);
+    });
   });
 };
 
@@ -169,51 +213,6 @@ function App() {
     localStorage.removeItem(key);
   }, []);
 
-  useEffect(() => {
-    if (typeof document === "undefined") return undefined;
-
-    const allPools = [
-      clickAudioPool,
-      voteSendAudioPool,
-      successPurchaseAudioPool,
-      failedPurchaseAudioPool
-    ];
-
-    const restoreAudioPlayback = () => {
-      allPools.flat().forEach((audio) => {
-        if (!audio) return;
-        const previousTime = audio.currentTime;
-        audio.muted = true;
-        audio.currentTime = 0;
-        audio.play()
-          .then(() => {
-            audio.pause();
-            audio.currentTime = previousTime;
-            audio.muted = false;
-          })
-          .catch(() => {
-            audio.currentTime = previousTime;
-            audio.muted = false;
-          });
-      });
-    };
-
-    const handlePageReactivation = () => {
-      if (document.visibilityState === "visible") {
-        restoreAudioPlayback();
-      }
-    };
-
-    document.addEventListener("visibilitychange", handlePageReactivation);
-    window.addEventListener("pageshow", handlePageReactivation);
-    window.addEventListener("focus", handlePageReactivation);
-
-    return () => {
-      document.removeEventListener("visibilitychange", handlePageReactivation);
-      window.removeEventListener("pageshow", handlePageReactivation);
-      window.removeEventListener("focus", handlePageReactivation);
-    };
-  }, []);
 
   const clearSessionState = useCallback(() => {
     localStorage.removeItem("roomId");

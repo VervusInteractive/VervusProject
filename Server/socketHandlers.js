@@ -22,7 +22,9 @@ const {
   getActivePlayerProfileEntitlement,
   getActiveEntitledModeKeys,
   getActiveEntitlementExpiriesByMode,
-  getProductByKey
+  getProductByKey,
+  logRoomHistoryEvent,
+  logErrorEntry
 } = require("./db");
 const {
   clearCreatorDisconnectTimer,
@@ -54,6 +56,10 @@ function registerSocketHandlers(io) {
     room.gameTimers = room.gameTimers || [];
     room.gameTimers.push(timerId);
     return timerId;
+  };
+
+  const persistError = (payload) => {
+    logErrorEntry(payload).catch((dbError) => console.error("DB error log failed", dbError));
   };
 
   const clearPreviewTimer = (room) => {
@@ -113,6 +119,7 @@ function registerSocketHandlers(io) {
 
     room.game.status = "gameover";
     updateRoomStatus({ roomCode: roomId, status: "ended" }).catch((error) => console.error("DB room ended update failed", error));
+    logRoomHistoryEvent({ roomCode: roomId, eventType: "room_ended", fromStatus: "active", toStatus: "ended" }).catch((error) => console.error("DB room history end failed", error));
     room.game.killScreen = {
       score: room.game.score,
       combo: room.game.combo,
@@ -234,6 +241,7 @@ function registerSocketHandlers(io) {
       room.game.previewEndsAtMs = room.game.isPreview ? (Date.now() + 60000) : null;
       clearPreviewTimer(room);
       updateRoomStatus({ roomCode: roomId, status: "active" }).catch((error) => console.error("DB room active update failed", error));
+      logRoomHistoryEvent({ roomCode: roomId, eventType: "room_started", fromStatus: "lobby", toStatus: "active" }).catch((error) => console.error("DB room history start failed", error));
       clearRoomGameTimers(room);
       if (room.game.isPreview) {
         room.previewTimer = setTimeout(() => {
@@ -400,8 +408,11 @@ function registerSocketHandlers(io) {
         room.selectedModeId = (normalizedSelectedModeId && entitledModeKeys.includes(normalizedSelectedModeId)) ? normalizedSelectedModeId : "standard";
         await createRoomRecord({ roomCode: roomId });
         await addPlayerRecord({ roomCode: roomId, playerId, displayName: name || "Host", isHost: true, slot: 1 });
+        await logRoomHistoryEvent({ roomCode: roomId, eventType: "room_created", actorPlayerId: playerId, toStatus: "lobby", metadata: { selectedModeId: room.selectedModeId } });
+        await logRoomHistoryEvent({ roomCode: roomId, eventType: "room_joined", actorPlayerId: playerId, toStatus: "lobby", metadata: { isHost: true } });
       } catch (error) {
         console.error("DB room:create persistence failed", error);
+        persistError({ roomCode: roomId, playerId, source: "room:create", message: error.message, stackTrace: error.stack, context: { name, profileId } });
       }
 
       const allowedModeIds = new Set((room.availableModes || []).map((mode) => mode.id));
@@ -457,8 +468,10 @@ function registerSocketHandlers(io) {
         room.players.get(playerId).entitledModeKeys = await getActiveEntitledModeKeys({ profileId: playerId });
         room.players.get(playerId).entitledModeExpiriesMs = await getActiveEntitlementExpiriesByMode({ profileId: playerId });
         await addPlayerRecord({ roomCode: normalizedRoomId, playerId, displayName: name || "Player", isHost: false, slot: room.players.size });
+        await logRoomHistoryEvent({ roomCode: normalizedRoomId, eventType: "room_joined", actorPlayerId: playerId, toStatus: room.phase === "play" ? "active" : "lobby" });
       } catch (error) {
         console.error("DB room:join persistence failed", error);
+        persistError({ roomCode: normalizedRoomId, playerId, source: "room:join", message: error.message, stackTrace: error.stack, context: { name, profileId } });
       }
 
       if (callback) callback({ roomId: normalizedRoomId, playerId, sessionToken, state: getRoomState(normalizedRoomId) });
@@ -542,12 +555,14 @@ function registerSocketHandlers(io) {
       }
 
       room.players.delete(playerId);
+      logRoomHistoryEvent({ roomCode: roomId, eventType: "room_left", actorPlayerId: playerId }).catch((error) => console.error("DB room history left failed", error));
       deletePlayerRecord(playerId).catch((error) => console.error("DB delete player failed", error));
       socket.leave(roomId);
 
       if (room.players.size === 0) {
         clearRoomGameTimers(room);
         rooms.delete(roomId);
+        logRoomHistoryEvent({ roomCode: roomId, eventType: "room_deleted", actorPlayerId: playerId }).catch((error) => console.error("DB room history deleted failed", error));
         deleteRoomRecord(roomId).catch((error) => console.error("DB delete room failed", error));
       } else {
         if (room.phase === "play" && room.game?.status === "active" && room.players.size === 1) {

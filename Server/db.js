@@ -1,4 +1,6 @@
 const { Pool } = require('pg');
+const fs = require("fs");
+const path = require("path");
 
 const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://admin:uvoiezjFb5HyfK7zsy3jZJLN2BuVIfVM@dpg-d7l34lm47okc73b5oe10-a/Vervus_data';
 
@@ -8,6 +10,34 @@ const pool = new Pool({
 });
 
 async function testDbConnection() { await pool.query('SELECT 1'); }
+async function ensureRoomTrackingTables() {
+  const sqlPath = path.join(__dirname, "sql_room_history_and_errors.sql");
+  const sql = fs.readFileSync(sqlPath, "utf8");
+  await pool.query(sql);
+}
+
+async function logRoomHistoryEvent({ roomCode, eventType, actorPlayerId = null, fromStatus = null, toStatus = null, metadata = {} }) {
+  await ensureRoomTrackingTables();
+  await pool.query(
+    `INSERT INTO vervus_data.room_history (room_id, room_code, event_type, actor_player_id, from_status, to_status, metadata)
+     SELECT r.id, r.room_code, $2, $3::uuid, $4::vervus_data.room_status, $5::vervus_data.room_status, $6::jsonb
+     FROM vervus_data.rooms r
+     WHERE r.room_code = $1`,
+    [roomCode, eventType, actorPlayerId, fromStatus, toStatus, JSON.stringify(metadata || {})]
+  );
+}
+
+async function logErrorEntry({ roomCode = null, playerId = null, source, errorCode = null, severity = 'error', message, stackTrace = null, context = {} }) {
+  await ensureRoomTrackingTables();
+  await pool.query(
+    `INSERT INTO vervus_data.error_logs (room_id, room_code, player_id, source, error_code, severity, message, stack_trace, context)
+     SELECT r.id, COALESCE($1, r.room_code), $2::uuid, $3, $4, $5, $6, $7, $8::jsonb
+     FROM (SELECT NULL::uuid AS id, NULL::text AS room_code) x
+     LEFT JOIN vervus_data.rooms r ON r.room_code = $1`,
+    [roomCode, playerId, source, errorCode, severity, message, stackTrace, JSON.stringify(context || {})]
+  );
+}
+
 async function ensurePlayerProfileTables() {
   await pool.query(`CREATE TABLE IF NOT EXISTS vervus_data.player_profiles (id UUID PRIMARY KEY, display_name TEXT, created_at TIMESTAMPTZ NOT NULL DEFAULT now(), last_seen_at TIMESTAMPTZ NOT NULL DEFAULT now());`);
   await pool.query(`CREATE TABLE IF NOT EXISTS vervus_data.player_profile_entitlements (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), player_profile_id UUID NOT NULL REFERENCES vervus_data.player_profiles(id) ON DELETE CASCADE, starts_at TIMESTAMPTZ NOT NULL DEFAULT now(), expires_at TIMESTAMPTZ NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT now(), game_mode_id UUID REFERENCES vervus_data.game_modes(id) ON DELETE CASCADE);`);
@@ -173,4 +203,4 @@ async function deletePlayerRecord(playerId) { await pool.query('DELETE FROM verv
 async function updateRoomStatus({ roomCode, status }) { await pool.query(`UPDATE vervus_data.rooms SET status = $2::vervus_data.room_status, started_at = CASE WHEN $2 = 'active' THEN now() ELSE started_at END, ended_at = CASE WHEN $2 = 'ended' THEN now() ELSE ended_at END WHERE room_code = $1`, [roomCode, status]); }
 async function deleteRoomRecord(roomCode) { await pool.query('DELETE FROM vervus_data.rooms WHERE room_code = $1', [roomCode]); }
 
-module.exports = { pool, testDbConnection, ensurePlayerProfileTables, upsertPlayerProfile, grantPlayerProfileEntitlement, getActivePlayerProfileEntitlement, getActiveEntitledModeKeys, getActiveEntitlementExpiriesByMode, getProductByKey, createPendingPurchase, attachStripeSessionToPurchase, completePurchaseByStripeSession, markPurchaseFailedByStripeSession, getProductById, createRoomRecord, addPlayerRecord, updatePlayerReady, updatePlayerConnection, deletePlayerRecord, updateRoomStatus, deleteRoomRecord };
+module.exports = { pool, testDbConnection, ensureRoomTrackingTables, logRoomHistoryEvent, logErrorEntry, ensurePlayerProfileTables, upsertPlayerProfile, grantPlayerProfileEntitlement, getActivePlayerProfileEntitlement, getActiveEntitledModeKeys, getActiveEntitlementExpiriesByMode, getProductByKey, createPendingPurchase, attachStripeSessionToPurchase, completePurchaseByStripeSession, markPurchaseFailedByStripeSession, getProductById, createRoomRecord, addPlayerRecord, updatePlayerReady, updatePlayerConnection, deletePlayerRecord, updateRoomStatus, deleteRoomRecord };

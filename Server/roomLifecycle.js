@@ -4,7 +4,7 @@ const {
   CREATOR_UNLOCK_RECONNECT_GRACE_MS,
   markCreatorTimedOut
 } = require("./roomStore");
-const { deleteRoomRecord } = require("./db");
+const { deleteRoomRecord, logRoomHistoryEvent, logErrorEntry } = require("./db");
 
 function clearCreatorDisconnectTimer(room) {
   if (!room?.creatorDisconnectTimer) return;
@@ -37,7 +37,11 @@ function disbandRoom(io, roomId, reason = "Room disbanded", excludedSocketId = n
     io.to(roomId).emit("room:disbanded", { roomId, reason });
   }
   rooms.delete(roomId);
-  deleteRoomRecord(roomId).catch((error) => console.error("DB delete room failed", error));
+  logRoomHistoryEvent({ roomCode: roomId, eventType: "room_deleted" }).catch((error) => console.error("DB room history deleted failed", error));
+  deleteRoomRecord(roomId).catch((error) => {
+    console.error("DB delete room failed", error);
+    logErrorEntry({ roomCode: roomId, source: "roomLifecycle:disbandRoom", message: error.message, stackTrace: error.stack }).catch(() => {});
+  });
 }
 
 function scheduleCreatorDisband(io, roomId, { extendedGraceMs = false } = {}) {

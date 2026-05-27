@@ -13,7 +13,9 @@ const {
   attachStripeSessionToPurchase,
   completePurchaseByStripeSession,
   markPurchaseFailedByStripeSession,
-  getProductById
+  getProductById,
+  ensureRoomTrackingTables,
+  logErrorEntry
 } = require("./db");
 const { hydrateStandardModeFromDb, hydrateHeatSurgeConfigsFromDb, hydrateModeCorruptionBandsFromDb } = require("./gameModes");
 
@@ -97,6 +99,7 @@ app.post("/api/stripe/webhook", express.raw({ type: "application/json" }), async
 
     res.status(200).json({ received: true });
   } catch (error) {
+    logErrorEntry({ source: "stripe:webhook", message: error.message || "Failed to process Stripe webhook", stackTrace: error.stack }).catch(() => {});
     res.status(500).json({ error: "Failed to process Stripe webhook" });
   }
 });
@@ -145,6 +148,7 @@ app.post("/api/stripe/checkout-session", async (req, res) => {
 
     res.status(200).json({ url: session.url });
   } catch (error) {
+    logErrorEntry({ source: "stripe:checkout-session", playerId: profileId, message: error.message || "Failed to create checkout session", stackTrace: error.stack, context: { productKey } }).catch(() => {});
     res.status(500).json({ error: error.message || "Failed to create checkout session" });
   }
 });
@@ -165,6 +169,7 @@ const PORT = process.env.PORT || 3001;
 testDbConnection()
   .then(async () => {
     console.log("PostgreSQL connected");
+    await ensureRoomTrackingTables();
 
     try {
       const loaded = await hydrateStandardModeFromDb();

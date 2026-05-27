@@ -1,0 +1,659 @@
+Vervus
+@PlayVervus
+Technical & Functional Specification
+Purpose of this document
+This document defines the technical core, product rules, commercial logic, and operational constraints of
+Vervus. It serves as the primary specification for development and UI/UX, with further elaboration provided in
+separate appendices for mode specifications, UX flows, and visual direction.
+Division of roles between design and development
+This specification defines the functional, technical, and product requirements of the platform. The visual
+execution of branding, UX detail, screen hierarchy, component design, design systems, web design, in-game
+UI, campaign assets, and other visual deliverables will be defined by the lead designer in the relevant design
+and UX appendices.
+Development is responsible for implementing the technical solution based on this specification and the
+provided design handoff. Where functional requirements and visual execution intersect, design and
+development must align during milestone execution.
+Platform: Browser-first, phone-only BYOD social game core
+Players: 2-4 players per room
+Commercial model: Host buys a paid party pack product; other players join for free.
+Launch scope: GLiTCH! as the core experience, with two additional game modes within the same platform,
+free lobby access, and a free 60-second GLiTCH! preview before purchase.
+Appendices: Mode Specs, UX Flows, Visual/UI Direction
+Milestone 1: Kill or Continue
+Goal:
+Prove that the real-time sync (WebSockets + NTP-like timing) works in real conditions.
+Scope:
+• Simple room (2-4 players)
+• Bare UI (no design needed)
+• Timer running in sync across multiple devices
+• Simple interaction (e.g. ping or pass-through event)
+• Test on multiple devices (including older phones)
+Result:
+A minimal but functional multiplayer test in which:
+• All devices run in sync
+• Interactions are visible immediately
+• No desync occurs under normal use
+Explicitly not included:
+• Extensive UI/UX
+• Payment
+• Additional modes outside the test scope
+Payment:
+Partially upfront and partially upon completion. The final portion is only paid after delivery and approval, in
+accordance with the prior agreements.
+Kill criterion:
+If this does not work stably within the agreed timeframe and according to the agreements made in advance,
+the collaboration will be terminated.
+Milestone 2: Playable MVP
+Goal:
+Build a first fully playable experience that "feels fun" in a real setting.
+Scope:
+• Core engine (room logic, sync)
+• Basic reconnect
+• GLiTCH! as the first fully playable core experience
+• Simple lobby + join flow (QR + code)
+• Preview flow (60 sec)
+• Payment integration (Stripe)
+• Entitlement logic for configurable products and bundles: support for at minimum one single-pack product
+and the ability to support multi-pack or bundled products, with server-side entitlement validation and a
+24-hour validity period per purchased product configuration.
+Result:
+Flow works end to end:
+Join -> Preview -> Pay -> Full Game
+And:
+• Playable with 2-4 players
+• No structural desync, crashes, or flow breaks under normal use within the test group
+Payment:
+In accordance with the general milestone agreements below.
+Milestone 3: Scaling, Hardening & Launch Scope
+Goal:
+Expand, harden, and finalize the proven platform within the agreed launch scope.
+Scope:
+• Add 2 extra modes based on the same existing room, sync, and core architecture
+• Improve and harden reconnect
+• Improve UX (lobby, feedback, flow)
+• Social features (share / scorecards)
+• Performance optimizations necessary for the launch scope
+• Logging, monitoring, and internal management functionality necessary for the launch scope
+Result:
+• Multiple modes playable within the same technical core
+• Stable and technically sufficiently finalized launch scope
+• Repeatability and fun factor increased
+Payment:
+In accordance with the general milestone agreements below.
+Acceptance, delivery, and termination per milestone
+For each milestone, delivery criteria and test agreements are established in advance.
+Definition of Done
+A milestone shall only count as delivered when it works fully and stably in accordance with the scope agreed
+in advance on the hardware, browsers, and conditions agreed in advance. Functioning solely on the
+developer's own environment or on one test device shall not count as sufficient delivery. Work that is
+materially incomplete, unstable, or error-prone shall not count as done and cannot be deferred to a later
+milestone as a general recovery or polish phase.
+Repair of defects within the same milestone
+Defects, bugs, or shortcomings that cause a milestone not to meet the scope, functioning, stability, or
+acceptance criteria agreed in advance must be repaired within that same milestone before acceptance.
+Such defects do not count as separate follow-up scope or a later polish phase.
+A subsequent milestone does not start automatically as long as the previous milestone still contains
+material defects that limit the agreed functioning, stability, or acceptance.
+Minimum test matrix
+Before launch, a minimum test matrix must be established in advance, including minimally supported
+iPhone, Android, and browser versions. This test matrix forms part of the acceptance criteria.
+Acceptance period
+After delivery of each milestone, an acceptance period of 7 calendar days applies, during which the client
+can test the milestone against the agreements and criteria made in advance. Only after written approval
+shall the milestone count as accepted.
+Payment per milestone
+Per milestone, one part is paid in advance and one part afterwards. The part to be paid afterwards shall only
+be paid after successful delivery and acceptance, in accordance with the agreements made in advance.
+Termination per milestone
+The client reserves the right to terminate the collaboration after each milestone if the milestone is not
+delivered on time, not stably, or not in accordance with the agreements made in advance.
+Transfer upon termination
+In the event of termination after a milestone, payment shall only be made for the demonstrably delivered and
+accepted work up to that point. All project code, documentation, and related files developed up to that time
+shall be transferred to the client.
+1. THE ENGINE & ARCHITECTURE (BACKEND)
+1.01 Real-time Sync
+Mandatory use of a real-time communication layer via WebSockets (e.g. Socket.io or similar).
+• Objective: actions must become visible almost immediately on all relevant screens.
+• Performance requirement: under normal network and usage conditions, the end-to-end delay between
+player input and relevant visible system response may not exceed 150 ms (including server roundtrip),
+measured on the test setup and test devices agreed in advance.
+• Under poorer network conditions, the session may not break, but must continue in a controlled manner.
+• The engine must be able to handle jitter, short packet delay, and limited packet loss in a controlled
+manner, without the gameplay experience becoming visibly unstable or unsynchronized.
+1.02 Server-Authoritative Logic
+The server is always authoritative. The client is lightweight and only shows the current game state and
+forwards input.
+• The server calculates, among other things, timers, scores, targets, turn changes, object positions, win
+and loss conditions, rules based on player count, entitlement status, preview status, and room status.
+• Goal: prevent sync errors, discourage cheating, and always keep players in the same room state.
+1.03 Room Management
+Each session runs in its own room.
+• Mandatory: unique room ID, short join code, QR link for direct joining, room statuses (lobby, preview,
+payment_pending, premium, active, ended, reconnecting, expired), and host permissions where needed.
+• Rooms, sessions, and temporary runtime data must be automatically cleaned up server-side once they
+expire, end, or remain inactive for a prolonged period, so that active server state and performance remain
+manageable.
+1.04 Dynamic Player Scaling
+The engine must automatically adapt to 2, 3, or 4 players.
+• The server always knows the current number of players.
+• The active mode automatically redistributes content, targets, speed, and rules.
+• New or dropped players may not break the room.
+• The system must hard-enforce server-side that never more than 4 active players participate per room.
+1.05 Reconnect Persistence
+• If a player reloads, leaves the tab, temporarily loses connection, or re-enters, that player must be able to
+return to the same session as quickly as possible.
+• Objective: reconnect within a few seconds; active room continues running; player gets their current state
+back; other players do not have to reload.
+• Reconnect may not create a new room or reset existing room state.
+1.06 Fallback / Degradation Behavior
+• The system must not only work when everything is perfect.
+• On short disconnect: place player back.
+• On slow connection: lighter assets or fewer effects.
+• On loss of sync: server-force update of state.
+• On loss of one player: session or active mode must be able to continue or pause neatly if the design
+requires that.
+2. THE FLUID LOBBY & JOIN FLOW (UX/UI)
+Goal: zero friction and an app-feel in the browser.
+2.01 Join without Reloading
+• When a new player joins via QR or join code, existing players may not have to reload.
+• Lobby components must update live via socket events.
+• New player appears immediately in the player list.
+2.02 QR + Join Code
+• Each session must be easily shareable in two ways: QR code for players in the same room and a short join
+code for players at a distance.
+• Flow: host opens the lobby. Without active entitlement, the room can start a 60-second multiplayer-only
+GLiTCH! preview. With active entitlement, the host can choose an available GLiTCH! mode, after which
+the room is created, the QR code and join code are shown, players join, choose a name, go through the
+ready-check, and then directly start the premium game flow.
+• The host acts as the initiator of the session and is responsible for starting preview, selecting modes, and
+activating the premium game flow.
+• The UI must make it clear that the host controls the flow and that other players wait for actions from the
+host where relevant.
+2.03 Orientation Lock UI
+• Each mode must be able to enforce portrait or landscape.
+• In the wrong orientation, a clear overlay with instructions must be shown. The exact copy and visual
+execution will be established in the design elaboration.
+2.04 Asset Preloading
+• While players enter their name, wait in the lobby, or complete the ready-check, the main assets must
+already be loaded in the background.
+• Examples: essential audio, first visual states, fonts, basic animations, and critical UI assets.
+2.05 Ready-Check System + Audio Unlock
+• The game only starts when the room is ready server-side.
+• All connected players send is_ready = true.
+• The server validates the minimum required player count.
+• Only then does countdown or intro start.
+• The ready button must also serve as the audio-unlock user gesture for mobile browsers.
+• Audio is a functional part of the experience and must, where possible, be available from or after the readycheck for feedback, rhythm, flow moments, and game intensity.
+• The audio implementation must take into account mobile browser limitations, including resuming audio
+context after app switch, tab switch, or temporary interruption, insofar as the platform allows this.
+• The platform must remain playable without audio, but when actively available, audio must contribute
+synchronously and meaningfully to understanding, tension, and feedback.
+2.06 Free Lobby Access
+The lobby and join flow always remain accessible.
+• Everyone must be able to scan the QR, join, choose a name, and see that name appear live in the room.
+• Goal: the player immediately experiences that the technology works, the phone is supported, and the
+system feels smooth.
+2.07 No-Confusion UX
+Every player must understand within seconds where they are, how many players there are, whether they are
+properly connected, whether the session or mode is about to start, and what they have to do.
+• The UI must make it explicit and quickly clear whether a flow is available solo or can only be started with
+multiple players.
+• The host must be clearly recognizable to all players as the leader of the session. The exact visual
+execution, hierarchy, and component presentation will be established in the design elaboration.
+2.08 Payment Pending State (Group Retention)
+When the host starts the payment flow (e.g. after the 60-sec preview), the room state for the other players
+must switch to ROOM_PAYMENT_PENDING.
+• The other players may not see a dead screen or empty menu. During the host's payment flow, a clear
+intermediate state must remain visible for the other players. This state must retain engagement, explain
+what is happening, and help prevent drop-off.
+• Interaction: Use this screen to show teasers of the other modes.
+• This intermediate state must optionally be able to provide space for teasers of other modes or other
+conversion-supporting content. The visual and textual elaboration will be established in the design
+elaboration.
+• Goal: prevent players from closing the browser; maintain the social pressure on the host to complete
+payment.
+3. CORE GAMEPLAY MODULES (REUSABLE BUILDING BLOCKS)
+The engine must not be built as a standalone game or as multiple completely separate minigames, but as a
+flexible game machine on which GLiTCH! and additional modes can be built and expanded efficiently.
+3.01 Asymmetrical View Controller
+The engine must be able to render different components per player_id.
+• Examples: player A sees a target; player B sees a timer; player C sees only a direction; player D sees a
+secret warning.
+3.02 Shared State + Private State
+Each mode must be able to work with shared state (what everyone notices at the same time) and private
+state (what only one player sees or knows).
+3.03 Global Timer Sync
+The timer must run centrally server-side and clients must align their clock with the server via NTP-like
+synchronization.
+• Mandatory: server time is the source; clients calculate their time difference relative to the server and
+correct locally for that; periodic resync during session; local compensation for latency/jitter; time-critical
+events may not run on separate client clocks.
+• This is essential for reaction-based and target-switch modes.
+3.04 Feedback Module
+• Each mode must be able to use sound, animation, color change, and vibration where available.
+• Important host actions (such as starting preview, starting a mode, or activating premium access) must
+provide clear feedback to all players through sound, visual cues, and/or animation.
+• Audio feedback must be functionally deployable for at least: ready/start moments, correct and incorrect
+input, combo/intensity build-up, LAST CHANCE, fail states, result/killscreen moments, and other modespecific pressure events.
+• Optional haptic feedback (vibration) may be used as reinforcement on supported devices, but may not be
+required for understanding or playability of the experience.
+3.05 Event / Pulse System
+The core must be able to work with short events or pulses that are fired at the room.
+• For example: target switches, item jumps over, visual signal appears, sabotage event starts, or time
+pressure increases.
+3.06 Input Actions
+The engine must be able to handle simple, fast actions such as tap, hold, swipe, drag, select, timing press
+(press at the right moment), multi-tap, and target select.
+3.07 Dynamic Rule Injection
+Modes must be able to adjust rules based on player count, round progression, score difference, difficulty
+level, and the settings of the active product configuration or the chosen mode configuration.
+The active product configuration must be able to define which modes are included, unlocked, or excluded
+for a given entitlement or bundle.
+This variation must take place as much as possible within the same existing room, sync, input, timer, result,
+reconnect, and entitlement architecture, so that new modes primarily consist of different rules, states,
+pacing, content configurations, and feedback layers and not of new platform logic.
+3.08 Mode Contract / Mode Interface
+The engine must be able to support new modes via a fixed mode architecture or mode interface.
+Per mode, at least the following must be definable in a consistent manner:
+• Setup / initialization
+• Start of round or phase
+• Input collection and input validation
+• Resolve logic / outcome determination
+• Score, combo, or progression handling
+• Transition to next round or state
+• Win/loss handling
+• Shared state for the room
+• Private state per player
+• Reconnect recovery to the current mode state
+The goal is that new modes can be added without rebuilding the underlying room, socket, timer, payment,
+entitlement, or lobby architecture. The mode interface must be set up in such a way that mode behavior
+aligns with the same room state, timer, input, result, and reconnect logic of the core, unless explicitly agreed
+otherwise in advance.
+4. PRODUCT RULES FOR ALL GAME MODES
+4.01 Immediately Understandable
+A new player must understand within 5-10 seconds what they are seeing, what they must do, and why it is
+fun or exciting.
+4.02 No Deadlocks
+No mode may get completely stuck on one player.
+4.03 Everyone Stays Active
+No player may structurally have nothing to do for too long.
+4.04 Asymmetry Must Be Truly Functional
+• Asymmetry may not be a gimmick.
+• It must lead to tension, deception, targeting, timing advantage, sabotage, and information advantage.
+4.05 No Excessive Explanation
+Tutorial must be very minimal. Rules must become clear mainly through the UI and the first gameplay
+moment.
+4.06 Playable with 2, 3, and 4 players
+Each mode must be designed for variable group sizes of 2, 3, or 4 players, unless explicitly agreed otherwise
+in advance for a specific mode.
+4.07 Replayable
+• Modes must be replayable.
+4.08 Launch Modes
+• GLiTCH! and the additional launch modes will be elaborated in a separate mode spec document.
+• This document describes only the core, platform rules, and generic mode architecture.
+• The exact rules, screens, flows, scaling, and differences per mode are set out in Appendix 1: Mode Specs,
+Appendix 2: UX Flows, and Appendix 3: Visual / UI Direction.
+5. SOCIAL MARKETING ENGINE (BUILT-IN GROWTH)
+5.01 End-of-Game Capture
+After a session, the server stores player names, final score, winner/loser, and highlights. The data model
+must be set up in such a way that session data can later, if desired, be linked to optional player profiles,
+without mandatory accounts being required for launch.
+5.02 Shareable Result Card
+After each session, a shareable result card or shareable result object must be able to be generated with
+branding, mode name or experience name, score, title, and a QR and/or link to landing page. The visual
+execution and template structure will be established in the design elaboration.
+5.03 Native Share API
+Where supported: use native share to WhatsApp, messages, and socials. This functionality must also be
+used for the "Share-to-Group" pre-funnel, including technically supported share copy and link.
+5.04 Viral Loop
+Shared content must invite people to challenge each other, play again, discover the GLiTCH! Party Pack, and
+start a room.
+5B. DISCOVERABILITY, SEO & LANDING ARCHITECTURE
+5B.01 Public Web Layer
+In addition to the play and room flow, Vervus must have a public, crawlable marketing layer with at least a
+homepage, pricing page, GLiTCH! and mode detail pages, a "how it works" page, FAQ, and campaign/share
+landing pages.
+The public web layer and pricing page must support the display of multiple purchasable party pack products
+and bundles, each with clear included modes, pricing, validity, and CTA.
+5B.02 Indexable GLiTCH! and Mode Pages
+GLiTCH! must have its own public URL and additional modes must, where desired, be accessible via their
+own public URLs or mode sections, with a clear title, short explanation, player count, play duration, space
+for visual content, and a direct CTA to start GLiTCH! preview or purchase an available party pack product.
+• Goal: discoverability on search terms that align with the concrete use cases, modes, and play situations
+of Vervus.
+• These pages or sections must also be usable as destinations for shared scorecards, campaigns, and
+organic traffic.
+5B.03 SEO Metadata per Public Page
+All public pages must support manageable metadata:
+• page title
+• meta description
+• canonical URL
+• Open Graph title
+• Open Graph description
+• Open Graph image
+• social share title / description where relevant
+5B.04 Share-to-Landing Flow
+Shareable result cards, mode links, campaign links, and share-to-group links must not only refer to the
+homepage, but preferably land on a relevant branded page with explanation about GLiTCH! or the relevant
+mode, context, and a clear CTA to start the GLiTCH! preview directly or buy an available party pack product.
+• Landing pages must be suitable for inflow from group shares, with immediate clarity about what Vervus is
+and a fast CTA to the GLiTCH! preview.
+• The landing page and relevant campaign/share landing pages must make it immediately clear that
+GLiTCH! is a multiplayer phone experience, including a clear CTA toward starting with friends or sharing
+in group chat.
+5B.05 Structured Content / CMS-Light
+The content layer or admin must at minimum be prepared to support manageable texts per public page for
+titles, short introductions, FAQ blocks, share copy, CTA texts, and market/language variants, without code
+changes for each adjustment.
+The content layer or admin should be prepared to support manageable product presentation content,
+including product titles, short descriptions, included modes, CTA labels, and market/language variants,
+without code changes for each adjustment.
+5B.06 Performance & Crawlability
+Public marketing pages must be technically indexable and mobile performant.
+• No crucial content solely in non-indexable client-only components.
+• Basic content, metadata, and CTAs must be reliably available for crawlers and previews.
+• Fast loading on mobile remains a priority, also for landing and share pages.
+5B.07 Market & Language Ready
+The public web layer must be able to grow logically with i18n.
+• SEO titles, meta descriptions, mode copy, and share copy must later be adjustable per language and
+market.
+• New markets may not require all public pages to be structurally rebuilt.
+5B.08 Minimum legal and public launch requirements
+For going live, Vervus must have a minimum set of public and legal pages and information provision.
+This includes at minimum:
+• Privacy Policy
+• Terms / general terms and conditions
+• Cookie information and consent where applicable
+• Basic checkout information (price, product, access type)
+• Company details and contact possibility
+• Support or contact channel for users
+These elements must:
+• be publicly accessible
+• be logically reachable from the website (e.g. footer or relevant flows)
+• be correctly linked to the payment flow and campaign pages where applicable
+This is a product and launch requirement, not an optional design choice.
+5B.09 Accessibility minimum (launch)
+At launch, Vervus must comply with a minimum set of accessibility and comprehensibility principles.
+This includes at minimum:
+• Critical information may not be conveyed solely through color
+• Gameplay must remain understandable without audio
+• Audio may increase intensity, but is not required for core understanding
+• Interface elements must be properly clickable on mobile (sufficient touch targets)
+• Visual feedback must be clear and quickly interpretable under time pressure
+• Reduced motion must be supported where reasonable (particularly outside core gameplay)
+• Public web layer must be basically accessible and readable (contrast, structure, text)
+These requirements apply as product boundary conditions for both gameplay and public web layer.
+5B.10 Tracking & Attribution Basics
+For campaign and growth purposes, the public layer must be able to support basic tracking for traffic origin,
+used share links, campaign parameters, and click-through to room start, demo, and purchase flow. Shareto-group links must be provided with tracking parameters to make origin and conversion from group shares
+insightfully measurable.
+For launch, implementation via standard analytics and tracking tools is sufficient. A custom attribution
+dashboard or extensive reporting layer is not required.
+5B.11 Share-to-Group Pre-Funnel
+• The public web layer must support an explicit "Share-to-Group" functionality, aimed at sharing Vervus in
+group apps before starting a room.
+• On relevant landing pages (such as homepage and campaign pages), a clear CTA must be present, for
+example: "Send to group chat" or similar.
+• On activation of this CTA, use must be made of the Native Share API where available, or a fallback to
+copyable text and link.
+• The share functionality must by default contain one or more suggested messages that can be shared
+directly in a group chat. Example messages and tone of voice will be established in the content and
+design elaboration. For example:
+• "We need to test this on Saturday. Total chaos. Who's in?"
+• "This is really something for us. Quick try?"
+• The tone of the share messages must be informal, social, and inviting, fitting for use in private group chats
+(such as WhatsApp).
+• Share messages must be variable or interchangeable (for example multiple presets or rotation), so that
+repeated sharing does not feel repetitive.
+• Each share must contain a direct link to a relevant landing page with clear context and a direct CTA to
+start the GLiTCH! preview.
+• Goal of this functionality is to lower social friction in group activation and stimulate organic spread within
+existing friend groups.
+5B.12 Save-for-Later / Calendar Hook
+• The public web layer may support an optional "Save for Later" or "Plan your GLiTCH! evening" functionality
+for users who do not start immediately.
+• This functionality may consist of an "Add to calendar" action.
+• For launch, a simple calendar export or calendar link is sufficient.
+• Goal: retain intent between first interest and later group usage.
+6. COMMERCIAL & ACCESS MODEL
+6.01 Product Model Launch
+Within the Vervus platform, one or more paid party pack products may be offered at launch. At minimum, the
+platform must be technically capable of supporting:
+• A single-pack product, such as GLiTCH! Party Pack.
+• A bundled or multi-pack product, such as GLiTCH! + Ghost Party Pack.
+Each product configuration defines server-side:
+• Which mode or modes are included.
+• The product name.
+• The price.
+• The entitlement duration.
+• Whether it is active or inactive for sale.
+The entitlement is valid for 24 hours from activation unless explicitly configured otherwise. Within that
+validity period, the host can start unlimited sessions for the modes included in the purchased product,
+subject to the applicable product rules.
+6.02 Payment Gate
+Integration with Stripe.
+The payment flow must support the purchase of different party pack product configurations, including at
+minimum:
+• A single-pack product.
+• A bundled or multi-pack product.
+Support for Express Checkout: The payment flow must explicitly support Apple Pay and Google Pay.
+The host is the paying party; other players join for free within the active session.
+Flow:
+• Host selects an available party pack product.
+• Hackend creates the corresponding Stripe Checkout session.
+• Backend confirms payment via webhook.
+• The correct entitlement is activated immediately.
+• Entitlement receives expiry_date = now + configured validity period.
+• Host can create rooms only for the modes included in that purchased product.
+• The client may not have direct influence on entitlement activation without server-side confirmation.
+• During the host's active payment transaction, for example after the end of a preview, the server keeps the
+connection with the other players open in a special "Pending" status (see 2.08) in order to prevent dropoff.
+6.03 Entitlements / Access
+The backend must be able to manage server-side which host has which active entitlement or entitlements,
+including:
+• Product ID
+• Product name
+• Included modes
+• Start time
+• End time / expiry date
+• Entitlement status
+• Active premium rooms
+• Any test/admin access
+Entitlement Validation: The server must check on every create_room request:
+• Whether there is a valid entitlement
+• Whether the requested mode is included in that entitlement
+• Whether the entitlement is still within its validity period
+The entitlement must be linked to a server-side verifiable host identity or host session, so that paid access
+remains recoverable and controllable within the validity period.
+The granting, validation, and recovery of entitlement may not depend solely on client-side storage such as
+localStorage, loose frontend flags, or other non-verifiable client status.
+6.04 Activation and Validity Rules
+Purchase activates the selected party pack product immediately. The backend calculates the expiry_date as
+now + 24h. Within this period, the host can start unlimited new sessions for the modes included in the
+purchased product.
+6.05 Product Structure
+For launch, the platform must support a configurable product structure.
+At minimum, this structure must support:
+• Single-pack products
+• Bundled or multi-pack products
+Example launch configurations may include:
+• GLiTCH! Party Pack
+• GLiTCH! + Ghost Party Pack
+Each product must be manageable without code changes for every commercial adjustment, including at
+minimum:
+• Product name
+• Price
+• Included modes
+• Validity period
+• Active/inactive sale status
+• Display order or prominence in the purchase flow
+The product structure must be designed so that additional packs, bundles, or variants can later be added
+without rebuilding the entitlement architecture.
+6.06 Demo Model
+• Free lobby access: always free to scan, join, choose a name, and experience the room.
+• Free preview: without active entitlement, a room can start a 60-second multiplayer-only preview of
+GLiTCH!. The preview is intended as a shared group experience and is not designed as a solo or bot
+mode.
+• After the end of the 60 seconds, the preview ends immediately and a fullscreen overlay appears with a
+clear CTA to purchase an available party pack product.
+• With active entitlement, the host gets access to the modes included in the purchased product within the
+product's validity period.
+6.07 Launch simplicity preview access
+For launch, no extensive anti-freeloader or abuse detection layer will be set up based on IP addresses,
+browser fingerprints, network context, or comparable derived signals.
+• Goal: keep the preview flow low-threshold, technically simple, and user-friendly.
+• For launch, fast access, low friction, and stable functioning weigh more heavily than limiting repeated free
+preview usage.
+• If it later turns out that preview abuse forms a commercially or technically relevant problem, additional
+protection logic can be added in a follow-up phase.
+6.08 Access and server-side entitlement validation
+• Premium access may only be granted server-side on the basis of a valid entitlement.
+• Without active entitlement, access remains limited to the free lobby flow and the 60-second GLiTCH!
+preview.
+• With an active entitlement, the host can start premium rooms only for the modes included in the
+purchased product or bundle and let players join without additional payment friction within the active
+session.
+• Room links and join codes remain usable only as long as the relevant room is active and, where
+applicable, within the validity period of the entitlement.
+• Entitlement recovery on the same device, in a new session, or on another device must only take place
+through a server-side verifiable recovery route that is functionally established in advance for launch.
+• The paying host must be able to regain access to their entitlement within the validity period without the
+entitlement depending solely on one fragile client-side session status.
+• The chosen recovery route must be sufficiently robust to absorb normal browser or device switches,
+without requiring a full account model at launch.
+• Personal data and session data may only be stored insofar as functionally necessary for access, recovery,
+statistics, security, and operational management.
+6.09 Admin Dashboard
+Minimum internal management screen for:
+• Product active/inactive
+• Mode active/inactive
+• Multiple product configurations
+• Per-product active/inactive status
+• Per-product price display
+• Mapping of included modes per product
+• Basic purchase counts per product
+• Basic counters
+• Active rooms
+• Purchase status / entitlement checks
+For launch, a functional internal management layer without extensive visualizations, filters, or reports is
+sufficient.
+For launch, the system only needs to show simple total counters and basic overviews, including at
+minimum:
+• Total number of rooms created
+• Total number of sessions started
+• Total number of rounds played
+• Total number of previews
+• Total number of purchases since go-live
+Extensive dashboards, segmentation, drill-downs, graphs, exports, and breakdowns by mode, product,
+period, market, or language are not required for launch and may be added in a later phase.
+7. SCALABILITY & INTERNATIONAL ROLLOUT
+7.01 Internationalisation (i18n)
+The platform must from the foundation be suitable for multiple languages.
+• Required: all texts from central translation files or content layer; no hardcoded UI texts in components;
+ability to manage language variants per mode; load the correct language per room or host language; later
+add new languages easily without code rewrite.
+7.02 Reusable UI Blocks
+New modes must be buildable on the same building blocks: countdown, alerts, target cards, result screens,
+lobby, ready-check, score states, transition states, and input zones.
+These building blocks must be designed generically enough to support mode variants without requiring a
+completely new flow, component structure, or screen architecture for each new mode.
+7.03 New Modes for Low Cost
+• New modes may not feel like new software projects.
+• Goal: engine exists, rooms exist, sync exists, payment/join exists, reconnect exists, entitlement validation
+exists, and UI building blocks exist; new mode = variation in rules, states, content, pacing, feedback, and
+flow within the same existing game core.
+• New modes may in principle not require new room logic, new payment flow, new entitlement logic, new
+reconnect architecture, or new timer foundations, unless explicitly agreed in advance as a deviating
+expansion scope.
+• Deviations that fall outside the existing core do not count as standard mode expansion but as additional
+development scope.
+8. PERFORMANCE & DEVICE ROBUSTNESS
+8.01 Mobile First
+Everything is designed for smartphone first.
+8.02 Lightweight Rendering
+No unnecessarily heavy screens. Preference: limited simultaneous animations, short assets, smart preload,
+and little heavy DOM load.
+8.03 Older Devices
+It must remain usable on older phones as well.
+8.04 Audio/Video as Atmosphere, Not as a Breaking Point
+Media is important for feel, but gameplay may not collapse if audio is blocked, vibration is absent, or video
+loads later.
+• The UI must take into account notch, small screens, browser UI bars, different aspect ratios, and safe
+areas on iPhone/Android.
+• Audio must make a substantial contribution to rhythm, tension build-up, feedback, and experience.
+8.05 Device Safe Zones / Layout Robustness
+• The UI must take into account notch, small screens, browser UI bars, different aspect ratios, and safe
+areas on iPhone/Android.
+• No crucial buttons on cut-off screen edges; no half screens disappearing due to layout errors.
+9. SECURITY & ANTI-ABUSE
+9.01 Server Trust Boundary
+The client is not trusted for scores, timers, targets, win conditions, payment status, and entitlement status.
+9.02 Input Validation
+All client input must be validated server-side.
+9.03 Rate Limiting / Abuse Protection
+Protection against spam joins, brute force on room codes, excessive event spamming, and abuse of public
+endpoints.
+9.04 Session Security
+Room and session identity must be protected via secure tokens/cookies, timely expiry, and no easily
+guessable room-auth logic. For host and entitlement recovery, server-side verifiable session or recovery
+mechanisms must likewise be used; paid access may not be recoverable via unsecured or solely client-side
+identity logic.
+9.05 Payment Security
+Payment confirmation exclusively server-side via webhook. No client-side "payment succeeded = unlock".
+9.06 Basic Anti-Cheat
+Not obsessive, but sufficient for normal abuse: server-authoritative; no client-dominant score counting;
+room state not manipulable via simple frontend tricks.
+10. CONNECTION ISSUES, LOGGING & OPERATIONS
+10.01 Connection State Handling
+The app must have clear states: connecting, connected, reconnecting, degraded, and disconnected.
+10.02 Graceful Reconnect Messaging
+If a player drops out briefly, they receive a clear notification, no white screen, and return to active state as
+quickly as possible.
+10.03 Event Logging
+The backend logs at minimum:
+• Room starts
+• Joins/leaves
+• Reconnects
+• Errors
+• Payment events
+• Entitlement activations
+• Preview starts/stops
+• Mode starts/ends
+For launch, it is sufficient that these events are reliably stored and internally readable. An extensive custom
+analytics or log viewer interface is not required.
+10.04 Monitoring
+There must be basic visibility on:
+• Active rooms
+• Server health
+• Socket failures
+• Payment failures
+• Reconnect problems
+For launch, standard logging, monitoring, and alerting tools may be used for this. A custom monitoring
+dashboard is not required.
+10.05 Crash / Error Visibility
+For launch it must be visible:
+• Which errors occur
+• In which mode or flow they occur
+• On which devices or browsers problems occur more often, insofar as technically reasonably readable
+For launch, error insight via logs, error tracking, and standard monitoring tools is sufficient. A separate,
+extensive internal error analysis UI is not required.
+11. APPENDICES / SEPARATE DOCUMENTS
+11.01 Appendix 1 - Exact Mode Specs
+For GLiTCH! and the additional launch modes: rules, screen distribution, scaling, states, timers, and
+win/loss.
+11.02 Appendix 2 - UX / Screen Flows
+Screen-by-screen flows for landing, purchase, room, join, lobby, ready, preview start, premium upgrade,
+start of mode, end, and share, including user logic, state transitions, error and waiting states, and functional
+UX decisions.
+11.03 Appendix 3 - Visual / UI Direction
+Look & feel, motion language, component style, use of color, typography, visual hierarchy, design system,
+game UI style, web design direction, campaign assets, and branded collateral.
+12. SUMMARY OF THE TECHNICAL PHILOSOPHY
+Vervus must not be built as a loose collection of browser games. It must be built as a solid, server-driven,
+asymmetrical BYOD social game core that brings players together in rooms at lightning speed, lets them play
+directly without downloads, syncs stably, works for 2-4 players, and on which GLiTCH! as the core
+experience can run and expand efficiently with additional modes, while the platform remains internationally
+scalable and technically robust under real conditions.
+Core sentence: The value of Vervus does not lie in individual games, but in a strong, scalable core on which
+GLiTCH! and new asymmetrical modes can be built and launched quickly, consistently, and cost-efficiently.

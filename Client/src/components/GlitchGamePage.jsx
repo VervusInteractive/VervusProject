@@ -391,11 +391,16 @@ function GlitchGamePage({ roomId, playerId, players, myGame, serverNow, onSubmit
     const context = audioContextRef.current;
     const audioBuffer = audioBufferMapRef.current[audioBufferKey];
 
-    if (context && audioBuffer) {
+    const fallbackToHtmlAudio = () => {
+      if (audioRef?.current) {
+        audioRef.current.currentTime = 0;
+        audioRef.current.play().catch(() => {});
+      }
+    };
+
+    const startWebAudioPlayback = () => {
+      if (!context || !audioBuffer || context.state !== "running") return false;
       try {
-        if (context.state === "suspended") {
-          context.resume().catch(() => {});
-        }
         const source = context.createBufferSource();
         source.buffer = audioBuffer;
 
@@ -434,16 +439,28 @@ function GlitchGamePage({ roomId, playerId, players, myGame, serverNow, onSubmit
         if (options.stopPrevious) {
           activeSourceMapRef.current[audioBufferKey] = source;
         }
-        return;
+        return true;
       } catch {
-        // Fall back to HTMLAudioElement when WebAudio playback fails.
+        return false;
       }
+    };
+
+    if (startWebAudioPlayback()) return;
+
+    if (context && audioBuffer && (context.state === "suspended" || context.state === "interrupted")) {
+      context.resume()
+        .then(() => {
+          if (!startWebAudioPlayback()) {
+            fallbackToHtmlAudio();
+          }
+        })
+        .catch(() => {
+          fallbackToHtmlAudio();
+        });
+      return;
     }
 
-    if (audioRef?.current) {
-      audioRef.current.currentTime = 0;
-      audioRef.current.play().catch(() => {});
-    }
+    fallbackToHtmlAudio();
   };
 
   useEffect(() => {
@@ -477,14 +494,27 @@ function GlitchGamePage({ roomId, playerId, players, myGame, serverNow, onSubmit
       });
 
       const context = audioContextRef.current;
-      if (context?.state === "suspended") {
+      if (context && (context.state === "suspended" || context.state === "interrupted")) {
         context.resume().catch(() => {});
       }
     };
 
+    const handlePageReactivation = () => {
+      if (document.visibilityState === "visible") {
+        unlockAudio();
+      }
+    };
+
     document.addEventListener("pointerdown", unlockAudio, { once: true });
+    document.addEventListener("visibilitychange", handlePageReactivation);
+    window.addEventListener("pageshow", handlePageReactivation);
+    window.addEventListener("focus", handlePageReactivation);
+
     return () => {
       document.removeEventListener("pointerdown", unlockAudio);
+      document.removeEventListener("visibilitychange", handlePageReactivation);
+      window.removeEventListener("pageshow", handlePageReactivation);
+      window.removeEventListener("focus", handlePageReactivation);
     };
   }, []);
 

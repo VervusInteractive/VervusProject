@@ -583,7 +583,6 @@ function App() {
           onCreateRoom={createRoom}
           onJoinRoom={joinRoom}
           onUiButtonClick={playClickSound}
-          onOpenSoloChaosLab={() => setIsSoloChaosLabOpen(true)}
           selectedModeId={selectedLobbyModeId}
           availableModes={LOBBY_MODE_OPTIONS}
           canSelectMode={Boolean(profileEntitledModeKeys.length)}

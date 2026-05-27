@@ -8,7 +8,6 @@ function LobbyPage({
   onJoinRoom,
   onUiButtonClick,
   onOpenStore,
-  onOpenSoloChaosLab,
   selectedModeId = "standard",
   availableModes = [],
   canSelectMode = false,
@@ -62,9 +61,6 @@ function LobbyPage({
         <button className="btn btn-secondary" onClick={() => { onUiButtonClick?.(); onOpenStore?.(); }}>Store</button>
       </div>
 
-      <div className="single-action-row">
-        <button className="btn btn-secondary" onClick={() => { onUiButtonClick?.(); onOpenSoloChaosLab?.(); }}>test</button>
-      </div>
 
       <label className="field">
         <span className="field-label">Game mode</span>

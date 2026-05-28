@@ -80,7 +80,7 @@ const unlockAudioPools = () => {
 
   audioUnlockInFlight = Promise.allSettled(
     allPools.flat().map((audio) => {
-      if (!audio) return Promise.resolve();
+      if (!audio) return Promise.resolve(false);
       const previousTime = audio.currentTime;
       audio.muted = true;
       audio.currentTime = 0;
@@ -89,15 +89,18 @@ const unlockAudioPools = () => {
           audio.pause();
           audio.currentTime = previousTime;
           audio.muted = false;
+          return true;
         })
         .catch(() => {
           audio.currentTime = previousTime;
           audio.muted = false;
+          return false;
         });
     })
-  ).then(() => {
-    isAudioUnlocked = true;
-    return true;
+  ).then((results) => {
+    const didUnlock = results.some((result) => result.status === "fulfilled" && result.value === true);
+    isAudioUnlocked = didUnlock;
+    return didUnlock;
   }).finally(() => {
     audioUnlockInFlight = null;
   });
@@ -120,12 +123,17 @@ const playFromPool = (pool) => {
       .catch(() => false);
   };
 
-  return unlockAudioPools().then(() => {
-    const firstChoice = pickPlayableAudio();
-    return attemptPlay(firstChoice).then((didPlay) => {
-      if (didPlay) return true;
-      const fallbackChoice = pool.find((audio) => audio !== firstChoice && (audio.paused || audio.ended));
-      return attemptPlay(fallbackChoice);
+  const firstChoice = pickPlayableAudio();
+  return attemptPlay(firstChoice).then((didPlay) => {
+    if (didPlay) return true;
+    return unlockAudioPools().then((didUnlock) => {
+      if (!didUnlock) return false;
+      const retryChoice = pickPlayableAudio();
+      return attemptPlay(retryChoice).then((didRetryPlay) => {
+        if (didRetryPlay) return true;
+        const fallbackChoice = pool.find((audio) => audio !== retryChoice && (audio.paused || audio.ended));
+        return attemptPlay(fallbackChoice);
+      });
     });
   });
 };
@@ -281,6 +289,32 @@ function App() {
       socket.off("entitlement:purchase:result");
     };
   }, [clearSessionState, playPurchaseSoundWithFallback]);
+
+
+  useEffect(() => {
+    const handleAudioActivation = () => {
+      unlockAudioPools();
+    };
+
+    window.addEventListener("pointerdown", handleAudioActivation);
+    window.addEventListener("touchend", handleAudioActivation);
+    window.addEventListener("keydown", handleAudioActivation);
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        isAudioUnlocked = false;
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener("pointerdown", handleAudioActivation);
+      window.removeEventListener("touchend", handleAudioActivation);
+      window.removeEventListener("keydown", handleAudioActivation);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, []);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);

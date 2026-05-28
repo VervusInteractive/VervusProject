@@ -9,7 +9,6 @@ import voteSendSoundFile from "./assets/audio/Sound_VoteSend.mp3";
 import clickSoundFile from "./assets/audio/Sound_Click.mp3";
 import successPurchaseSoundFile from "./assets/audio/Sound_SuccessPurchase.mp3";
 import failedPurchaseSoundFile from "./assets/audio/Sound_FailedPurchase.mp3";
-import { preloadAudioElement } from "./audioPreload";
 
 const serverUrl = import.meta.env.VITE_SERVER_URL;
 const socket = io(serverUrl);
@@ -42,110 +41,160 @@ const DEFAULT_MODE_DEBUG_CONFIGS = [
   { id: "chaos", title: "GLiTCH! Chaos", curve: [], heatSurgeConfig: null }
 ];
 
-const voteSendAudio = preloadAudioElement(voteSendSoundFile);
-const clickAudio = preloadAudioElement(clickSoundFile);
-const successPurchaseAudio = preloadAudioElement(successPurchaseSoundFile);
-const failedPurchaseAudio = preloadAudioElement(failedPurchaseSoundFile);
-const AUDIO_POOL_SIZE = 6;
 
-const createAudioPool = (baseAudio) => {
-  if (!baseAudio) return [];
-  return Array.from({ length: AUDIO_POOL_SIZE }, (_, index) => {
-    if (index === 0) return baseAudio;
-    const clone = baseAudio.cloneNode(true);
-    clone.preload = "auto";
-    clone.load();
-    return clone;
-  });
+const AUDIO_DEBUG_ENABLED = new URLSearchParams(window.location.search).get("audioDebug") === "1";
+const SFX_SOUND_FILES = {
+  click: clickSoundFile,
+  voteSend: voteSendSoundFile,
+  successPurchase: successPurchaseSoundFile,
+  failedPurchase: failedPurchaseSoundFile
 };
 
-const clickAudioPool = createAudioPool(clickAudio);
-const voteSendAudioPool = createAudioPool(voteSendAudio);
-const successPurchaseAudioPool = createAudioPool(successPurchaseAudio);
-const failedPurchaseAudioPool = createAudioPool(failedPurchaseAudio);
-
+let audioContextRef = null;
 let audioUnlockInFlight = null;
 let isAudioUnlocked = false;
+let audioBufferMapPromise = null;
+let audioBufferMap = null;
 
-const unlockAudioPools = () => {
+const getAudioContext = () => {
+  const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContextCtor) return null;
+  if (!audioContextRef) {
+    audioContextRef = new AudioContextCtor({ latencyHint: "interactive" });
+  }
+  return audioContextRef;
+};
+
+const logAudioDebug = (event, details = {}) => {
+  if (!AUDIO_DEBUG_ENABLED) return;
+  const context = audioContextRef;
+  const payload = {
+    ts: new Date().toISOString(),
+    visibility: document.visibilityState,
+    unlocked: isAudioUnlocked,
+    contextState: context?.state ?? null,
+    event,
+    ...details
+  };
+  console.log("[audio-debug]", payload);
+  window.__audioDebugEvents = window.__audioDebugEvents || [];
+  window.__audioDebugEvents.push(payload);
+  if (window.__audioDebugEvents.length > 300) window.__audioDebugEvents.shift();
+};
+
+const decodeAudioBufferMap = async () => {
+  if (audioBufferMap) return audioBufferMap;
+  if (audioBufferMapPromise) return audioBufferMapPromise;
+
+  audioBufferMapPromise = (async () => {
+    const context = getAudioContext();
+    if (!context) return null;
+
+    const entries = await Promise.all(Object.entries(SFX_SOUND_FILES).map(async ([soundKey, src]) => {
+      try {
+        const response = await fetch(src);
+        const arrayBuffer = await response.arrayBuffer();
+        const decoded = await context.decodeAudioData(arrayBuffer.slice(0));
+        return [soundKey, decoded];
+      } catch (error) {
+        logAudioDebug("buffer:decode:failed", { soundKey, errorName: error?.name || null, errorMessage: error?.message || null });
+        return [soundKey, null];
+      }
+    }));
+
+    audioBufferMap = Object.fromEntries(entries);
+    logAudioDebug("buffer:decode:complete", { loadedKeys: Object.entries(audioBufferMap).filter(([, v]) => Boolean(v)).map(([k]) => k) });
+    return audioBufferMap;
+  })();
+
+  return audioBufferMapPromise;
+};
+
+const unlockAudioEngine = () => {
   if (isAudioUnlocked) return Promise.resolve(true);
   if (audioUnlockInFlight) return audioUnlockInFlight;
 
-  const allPools = [
-    clickAudioPool,
-    voteSendAudioPool,
-    successPurchaseAudioPool,
-    failedPurchaseAudioPool
-  ];
+  audioUnlockInFlight = (async () => {
+    const context = getAudioContext();
+    if (!context) return false;
 
-  audioUnlockInFlight = Promise.allSettled(
-    allPools.flat().map((audio) => {
-      if (!audio) return Promise.resolve();
-      const previousTime = audio.currentTime;
-      audio.muted = true;
-      audio.currentTime = 0;
-      return audio.play()
-        .then(() => {
-          audio.pause();
-          audio.currentTime = previousTime;
-          audio.muted = false;
-        })
-        .catch(() => {
-          audio.currentTime = previousTime;
-          audio.muted = false;
-        });
-    })
-  ).then(() => {
-    isAudioUnlocked = true;
-    return true;
-  }).finally(() => {
-    audioUnlockInFlight = null;
-  });
+    try {
+      if (context.state !== "running") {
+        await context.resume();
+      }
+      const buffers = await decodeAudioBufferMap();
+      const didUnlock = context.state === "running" && Boolean(buffers);
+      isAudioUnlocked = didUnlock;
+      logAudioDebug("unlock:complete", { didUnlock, hasBuffers: Boolean(buffers), contextState: context.state });
+      return didUnlock;
+    } catch (error) {
+      isAudioUnlocked = false;
+      logAudioDebug("unlock:failed", { errorName: error?.name || null, errorMessage: error?.message || null });
+      return false;
+    } finally {
+      audioUnlockInFlight = null;
+    }
+  })();
 
   return audioUnlockInFlight;
 };
 
-const playFromPool = (pool) => {
-  if (!pool.length) return Promise.resolve(false);
+const playSound = async (soundKey, attemptLabel = "first") => {
+  const context = getAudioContext();
+  if (!context) {
+    logAudioDebug("play:failed", { soundKey, attemptLabel, reason: "no-audio-context" });
+    return false;
+  }
 
-  const pickPlayableAudio = () => pool.find((audio) => audio.paused || audio.ended) || pool[0];
+  const buffers = await decodeAudioBufferMap();
+  const buffer = buffers?.[soundKey] || null;
+  if (!buffer) {
+    logAudioDebug("play:failed", { soundKey, attemptLabel, reason: "missing-buffer" });
+    return false;
+  }
 
-  const attemptPlay = (audio) => {
-    if (!audio) return Promise.resolve(false);
-    audio.pause();
-    audio.muted = false;
-    audio.currentTime = 0;
-    return audio.play()
-      .then(() => true)
-      .catch(() => false);
-  };
+  try {
+    if (context.state !== "running") {
+      await context.resume();
+    }
 
-  return unlockAudioPools().then(() => {
-    const firstChoice = pickPlayableAudio();
-    return attemptPlay(firstChoice).then((didPlay) => {
-      if (didPlay) return true;
-      const fallbackChoice = pool.find((audio) => audio !== firstChoice && (audio.paused || audio.ended));
-      return attemptPlay(fallbackChoice);
-    });
-  });
+    logAudioDebug("play:attempt", { soundKey, attemptLabel, contextState: context.state, durationSec: Number(buffer.duration.toFixed(3)) });
+    const source = context.createBufferSource();
+    source.buffer = buffer;
+    source.connect(context.destination);
+    source.start(0);
+    logAudioDebug("play:success", { soundKey, attemptLabel, contextState: context.state });
+    return true;
+  } catch (error) {
+    logAudioDebug("play:failed", { soundKey, attemptLabel, errorName: error?.name || null, errorMessage: error?.message || null, contextState: context.state });
+    return false;
+  }
 };
 
+const playSoundWithUnlockRetry = (soundKey) => playSound(soundKey, "first").then((didPlay) => {
+  if (didPlay) return true;
+  return unlockAudioEngine().then((didUnlock) => {
+    if (!didUnlock) return false;
+    return playSound(soundKey, "retry");
+  });
+});
 
 const playClickSound = () => {
-  playFromPool(clickAudioPool);
+  playSoundWithUnlockRetry("click");
 };
 
 const playVoteSendSound = () => {
-  playFromPool(voteSendAudioPool);
+  playSoundWithUnlockRetry("voteSend");
 };
 
-const playSuccessPurchaseSound = () => {
-  return playFromPool(successPurchaseAudioPool);
-};
+const playSuccessPurchaseSound = () => playSoundWithUnlockRetry("successPurchase");
 
-const playFailedPurchaseSound = () => {
-  return playFromPool(failedPurchaseAudioPool);
-};
+const playFailedPurchaseSound = () => playSoundWithUnlockRetry("failedPurchase");
+
+if (AUDIO_DEBUG_ENABLED) {
+  window.dumpAudioDebug = () => (window.__audioDebugEvents || []).slice();
+  console.info("[audio-debug] Enabled. Use window.dumpAudioDebug() to inspect captured events.");
+}
 
 function App() {
   const [name, setName] = useState(() => localStorage.getItem("playerName") || "");
@@ -281,6 +330,40 @@ function App() {
       socket.off("entitlement:purchase:result");
     };
   }, [clearSessionState, playPurchaseSoundWithFallback]);
+
+
+  useEffect(() => {
+    const handleAudioActivation = () => {
+      unlockAudioEngine();
+    };
+
+    window.addEventListener("pointerdown", handleAudioActivation);
+    window.addEventListener("touchend", handleAudioActivation);
+    window.addEventListener("keydown", handleAudioActivation);
+
+    const handleVisibilityChange = () => {
+      logAudioDebug("lifecycle:visibilitychange", { visibility: document.visibilityState });
+      if (document.visibilityState === "visible") {
+        isAudioUnlocked = false;
+      }
+    };
+
+    const handlePageShow = () => logAudioDebug("lifecycle:pageshow");
+    const handlePageHide = () => logAudioDebug("lifecycle:pagehide");
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("pageshow", handlePageShow);
+    window.addEventListener("pagehide", handlePageHide);
+
+    return () => {
+      window.removeEventListener("pointerdown", handleAudioActivation);
+      window.removeEventListener("touchend", handleAudioActivation);
+      window.removeEventListener("keydown", handleAudioActivation);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("pageshow", handlePageShow);
+      window.removeEventListener("pagehide", handlePageHide);
+    };
+  }, []);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);

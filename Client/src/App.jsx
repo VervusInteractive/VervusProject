@@ -48,6 +48,35 @@ const successPurchaseAudio = preloadAudioElement(successPurchaseSoundFile);
 const failedPurchaseAudio = preloadAudioElement(failedPurchaseSoundFile);
 const AUDIO_POOL_SIZE = 6;
 
+const AUDIO_DEBUG_ENABLED = new URLSearchParams(window.location.search).get("audioDebug") === "1";
+const getAudioSnapshot = (audio) => {
+  if (!audio) return null;
+  return {
+    paused: audio.paused,
+    ended: audio.ended,
+    currentTime: Number.isFinite(audio.currentTime) ? Number(audio.currentTime.toFixed(3)) : audio.currentTime,
+    readyState: audio.readyState,
+    networkState: audio.networkState,
+    muted: audio.muted,
+    volume: audio.volume
+  };
+};
+
+const logAudioDebug = (event, details = {}) => {
+  if (!AUDIO_DEBUG_ENABLED) return;
+  const payload = {
+    ts: new Date().toISOString(),
+    visibility: document.visibilityState,
+    unlocked: isAudioUnlocked,
+    event,
+    ...details
+  };
+  console.log("[audio-debug]", payload);
+  window.__audioDebugEvents = window.__audioDebugEvents || [];
+  window.__audioDebugEvents.push(payload);
+  if (window.__audioDebugEvents.length > 300) window.__audioDebugEvents.shift();
+};
+
 const createAudioPool = (baseAudio) => {
   if (!baseAudio) return [];
   return Array.from({ length: AUDIO_POOL_SIZE }, (_, index) => {
@@ -79,8 +108,9 @@ const unlockAudioPools = () => {
   ];
 
   audioUnlockInFlight = Promise.allSettled(
-    allPools.flat().map((audio) => {
-      if (!audio) return Promise.resolve();
+    allPools.flat().map((audio, index) => {
+      if (!audio) return Promise.resolve(false);
+      logAudioDebug("unlock:attempt", { index, stateBefore: getAudioSnapshot(audio) });
       const previousTime = audio.currentTime;
       audio.muted = true;
       audio.currentTime = 0;
@@ -89,15 +119,21 @@ const unlockAudioPools = () => {
           audio.pause();
           audio.currentTime = previousTime;
           audio.muted = false;
+          logAudioDebug("unlock:success", { index, stateAfter: getAudioSnapshot(audio) });
+          return true;
         })
         .catch(() => {
           audio.currentTime = previousTime;
           audio.muted = false;
+          logAudioDebug("unlock:failed", { index, stateAfter: getAudioSnapshot(audio) });
+          return false;
         });
     })
-  ).then(() => {
-    isAudioUnlocked = true;
-    return true;
+  ).then((results) => {
+    const didUnlock = results.some((result) => result.status === "fulfilled" && result.value === true);
+    logAudioDebug("unlock:complete", { didUnlock, settledCount: results.length });
+    isAudioUnlocked = didUnlock;
+    return didUnlock;
   }).finally(() => {
     audioUnlockInFlight = null;
   });
@@ -105,47 +141,65 @@ const unlockAudioPools = () => {
   return audioUnlockInFlight;
 };
 
-const playFromPool = (pool) => {
+const playFromPool = (pool, soundKey = "unknown") => {
   if (!pool.length) return Promise.resolve(false);
 
   const pickPlayableAudio = () => pool.find((audio) => audio.paused || audio.ended) || pool[0];
 
-  const attemptPlay = (audio) => {
+  const attemptPlay = (audio, attemptLabel = "attempt") => {
     if (!audio) return Promise.resolve(false);
+    const audioIndex = pool.indexOf(audio);
+    logAudioDebug("play:attempt", { soundKey, attemptLabel, audioIndex, stateBefore: getAudioSnapshot(audio) });
     audio.pause();
     audio.muted = false;
     audio.currentTime = 0;
     return audio.play()
-      .then(() => true)
-      .catch(() => false);
+      .then(() => {
+        logAudioDebug("play:success", { soundKey, attemptLabel, audioIndex, stateAfter: getAudioSnapshot(audio) });
+        return true;
+      })
+      .catch((error) => {
+        logAudioDebug("play:failed", { soundKey, attemptLabel, audioIndex, errorName: error?.name || null, errorMessage: error?.message || null, stateAfter: getAudioSnapshot(audio) });
+        return false;
+      });
   };
 
-  return unlockAudioPools().then(() => {
-    const firstChoice = pickPlayableAudio();
-    return attemptPlay(firstChoice).then((didPlay) => {
-      if (didPlay) return true;
-      const fallbackChoice = pool.find((audio) => audio !== firstChoice && (audio.paused || audio.ended));
-      return attemptPlay(fallbackChoice);
+  const firstChoice = pickPlayableAudio();
+  return attemptPlay(firstChoice, "first").then((didPlay) => {
+    if (didPlay) return true;
+    return unlockAudioPools().then((didUnlock) => {
+      if (!didUnlock) return false;
+      const retryChoice = pickPlayableAudio();
+      return attemptPlay(retryChoice, "retry").then((didRetryPlay) => {
+        if (didRetryPlay) return true;
+        const fallbackChoice = pool.find((audio) => audio !== retryChoice && (audio.paused || audio.ended));
+        return attemptPlay(fallbackChoice, "fallback");
+      });
     });
   });
 };
 
 
 const playClickSound = () => {
-  playFromPool(clickAudioPool);
+  playFromPool(clickAudioPool, "click");
 };
 
 const playVoteSendSound = () => {
-  playFromPool(voteSendAudioPool);
+  playFromPool(voteSendAudioPool, "voteSend");
 };
 
 const playSuccessPurchaseSound = () => {
-  return playFromPool(successPurchaseAudioPool);
+  return playFromPool(successPurchaseAudioPool, "successPurchase");
 };
 
 const playFailedPurchaseSound = () => {
-  return playFromPool(failedPurchaseAudioPool);
+  return playFromPool(failedPurchaseAudioPool, "failedPurchase");
 };
+
+if (AUDIO_DEBUG_ENABLED) {
+  window.dumpAudioDebug = () => (window.__audioDebugEvents || []).slice();
+  console.info("[audio-debug] Enabled. Use window.dumpAudioDebug() to inspect captured events.");
+}
 
 function App() {
   const [name, setName] = useState(() => localStorage.getItem("playerName") || "");
@@ -281,6 +335,40 @@ function App() {
       socket.off("entitlement:purchase:result");
     };
   }, [clearSessionState, playPurchaseSoundWithFallback]);
+
+
+  useEffect(() => {
+    const handleAudioActivation = () => {
+      unlockAudioPools();
+    };
+
+    window.addEventListener("pointerdown", handleAudioActivation);
+    window.addEventListener("touchend", handleAudioActivation);
+    window.addEventListener("keydown", handleAudioActivation);
+
+    const handleVisibilityChange = () => {
+      logAudioDebug("lifecycle:visibilitychange", { visibility: document.visibilityState });
+      if (document.visibilityState === "visible") {
+        isAudioUnlocked = false;
+      }
+    };
+
+    const handlePageShow = () => logAudioDebug("lifecycle:pageshow");
+    const handlePageHide = () => logAudioDebug("lifecycle:pagehide");
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("pageshow", handlePageShow);
+    window.addEventListener("pagehide", handlePageHide);
+
+    return () => {
+      window.removeEventListener("pointerdown", handleAudioActivation);
+      window.removeEventListener("touchend", handleAudioActivation);
+      window.removeEventListener("keydown", handleAudioActivation);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("pageshow", handlePageShow);
+      window.removeEventListener("pagehide", handlePageHide);
+    };
+  }, []);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);

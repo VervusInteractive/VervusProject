@@ -7,6 +7,7 @@ function RoomPage({
   playerId,
   players,
   phase,
+  roomStatus = phase,
   serverNow,
   pingMs,
   sessionToken,
@@ -83,6 +84,16 @@ function RoomPage({
 
   const isWrongOrientation = isMobileDevice && selectedModeOrientationLock !== "both" && selectedModeOrientationLock !== deviceOrientation;
   const unlockingProductLabel = unlockingProductName || "selected product";
+  const roomStatusLabels = {
+    lobby: "Lobby",
+    preview: "Preview",
+    payment_pending: "Payment pending",
+    premium: "Premium",
+    reconnecting: "Reconnecting",
+    ended: "Ended",
+    expired: "Expired"
+  };
+  const roomStatusLabel = roomStatusLabels[roomStatus] || roomStatus;
 
   const modeOptions = (availableModes || []).map((mode) => {
     const ownsMode = (entitledModeKeys || []).includes(mode.id);
@@ -113,8 +124,9 @@ function RoomPage({
         <div>
           <h1 className="panel-title">Room {roomId}</h1>
           <p className="panel-subtitle">Players currently in this room.</p>
+          <p className="panel-subtitle"><strong>Room status:</strong> {roomStatusLabel}</p>
           {hostUnlockingPending
-            ? <p className="panel-subtitle"><strong>Unlocking:</strong> Unlocking {unlockingProductLabel}, Payment Pending...</p>
+            ? <p className="panel-subtitle"><strong>Payment pending:</strong> The host is unlocking {unlockingProductLabel}. Stay here for the premium game and mode teasers.</p>
             : (isPreviewRoom ? <p className="panel-subtitle"><strong>Preview:</strong> This room is in 1-minute preview mode.</p> : null)}
           <div className="room-code-row">
             <span className="room-code">Code: {roomId}</span>

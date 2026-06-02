@@ -15,7 +15,6 @@ const {
   updatePlayerReady,
   updatePlayerConnection,
   deletePlayerRecord,
-  updateRoomStatus,
   deleteRoomRecord,
   upsertPlayerProfile,
   grantPlayerProfileEntitlement,
@@ -27,9 +26,14 @@ const {
   logErrorEntry
 } = require("./db");
 const {
+  ROOM_STATUSES,
   clearCreatorDisconnectTimer,
   clearRoomGameTimers,
   disbandRoom,
+  initializeRoomLifecycle,
+  startRoomCleanupScheduler,
+  touchRoom,
+  transitionRoomStatus,
   scheduleCreatorDisband
 } = require("./roomLifecycle");
 const { createGameState, buildRound, updateHeatSurgeStateForNextRound, evaluateRound } = require("./gameEngine");
@@ -42,7 +46,10 @@ const {
 const { getDifficultyProfile, normalizeModeId, hydrateStandardModeFromDb, hydrateHeatSurgeConfigsFromDb, hydrateModeCorruptionBandsFromDb, getGameModesFromDb, getGameModesFallback } = require("./gameModes");
 
 function registerSocketHandlers(io) {
+  startRoomCleanupScheduler(io);
+
   const emitState = (roomId) => {
+    touchRoom(rooms.get(roomId));
     io.to(roomId).emit("room:state", getRoomState(roomId));
   };
   const persistConnectionState = (player, status, contextLabel) => {
@@ -115,6 +122,11 @@ function registerSocketHandlers(io) {
       );
       if (activePlayers.length < 2) {
         room.game.status = "paused";
+        room.preReconnectStatus = room.status || (room.game?.isPreview ? ROOM_STATUSES.PREVIEW : ROOM_STATUSES.PREMIUM);
+        transitionRoomStatus(room, roomId, ROOM_STATUSES.RECONNECTING, {
+          eventType: "settings_changed",
+          metadata: { reason: "not_enough_active_players", previousStatus: room.preReconnectStatus }
+        });
         emitState(roomId);
         return;
       }
@@ -154,8 +166,10 @@ function registerSocketHandlers(io) {
     });
 
     room.game.status = "gameover";
-    updateRoomStatus({ roomCode: roomId, status: "ended" }).catch((error) => console.error("DB room ended update failed", error));
-    logRoomHistoryEvent({ roomCode: roomId, eventType: "room_ended", fromStatus: "active", toStatus: "ended" }).catch((error) => console.error("DB room history end failed", error));
+    transitionRoomStatus(room, roomId, ROOM_STATUSES.ENDED, {
+      eventType: "room_ended",
+      metadata: { causeLabel: evaluation.causeLabel, wasLastChanceActive }
+    });
     room.game.killScreen = {
       score: room.game.score,
       combo: room.game.combo,
@@ -275,15 +289,23 @@ function registerSocketHandlers(io) {
       room.game.status = "loading";
       room.game.isPreview = !hasEntitlement;
       room.game.previewEndsAtMs = room.game.isPreview ? (Date.now() + 60000) : null;
+      room.expiresAtMs = hasEntitlement ? (host.entitlementExpiresAtMs ?? null) : room.game.previewEndsAtMs;
       clearPreviewTimer(room);
-      updateRoomStatus({ roomCode: roomId, status: "active" }).catch((error) => console.error("DB room active update failed", error));
-      logRoomHistoryEvent({ roomCode: roomId, eventType: "room_started", fromStatus: "lobby", toStatus: "active" }).catch((error) => console.error("DB room history start failed", error));
+      transitionRoomStatus(room, roomId, hasEntitlement ? ROOM_STATUSES.PREMIUM : ROOM_STATUSES.PREVIEW, {
+        eventType: "room_started",
+        metadata: { modeId: selectedModeId, isPreview: !hasEntitlement, expiresAtMs: room.expiresAtMs }
+      });
       clearRoomGameTimers(room);
       if (room.game.isPreview) {
         room.previewTimer = setTimeout(() => {
           room.previewTimer = null;
           if (!rooms.has(roomId) || room.phase !== "play" || room.game?.status !== "active") return;
           room.game.status = "gameover";
+          room.expiresAtMs = null;
+          transitionRoomStatus(room, roomId, ROOM_STATUSES.ENDED, {
+            eventType: "room_ended",
+            metadata: { causeLabel: "preview ended", isPreview: true }
+          });
           room.game.killScreen = {
             score: room.game.score,
             combo: room.game.combo,
@@ -340,6 +362,11 @@ function registerSocketHandlers(io) {
     }
 
     room.game.status = "paused";
+    room.preReconnectStatus = room.status || (room.game?.isPreview ? ROOM_STATUSES.PREVIEW : ROOM_STATUSES.PREMIUM);
+    transitionRoomStatus(room, roomId, ROOM_STATUSES.RECONNECTING, {
+      eventType: "settings_changed",
+      metadata: { reason: "participant_disconnected", previousStatus: room.preReconnectStatus }
+    });
     room.game.currentRound = null;
     room.game.lastRoundResult = null;
     clearRoomGameTimers(room);
@@ -363,6 +390,11 @@ function registerSocketHandlers(io) {
     }
 
     room.game.status = "active";
+    transitionRoomStatus(room, roomId, room.preReconnectStatus || (room.game?.isPreview ? ROOM_STATUSES.PREVIEW : ROOM_STATUSES.PREMIUM), {
+      eventType: "settings_changed",
+      metadata: { reason: "participants_reconnected" }
+    });
+    room.preReconnectStatus = null;
     clearRoomGameTimers(room);
     room.game.reconnectCountdownStartedAtMs = Date.now();
     scheduleNextRound(room, roomId, 3000);
@@ -400,6 +432,7 @@ function registerSocketHandlers(io) {
         selectedModeId: "standard",
         availableModes: []
       };
+      initializeRoomLifecycle(room, ROOM_STATUSES.LOBBY);
 
       room.players.set(playerId, {
         playerId,
@@ -514,7 +547,7 @@ function registerSocketHandlers(io) {
         room.players.get(playerId).entitledModeKeys = await getActiveEntitledModeKeys({ profileId: playerId });
         room.players.get(playerId).entitledModeExpiriesMs = await getActiveEntitlementExpiriesByMode({ profileId: playerId });
         await addPlayerRecord({ roomCode: normalizedRoomId, playerId, displayName: name || "Player", isHost: false, slot: room.players.size });
-        await logRoomHistoryEvent({ roomCode: normalizedRoomId, eventType: "room_joined", actorPlayerId: playerId, toStatus: room.phase === "play" ? "active" : "lobby" });
+        await logRoomHistoryEvent({ roomCode: normalizedRoomId, eventType: "room_joined", actorPlayerId: playerId, toStatus: room.status || (room.phase === "play" ? "premium" : "lobby") });
       } catch (error) {
         console.error("DB room:join persistence failed", error);
         persistError({ roomCode: normalizedRoomId, playerId, source: "room:join", message: error.message, stackTrace: error.stack, context: { name, profileId } });
@@ -571,6 +604,11 @@ function registerSocketHandlers(io) {
           room.unlockingStartedAtMs = null;
           room.unlockingPreviousHasEntitlement = null;
           room.unlockingProductName = null;
+          room.expiresAtMs = hasEntitlement ? player.entitlementExpiresAtMs : null;
+          transitionRoomStatus(room, normalizedRoomId, hasEntitlement ? ROOM_STATUSES.PREMIUM : (room.game?.status === "gameover" ? ROOM_STATUSES.ENDED : ROOM_STATUSES.LOBBY), {
+            eventType: "settings_changed",
+            metadata: { reason: "host_returned_from_payment", hasEntitlement }
+          });
         }
       }
 
@@ -615,7 +653,11 @@ function registerSocketHandlers(io) {
           const [remainingPlayer] = room.players.values();
           room.phase = "lobby";
           room.game = null;
-          updateRoomStatus({ roomCode: roomId, status: "lobby" }).catch((error) => console.error("DB room lobby update failed", error));
+          room.expiresAtMs = null;
+          transitionRoomStatus(room, roomId, ROOM_STATUSES.LOBBY, {
+            eventType: "settings_changed",
+            metadata: { reason: "not_enough_players" }
+          });
           clearRoomGameTimers(room);
           for (const candidate of room.players.values()) {
             candidate.ready = false;
@@ -750,6 +792,10 @@ function registerSocketHandlers(io) {
 
       room.hostUnlockingPending = true;
       room.unlockingStartedAtMs = Date.now();
+      transitionRoomStatus(room, roomId, ROOM_STATUSES.PAYMENT_PENDING, {
+        eventType: "settings_changed",
+        metadata: { productKey: productKey || "glitch_party_pack", productName: product.product_name }
+      });
       room.unlockingPreviousHasEntitlement = Boolean(player.entitlementExpiresAtMs && player.entitlementExpiresAtMs > Date.now());
       room.unlockingProductName = product.product_name;
       for (const candidate of room.players.values()) {
@@ -769,10 +815,15 @@ function registerSocketHandlers(io) {
 
       const purchaseSucceeded = Boolean(success);
       if (!purchaseSucceeded) {
+        const fallbackStatus = room.game?.status === "gameover" ? ROOM_STATUSES.ENDED : (room.game?.isPreview ? ROOM_STATUSES.PREVIEW : ROOM_STATUSES.LOBBY);
         room.hostUnlockingPending = false;
         room.unlockingStartedAtMs = null;
         room.unlockingPreviousHasEntitlement = null;
         room.unlockingProductName = null;
+        transitionRoomStatus(room, room.id, fallbackStatus, {
+          eventType: "settings_changed",
+          metadata: { reason: "payment_not_completed" }
+        });
       }
 
       io.to(room.id).emit("entitlement:purchase:result", {
@@ -809,6 +860,13 @@ function registerSocketHandlers(io) {
               room.game.previewEndsAtMs = null;
               clearPreviewTimer(room);
             }
+          }
+          if (isHost) {
+            room.expiresAtMs = expiresAtMs;
+            transitionRoomStatus(room, room.id, ROOM_STATUSES.PREMIUM, {
+              eventType: "settings_changed",
+              metadata: { reason: "entitlement_activated", expiresAtMs }
+            });
           }
 
           io.to(room.id).emit("room:state", getRoomState(room.id));

@@ -50,6 +50,38 @@ BEGIN
 END
 $$;
 
+
+-- Room lifecycle architecture values used by vervus_data.rooms.status.
+-- Existing deployments may use either an enum or a VARCHAR column.
+DO $$
+DECLARE
+  room_status_schema text;
+  room_status_name text;
+  room_status_kind "char";
+BEGIN
+  SELECT tn.nspname, t.typname, t.typtype
+    INTO room_status_schema, room_status_name, room_status_kind
+  FROM pg_attribute a
+  JOIN pg_class c ON c.oid = a.attrelid
+  JOIN pg_namespace cn ON cn.oid = c.relnamespace
+  JOIN pg_type t ON t.oid = a.atttypid
+  JOIN pg_namespace tn ON tn.oid = t.typnamespace
+  WHERE cn.nspname = 'vervus_data'
+    AND c.relname = 'rooms'
+    AND a.attname = 'status'
+    AND a.attnum > 0
+    AND NOT a.attisdropped;
+
+  IF room_status_kind = 'e' THEN
+    EXECUTE format('ALTER TYPE %I.%I ADD VALUE IF NOT EXISTS %L', room_status_schema, room_status_name, 'preview');
+    EXECUTE format('ALTER TYPE %I.%I ADD VALUE IF NOT EXISTS %L', room_status_schema, room_status_name, 'payment_pending');
+    EXECUTE format('ALTER TYPE %I.%I ADD VALUE IF NOT EXISTS %L', room_status_schema, room_status_name, 'premium');
+    EXECUTE format('ALTER TYPE %I.%I ADD VALUE IF NOT EXISTS %L', room_status_schema, room_status_name, 'reconnecting');
+    EXECUTE format('ALTER TYPE %I.%I ADD VALUE IF NOT EXISTS %L', room_status_schema, room_status_name, 'expired');
+  END IF;
+END
+$$;
+
 CREATE TABLE IF NOT EXISTS vervus_data.room_history (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   room_id UUID NOT NULL REFERENCES vervus_data.rooms(id) ON DELETE CASCADE,
@@ -68,6 +100,7 @@ CREATE TABLE IF NOT EXISTS vervus_data.room_history (
       'room_left',
       'room_started',
       'room_ended',
+      'room_expired',
       'room_deleted',
       'host_changed',
       'settings_changed'
@@ -116,4 +149,33 @@ BEGIN
   SET resolved_at = now()
   WHERE id = error_log_id;
 END;
+$$;
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM pg_class c
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE n.nspname = 'vervus_data'
+      AND c.relname = 'room_history'
+  ) THEN
+    ALTER TABLE vervus_data.room_history
+      DROP CONSTRAINT IF EXISTS room_history_event_type_chk;
+    ALTER TABLE vervus_data.room_history
+      ADD CONSTRAINT room_history_event_type_chk CHECK (
+        event_type IN (
+          'room_created',
+          'room_joined',
+          'room_left',
+          'room_started',
+          'room_ended',
+          'room_expired',
+          'room_deleted',
+          'host_changed',
+          'settings_changed'
+        )
+      );
+  END IF;
+END
 $$;

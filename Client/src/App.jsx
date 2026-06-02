@@ -730,6 +730,7 @@ function App() {
             playerId={playerId}
             players={players}
             phase={roomState?.phase ?? "-"}
+            roomStatus={roomState?.status ?? roomState?.phase ?? "-"}
             serverNow={serverOffsetMs === null ? null : serverNow}
             pingMs={pingMs}
             sessionToken={sessionToken}

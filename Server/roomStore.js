@@ -92,6 +92,10 @@ function getRoomState(roomId) {
   return {
     roomId: room.id,
     phase: room.phase,
+    status: room.status || room.phase,
+    statusChangedAtMs: room.statusChangedAtMs ?? null,
+    lastActivityAtMs: room.lastActivityAtMs ?? null,
+    expiresAtMs: room.expiresAtMs ?? null,
     connectionState: getRoomConnectionState(room.players),
     connectionStateLabel: CONNECTION_STATE_LABELS[getRoomConnectionState(room.players)],
     hostUnlockingPending: Boolean(room.hostUnlockingPending),

@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { io } from "socket.io-client";
 import LobbyPage from "./components/LobbyPage";
 import RoomPage from "./components/RoomPage";
 import GlitchGamePage from "./components/GlitchGamePage";
 import SoloChaosLabPage from "./components/SoloChaosLabPage";
 import "./App.css";
+import { deriveSocketConnectionState } from "./connectionState";
 import voteSendSoundFile from "./assets/audio/Sound_VoteSend.mp3";
 import clickSoundFile from "./assets/audio/Sound_Click.mp3";
 import successPurchaseSoundFile from "./assets/audio/Sound_SuccessPurchase.mp3";
@@ -215,7 +216,14 @@ function App() {
   const [isViewingRoomPage, setIsViewingRoomPage] = useState(false);
   const [serverNow, setServerNow] = useState(null);
   const [serverOffsetMs, setServerOffsetMs] = useState(null);
+  const [isSocketConnected, setIsSocketConnected] = useState(socket.connected);
+  const [isSocketReconnecting, setIsSocketReconnecting] = useState(!socket.connected);
   const [pingMs, setPingMs] = useState(null);
+  const connectionState = useMemo(() => deriveSocketConnectionState({
+    socketConnected: isSocketConnected,
+    isReconnecting: isSocketReconnecting && !isSocketConnected,
+    pingMs
+  }), [isSocketConnected, isSocketReconnecting, pingMs]);
   const hasPlayedReturnPurchaseSoundRef = useRef(false);
   const suppressNextPurchaseResultRef = useRef(null);
   const pendingAutoJoinRoomIdRef = useRef(initialRoomFromQuery);
@@ -374,7 +382,7 @@ function App() {
 
     const purchaseSucceeded = normalizedPurchaseResult === "success";
     if (!hasPlayedReturnPurchaseSoundRef.current) {
-      showPurchaseResultOverlay(purchaseSucceeded);
+      window.setTimeout(() => showPurchaseResultOverlay(purchaseSucceeded), 0);
       hasPlayedReturnPurchaseSoundRef.current = true;
     }
 
@@ -441,6 +449,44 @@ function App() {
       applyJoinResponse(response);
     });
   }, [applyJoinResponse, clearSessionState]);
+
+  useEffect(() => {
+    const handleConnect = () => {
+      setIsSocketConnected(true);
+      setIsSocketReconnecting(false);
+    };
+    const handleDisconnect = () => {
+      setIsSocketConnected(false);
+      setIsSocketReconnecting(true);
+    };
+    const handleReconnectAttempt = () => {
+      setIsSocketConnected(false);
+      setIsSocketReconnecting(true);
+    };
+    const handleReconnectFailed = () => {
+      setIsSocketConnected(false);
+      setIsSocketReconnecting(false);
+    };
+    const handleConnectError = () => {
+      setIsSocketConnected(socket.connected);
+      setIsSocketReconnecting(false);
+    };
+
+    socket.on("connect", handleConnect);
+    socket.on("disconnect", handleDisconnect);
+    socket.on("connect_error", handleConnectError);
+    socket.io.on("reconnect_attempt", handleReconnectAttempt);
+    socket.io.on("reconnect_failed", handleReconnectFailed);
+
+    return () => {
+      socket.off("connect", handleConnect);
+      socket.off("disconnect", handleDisconnect);
+      socket.off("connect_error", handleConnectError);
+      socket.io.off("reconnect_attempt", handleReconnectAttempt);
+      socket.io.off("reconnect_failed", handleReconnectFailed);
+    };
+  }, []);
+
 
   useEffect(() => {
     attemptSessionRejoin();
@@ -526,7 +572,7 @@ function App() {
       }
       applyJoinResponse(response);
     });
-  }, [applyJoinResponse]);
+  }, [applyJoinResponse, profileId]);
 
   const joinRoom = () => joinRoomWithCode(roomIdInput, name);
 
@@ -644,7 +690,7 @@ function App() {
 
   useEffect(() => {
     if (!roomId || roomState?.phase !== "play") {
-      setIsViewingRoomPage(false);
+      window.setTimeout(() => setIsViewingRoomPage(false), 0);
       return;
     }
 
@@ -654,7 +700,7 @@ function App() {
       && me?.currentGameParticipant
     ) {
       setStoredRoomViewPreference(roomId, false);
-      setIsViewingRoomPage(false);
+      window.setTimeout(() => setIsViewingRoomPage(false), 0);
     }
   }, [roomId, roomState?.phase, me?.game?.status, me?.waitingForNextGame, me?.currentGameParticipant, setStoredRoomViewPreference]);
 
@@ -672,6 +718,7 @@ function App() {
           onAssetsLoaded={notifyAssetsLoaded}
             onReturnRoom={returnToRoom}
             onExit={exitRoom}
+            connectionState={connectionState}
             onUiButtonClick={playClickSound}
             isPreviewRoom={isPreviewRoom}
             availableModes={roomState?.availableModes ?? []}
@@ -691,6 +738,7 @@ function App() {
             onSetColor={setPlayerColor}
             onSetReady={setPlayerReady}
             onExit={exitRoom}
+            connectionState={connectionState}
             onUiButtonClick={playClickSound}
             canManageReady={roomState?.phase === "lobby" || (isViewingRoomPage && me?.game?.status === "gameover")}
             canOpenStore={Boolean(me?.isHost)}

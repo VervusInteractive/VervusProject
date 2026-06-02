@@ -3,6 +3,7 @@ const CREATOR_RECONNECT_GRACE_MS = 3 * 60 * 1000;
 const CREATOR_UNLOCK_RECONNECT_GRACE_MS = 10 * 60 * 1000;
 const PLAYER_COLORS = ["#ef4444", "#3b82f6", "#22c55e", "#eab308"];
 const { getModeDebugConfig } = require("./gameModes");
+const { CONNECTION_STATE_LABELS, getRoomConnectionState, normalizeConnectionState } = require("./connectionState");
 const CREATOR_TIMEOUT_NOTICE_TTL_MS = 10 * 60 * 1000;
 const creatorTimeoutNotices = new Map();
 
@@ -91,6 +92,8 @@ function getRoomState(roomId) {
   return {
     roomId: room.id,
     phase: room.phase,
+    connectionState: getRoomConnectionState(room.players),
+    connectionStateLabel: CONNECTION_STATE_LABELS[getRoomConnectionState(room.players)],
     hostUnlockingPending: Boolean(room.hostUnlockingPending),
     unlockingProductName: room.unlockingProductName || null,
     game: room.game
@@ -108,6 +111,11 @@ function getRoomState(roomId) {
       playerId: player.playerId,
       name: player.name,
       connected: player.connected,
+      connectionState: normalizeConnectionState(player.connectionState, player.connected ? "connected" : "disconnected"),
+      connectionStateLabel: CONNECTION_STATE_LABELS[normalizeConnectionState(player.connectionState, player.connected ? "connected" : "disconnected")],
+      connectionStateChangedAtMs: player.connectionStateChangedAtMs ?? null,
+      reconnectingStartedAtMs: player.reconnectingStartedAtMs ?? null,
+      disconnectedAtMs: player.disconnectedAtMs ?? null,
       pingMs: player.pingMs ?? null,
       color: player.color,
       ready: player.ready,

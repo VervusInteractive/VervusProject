@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import ModeDebugOverlay from "./ModeDebugOverlay";
+import { CONNECTION_STATES, getConnectionStateLabel } from "../connectionState";
 
 function RoomPage({
   roomId,
@@ -14,6 +15,7 @@ function RoomPage({
   onSetColor,
   onSetReady,
   onExit,
+  connectionState = CONNECTION_STATES.CONNECTING,
   onUiButtonClick,
   canManageReady = false,
   canOpenStore = false,
@@ -32,6 +34,7 @@ function RoomPage({
 }) {
   const [showQrCode, setShowQrCode] = useState(false);
   const [showDebug, setShowDebug] = useState(false);
+  const [currentTimeMs, setCurrentTimeMs] = useState(() => Date.now());
   const currentPlayer = useMemo(
     () => players.find((player) => player.playerId === playerId),
     [players, playerId]
@@ -60,6 +63,11 @@ function RoomPage({
   const isMobileDevice = typeof navigator !== "undefined" && /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || "");
 
   useEffect(() => {
+    const interval = window.setInterval(() => setCurrentTimeMs(Date.now()), 30000);
+    return () => window.clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
     const updateOrientation = () => {
       const isLandscape = typeof window !== "undefined" ? window.matchMedia("(orientation: landscape)").matches : false;
       setDeviceOrientation(isLandscape ? "horizontal" : "vertical");
@@ -80,7 +88,7 @@ function RoomPage({
     const ownsMode = (entitledModeKeys || []).includes(mode.id);
     const modeExpiryMs = entitledModeExpiriesMs?.[mode.id] ?? entitlementExpiresAtMs;
     const hasTimedEntitlement = typeof modeExpiryMs === "number";
-    const remainingMs = hasTimedEntitlement ? (modeExpiryMs - Date.now()) : null;
+    const remainingMs = hasTimedEntitlement ? (modeExpiryMs - currentTimeMs) : null;
     const entitlementStatus = ownsMode
       ? (hasTimedEntitlement ? formatRemainingTime(remainingMs) : "Owned")
       : (mode.id === "standard" ? "Preview" : "Purchase Mode");
@@ -120,6 +128,13 @@ function RoomPage({
           </div>
         </div>
         <button className="btn btn-secondary" onClick={() => { onUiButtonClick?.(); onExit(); }}>Exit Room</button>
+      </div>
+
+      <div className={`connection-banner ${connectionState}`} role="status" aria-live="polite">
+        <strong>Connection:</strong> {getConnectionStateLabel(connectionState)}
+        {connectionState === CONNECTION_STATES.RECONNECTING ? " — trying to restore your room session…" : null}
+        {connectionState === CONNECTION_STATES.DEGRADED ? " — high latency detected; effects may feel lighter." : null}
+        {connectionState === CONNECTION_STATES.DISCONNECTED ? " — connection lost. Keep this tab open while we retry." : null}
       </div>
 
       {showQrCode ? (
@@ -192,8 +207,8 @@ function RoomPage({
                 <span className={`ready-pill ${readyClassName}`}>
                   {readyLabel}
                 </span>
-                <span className={`status-pill ${player.connected ? "connected" : "disconnected"}`}>
-                  {player.unlockingInProgress ? "Unlocking..." : (player.connected ? "Connected" : "Disconnected")}
+                <span className={`status-pill ${player.connectionState || (player.connected ? "connected" : "disconnected")}`}>
+                  {player.unlockingInProgress ? "Unlocking..." : (player.connectionStateLabel || getConnectionStateLabel(player.connectionState || (player.connected ? CONNECTION_STATES.CONNECTED : CONNECTION_STATES.DISCONNECTED)))}
                 </span>
               </div>
             </li>

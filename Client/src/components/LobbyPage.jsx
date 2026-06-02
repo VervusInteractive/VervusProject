@@ -1,3 +1,5 @@
+import { useEffect, useState } from "react";
+
 function LobbyPage({
   name,
   roomIdInput,
@@ -14,9 +16,15 @@ function LobbyPage({
   profileEntitlementExpiresAtMs = null,
   entitledModeKeys = [],
   entitledModeExpiriesMs = {},
-  onSelectedModeChange,
-  modeDebugConfigs = []
+  onSelectedModeChange
 }) {
+  const [currentTimeMs, setCurrentTimeMs] = useState(() => Date.now());
+
+  useEffect(() => {
+    const interval = window.setInterval(() => setCurrentTimeMs(Date.now()), 30000);
+    return () => window.clearInterval(interval);
+  }, []);
+
   const formatRemainingTime = (remainingMs) => {
     if (remainingMs <= 0) return "Expired";
     const totalMinutes = Math.floor(remainingMs / 60000);
@@ -30,7 +38,7 @@ function LobbyPage({
     const ownsMode = (entitledModeKeys || []).includes(mode.id);
     const modeExpiryMs = entitledModeExpiriesMs?.[mode.id] ?? profileEntitlementExpiresAtMs;
     const hasTimedEntitlement = typeof modeExpiryMs === "number";
-    const remainingMs = hasTimedEntitlement ? (modeExpiryMs - Date.now()) : null;
+    const remainingMs = hasTimedEntitlement ? (modeExpiryMs - currentTimeMs) : null;
     const entitlementStatus = ownsMode
       ? (hasTimedEntitlement ? formatRemainingTime(remainingMs) : "Owned")
       : (mode.id === "standard" ? "Preview" : "Purchase Mode");

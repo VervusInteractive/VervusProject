@@ -3,6 +3,47 @@
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
+-- Connection-state architecture values used by vervus_data.players.connection_status.
+DO $$
+DECLARE
+  connection_status_type regtype;
+BEGIN
+  SELECT a.atttypid::regtype
+    INTO connection_status_type
+  FROM pg_attribute a
+  JOIN pg_class c ON c.oid = a.attrelid
+  JOIN pg_namespace n ON n.oid = c.relnamespace
+  WHERE n.nspname = 'vervus_data'
+    AND c.relname = 'players'
+    AND a.attname = 'connection_status'
+    AND a.attnum > 0
+    AND NOT a.attisdropped;
+
+  IF connection_status_type IS NOT NULL THEN
+    EXECUTE format('ALTER TYPE %s ADD VALUE IF NOT EXISTS %L', connection_status_type, 'connecting');
+    EXECUTE format('ALTER TYPE %s ADD VALUE IF NOT EXISTS %L', connection_status_type, 'reconnecting');
+    EXECUTE format('ALTER TYPE %s ADD VALUE IF NOT EXISTS %L', connection_status_type, 'degraded');
+  END IF;
+END
+$$;
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM pg_class c
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE n.nspname = 'vervus_data'
+      AND c.relname = 'players'
+  ) THEN
+    ALTER TABLE vervus_data.players
+      ADD COLUMN IF NOT EXISTS connection_state_changed_at TIMESTAMPTZ NULL,
+      ADD COLUMN IF NOT EXISTS reconnecting_started_at TIMESTAMPTZ NULL,
+      ADD COLUMN IF NOT EXISTS disconnected_at TIMESTAMPTZ NULL;
+  END IF;
+END
+$$;
+
 CREATE TABLE IF NOT EXISTS vervus_data.room_history (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   room_id UUID NOT NULL REFERENCES vervus_data.rooms(id) ON DELETE CASCADE,

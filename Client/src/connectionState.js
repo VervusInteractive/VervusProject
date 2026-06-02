@@ -14,7 +14,7 @@ export const CONNECTION_STATE_LABELS = Object.freeze({
   [CONNECTION_STATES.DISCONNECTED]: "Disconnected"
 });
 
-export const DEGRADED_PING_THRESHOLD_MS = 750;
+export const DEGRADED_PING_THRESHOLD_MS = 100;
 
 export function getConnectionStateLabel(state) {
   return CONNECTION_STATE_LABELS[state] || CONNECTION_STATE_LABELS[CONNECTION_STATES.DISCONNECTED];

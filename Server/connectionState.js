@@ -15,7 +15,7 @@ const CONNECTION_STATE_LABELS = Object.freeze({
 });
 
 const PLAYER_RECONNECT_GRACE_MS = 15 * 1000;
-const DEGRADED_PING_THRESHOLD_MS = 750;
+const DEGRADED_PING_THRESHOLD_MS = 100;
 
 function isValidConnectionState(state) {
   return Object.values(CONNECTION_STATES).includes(state);

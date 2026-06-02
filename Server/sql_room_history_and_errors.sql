@@ -4,25 +4,31 @@
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 -- Connection-state architecture values used by vervus_data.players.connection_status.
+-- Render databases may have this column as VARCHAR instead of an enum; only enum
+-- columns can be altered with ALTER TYPE ... ADD VALUE.
 DO $$
 DECLARE
-  connection_status_type regtype;
+  connection_status_schema text;
+  connection_status_name text;
+  connection_status_kind "char";
 BEGIN
-  SELECT a.atttypid::regtype
-    INTO connection_status_type
+  SELECT tn.nspname, t.typname, t.typtype
+    INTO connection_status_schema, connection_status_name, connection_status_kind
   FROM pg_attribute a
   JOIN pg_class c ON c.oid = a.attrelid
-  JOIN pg_namespace n ON n.oid = c.relnamespace
-  WHERE n.nspname = 'vervus_data'
+  JOIN pg_namespace cn ON cn.oid = c.relnamespace
+  JOIN pg_type t ON t.oid = a.atttypid
+  JOIN pg_namespace tn ON tn.oid = t.typnamespace
+  WHERE cn.nspname = 'vervus_data'
     AND c.relname = 'players'
     AND a.attname = 'connection_status'
     AND a.attnum > 0
     AND NOT a.attisdropped;
 
-  IF connection_status_type IS NOT NULL THEN
-    EXECUTE format('ALTER TYPE %s ADD VALUE IF NOT EXISTS %L', connection_status_type, 'connecting');
-    EXECUTE format('ALTER TYPE %s ADD VALUE IF NOT EXISTS %L', connection_status_type, 'reconnecting');
-    EXECUTE format('ALTER TYPE %s ADD VALUE IF NOT EXISTS %L', connection_status_type, 'degraded');
+  IF connection_status_kind = 'e' THEN
+    EXECUTE format('ALTER TYPE %I.%I ADD VALUE IF NOT EXISTS %L', connection_status_schema, connection_status_name, 'connecting');
+    EXECUTE format('ALTER TYPE %I.%I ADD VALUE IF NOT EXISTS %L', connection_status_schema, connection_status_name, 'reconnecting');
+    EXECUTE format('ALTER TYPE %I.%I ADD VALUE IF NOT EXISTS %L', connection_status_schema, connection_status_name, 'degraded');
   END IF;
 END
 $$;

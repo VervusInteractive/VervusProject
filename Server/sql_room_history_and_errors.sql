@@ -3,6 +3,53 @@
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
+-- Connection-state architecture values used by vervus_data.players.connection_status.
+-- Render databases may have this column as VARCHAR instead of an enum; only enum
+-- columns can be altered with ALTER TYPE ... ADD VALUE.
+DO $$
+DECLARE
+  connection_status_schema text;
+  connection_status_name text;
+  connection_status_kind "char";
+BEGIN
+  SELECT tn.nspname, t.typname, t.typtype
+    INTO connection_status_schema, connection_status_name, connection_status_kind
+  FROM pg_attribute a
+  JOIN pg_class c ON c.oid = a.attrelid
+  JOIN pg_namespace cn ON cn.oid = c.relnamespace
+  JOIN pg_type t ON t.oid = a.atttypid
+  JOIN pg_namespace tn ON tn.oid = t.typnamespace
+  WHERE cn.nspname = 'vervus_data'
+    AND c.relname = 'players'
+    AND a.attname = 'connection_status'
+    AND a.attnum > 0
+    AND NOT a.attisdropped;
+
+  IF connection_status_kind = 'e' THEN
+    EXECUTE format('ALTER TYPE %I.%I ADD VALUE IF NOT EXISTS %L', connection_status_schema, connection_status_name, 'connecting');
+    EXECUTE format('ALTER TYPE %I.%I ADD VALUE IF NOT EXISTS %L', connection_status_schema, connection_status_name, 'reconnecting');
+    EXECUTE format('ALTER TYPE %I.%I ADD VALUE IF NOT EXISTS %L', connection_status_schema, connection_status_name, 'degraded');
+  END IF;
+END
+$$;
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM pg_class c
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE n.nspname = 'vervus_data'
+      AND c.relname = 'players'
+  ) THEN
+    ALTER TABLE vervus_data.players
+      ADD COLUMN IF NOT EXISTS connection_state_changed_at TIMESTAMPTZ NULL,
+      ADD COLUMN IF NOT EXISTS reconnecting_started_at TIMESTAMPTZ NULL,
+      ADD COLUMN IF NOT EXISTS disconnected_at TIMESTAMPTZ NULL;
+  END IF;
+END
+$$;
+
 CREATE TABLE IF NOT EXISTS vervus_data.room_history (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   room_id UUID NOT NULL REFERENCES vervus_data.rooms(id) ON DELETE CASCADE,

@@ -29,6 +29,12 @@ function disbandRoom(io, roomId, reason = "Room disbanded", excludedSocketId = n
   if (!room) return;
 
   clearCreatorDisconnectTimer(room);
+  for (const player of room.players.values()) {
+    if (player.reconnectTimer) {
+      clearTimeout(player.reconnectTimer);
+      player.reconnectTimer = null;
+    }
+  }
   clearRoomGameTimers(room);
 
   if (excludedSocketId) {

@@ -7,6 +7,7 @@ import voteReceiveSoundFile from "../assets/audio/Sound_VoteReceive.mp3";
 import countSoundFile from "../assets/audio/Sound_Count.mp3";
 import tickSoundFile from "../assets/audio/Sound_Tick.mp3";
 import { preloadAudioElement, preloadAudioFiles } from "../audioPreload";
+import { CONNECTION_STATES, getConnectionStateLabel } from "../connectionState";
 
 const ICON_LABELS = {
   eye: "👁️",
@@ -298,7 +299,7 @@ function getTransitionBassBoost(corruptionEffects, isHeatSurgeEnabled) {
   return Math.min(18, Math.max(0, level * 1.5));
 }
 
-function GlitchGamePage({ roomId, playerId, players, myGame, serverNow, onSubmitAnswer, onAssetsLoaded, onReturnRoom, onExit, onUiButtonClick, isPreviewRoom = false, availableModes = [], selectedModeId = "standard" }) {
+function GlitchGamePage({ roomId, playerId, players, myGame, serverNow, onSubmitAnswer, onAssetsLoaded, onReturnRoom, onExit, connectionState = CONNECTION_STATES.CONNECTING, onUiButtonClick, isPreviewRoom = false, availableModes = [], selectedModeId = "standard" }) {
   const currentRound = myGame?.currentRound;
 
   const selectedMode = useMemo(() => availableModes.find((mode) => mode.id === (myGame?.modeId || selectedModeId)) || null, [availableModes, myGame?.modeId, selectedModeId]);
@@ -321,6 +322,14 @@ function GlitchGamePage({ roomId, playerId, players, myGame, serverNow, onSubmit
   }, []);
 
   const isWrongOrientation = isMobileDevice && selectedModeOrientationLock !== "both" && selectedModeOrientationLock !== deviceOrientation;
+  const connectionBanner = (
+    <div className={`connection-banner ${connectionState}`} role="status" aria-live="polite">
+      <strong>Connection:</strong> {getConnectionStateLabel(connectionState)}
+      {connectionState === CONNECTION_STATES.RECONNECTING ? " — trying to restore your room session…" : null}
+      {connectionState === CONNECTION_STATES.DEGRADED ? " — high latency detected; effects may feel lighter." : null}
+      {connectionState === CONNECTION_STATES.DISCONNECTED ? " — connection lost. Keep this tab open while we retry." : null}
+    </div>
+  );
   const answered = false;
 
   const timeRemainingMs = useMemo(() => {
@@ -549,7 +558,7 @@ function GlitchGamePage({ roomId, playerId, players, myGame, serverNow, onSubmit
       transitionStopTimeoutRef.current = null;
     }
 
-    setIsRoundTransitionShaking(true);
+    window.setTimeout(() => setIsRoundTransitionShaking(true), 0);
 
     transitionTimeoutRef.current = setTimeout(() => {
       setDisplayedIconToken(nextToken);
@@ -775,6 +784,7 @@ function GlitchGamePage({ roomId, playerId, players, myGame, serverNow, onSubmit
         <div className="kill-screen">
           <h2>Game Paused</h2>
           <p>A participant disconnected. The game will resume once everyone reconnects.</p>
+          {connectionBanner}
           <button className="btn btn-secondary" onClick={() => { onUiButtonClick?.(); onExit(); }}>Exit Room</button>
         </div>
       </section>
@@ -804,6 +814,8 @@ function GlitchGamePage({ roomId, playerId, players, myGame, serverNow, onSubmit
         </div>
         <button className="btn btn-secondary" onClick={() => { onUiButtonClick?.(); onExit(); }}>Exit Room</button>
       </div>
+
+      {connectionBanner}
 
       <div className="glitch-hud">
         <span>Mode: {myGame.modeId}</span>

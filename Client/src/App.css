@@ -890,3 +890,51 @@
   background: linear-gradient(145deg, #dc2626, #7f1d1d);
   border-color: rgba(254, 202, 202, 0.8);
 }
+
+.connection-banner {
+  margin-top: 14px;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: #f8fafc;
+  color: #0f172a;
+  font-size: 0.9rem;
+}
+
+.connection-banner.connected {
+  border-color: #86efac;
+  background: #f0fdf4;
+  color: #14532d;
+}
+
+.connection-banner.connecting,
+.connection-banner.reconnecting {
+  border-color: #fde68a;
+  background: #fffbeb;
+  color: #78350f;
+}
+
+.connection-banner.degraded {
+  border-color: #fdba74;
+  background: #fff7ed;
+  color: #9a3412;
+}
+
+.connection-banner.disconnected {
+  border-color: #fecaca;
+  background: #fef2f2;
+  color: #991b1b;
+}
+
+.status-pill.connecting {
+  background: #d97706;
+}
+
+.status-pill.reconnecting {
+  background: #f59e0b;
+  color: #111827;
+}
+
+.status-pill.degraded {
+  background: #ea580c;
+}

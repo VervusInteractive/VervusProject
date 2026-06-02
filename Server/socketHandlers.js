@@ -33,12 +33,48 @@ const {
   scheduleCreatorDisband
 } = require("./roomLifecycle");
 const { createGameState, buildRound, updateHeatSurgeStateForNextRound, evaluateRound } = require("./gameEngine");
+const {
+  CONNECTION_STATES,
+  PLAYER_RECONNECT_GRACE_MS,
+  applyPlayerConnectionState,
+  updatePlayerLatencyState
+} = require("./connectionState");
 const { getDifficultyProfile, normalizeModeId, hydrateStandardModeFromDb, hydrateHeatSurgeConfigsFromDb, hydrateModeCorruptionBandsFromDb, getGameModesFromDb, getGameModesFallback } = require("./gameModes");
 
 function registerSocketHandlers(io) {
   const emitState = (roomId) => {
     io.to(roomId).emit("room:state", getRoomState(roomId));
   };
+  const persistConnectionState = (player, status, contextLabel) => {
+    updatePlayerConnection({
+      playerId: player.playerId,
+      status,
+      stateChangedAtMs: player.connectionStateChangedAtMs ?? Date.now(),
+      reconnectingStartedAtMs: player.reconnectingStartedAtMs ?? null,
+      disconnectedAtMs: player.disconnectedAtMs ?? null
+    }).catch((error) => console.error(`DB ${contextLabel} connection update failed`, error));
+  };
+
+  const clearPlayerReconnectTimer = (player) => {
+    if (!player?.reconnectTimer) return;
+    clearTimeout(player.reconnectTimer);
+    player.reconnectTimer = null;
+  };
+
+  const schedulePlayerDisconnectedState = (room, roomId, player, socketIdAtDisconnect) => {
+    clearPlayerReconnectTimer(player);
+    player.reconnectTimer = setTimeout(() => {
+      if (!room.players.has(player.playerId) || player.socketId !== socketIdAtDisconnect || player.connectionState !== CONNECTION_STATES.RECONNECTING) {
+        return;
+      }
+
+      applyPlayerConnectionState(player, CONNECTION_STATES.DISCONNECTED);
+      player.ready = false;
+      persistConnectionState(player, CONNECTION_STATES.DISCONNECTED, "disconnect-final");
+      emitState(roomId);
+    }, PLAYER_RECONNECT_GRACE_MS);
+  };
+
   const emitWarning = (roomId, message, targetPlayerId = null) => {
     if (!message) return;
     if (!targetPlayerId) {
@@ -371,6 +407,11 @@ function registerSocketHandlers(io) {
         sessionToken,
         name: name || "Host",
         connected: true,
+        connectionState: CONNECTION_STATES.CONNECTED,
+        connectionStateChangedAtMs: Date.now(),
+        reconnectingStartedAtMs: null,
+        disconnectedAtMs: null,
+        reconnectTimer: null,
         pingMs: null,
         color: getAvailableColor(room),
         ready: false,
@@ -447,6 +488,11 @@ function registerSocketHandlers(io) {
         sessionToken,
         name: name || "Player",
         connected: true,
+        connectionState: CONNECTION_STATES.CONNECTED,
+        connectionStateChangedAtMs: Date.now(),
+        reconnectingStartedAtMs: null,
+        disconnectedAtMs: null,
+        reconnectTimer: null,
         pingMs: null,
         color: getAvailableColor(room),
         ready: false,
@@ -497,9 +543,9 @@ function registerSocketHandlers(io) {
         return;
       }
 
-      player.socketId = socket.id;
-      player.connected = true;
-      updatePlayerConnection({ playerId: player.playerId, status: "connected" }).catch((error) => console.error("DB reconnect update failed", error));
+      clearPlayerReconnectTimer(player);
+      applyPlayerConnectionState(player, CONNECTION_STATES.CONNECTED, { socketId: socket.id });
+      persistConnectionState(player, CONNECTION_STATES.CONNECTED, "reconnect");
 
       try {
         const entitlementExpiry = await getActivePlayerProfileEntitlement({ profileId: player.playerId });
@@ -858,6 +904,11 @@ function registerSocketHandlers(io) {
       if (!Number.isFinite(normalizedPingMs) || normalizedPingMs < 0) return;
 
       player.pingMs = normalizedPingMs;
+      const transition = updatePlayerLatencyState(player, normalizedPingMs);
+      if (transition) {
+        persistConnectionState(player, transition.connectionState, "latency");
+        emitState(roomId);
+      }
     });
 
     socket.on("disconnect", () => {
@@ -866,9 +917,15 @@ function registerSocketHandlers(io) {
           if (player.socketId === socket.id) {
             const isHost = room.creatorPlayerId === player.playerId;
             const isUnlockingHost = isHost && room.hostUnlockingPending;
-            player.connected = isUnlockingHost ? true : false;
+            if (isUnlockingHost) {
+              applyPlayerConnectionState(player, CONNECTION_STATES.DEGRADED);
+              persistConnectionState(player, CONNECTION_STATES.DEGRADED, "unlocking-host");
+            } else {
+              applyPlayerConnectionState(player, CONNECTION_STATES.RECONNECTING);
+              schedulePlayerDisconnectedState(room, roomId, player, socket.id);
+              persistConnectionState(player, CONNECTION_STATES.RECONNECTING, "disconnect");
+            }
             player.ready = false;
-            updatePlayerConnection({ playerId: player.playerId, status: "disconnected" }).catch((error) => console.error("DB disconnect update failed", error));
 
             if (isHost) {
               if (isUnlockingHost) {

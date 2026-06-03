@@ -5,7 +5,7 @@ import RoomPage from "./components/RoomPage";
 import GlitchGamePage from "./components/GlitchGamePage";
 import SoloChaosLabPage from "./components/SoloChaosLabPage";
 import "./App.css";
-import { deriveSocketConnectionState } from "./connectionState";
+import { CONNECTION_STATES, deriveSocketConnectionState } from "./connectionState";
 import voteSendSoundFile from "./assets/audio/Sound_VoteSend.mp3";
 import clickSoundFile from "./assets/audio/Sound_Click.mp3";
 import successPurchaseSoundFile from "./assets/audio/Sound_SuccessPurchase.mp3";
@@ -13,6 +13,12 @@ import failedPurchaseSoundFile from "./assets/audio/Sound_FailedPurchase.mp3";
 
 const serverUrl = import.meta.env.VITE_SERVER_URL;
 const socket = io(serverUrl);
+
+const discardBufferedSocketEmits = () => {
+  if (Array.isArray(socket.sendBuffer) && socket.sendBuffer.length > 0) {
+    socket.sendBuffer = [];
+  }
+};
 const PENDING_PURCHASE_STORAGE_KEY = "pendingPurchaseCheckout";
 const PURCHASE_RESULT_TO_EMIT_STORAGE_KEY = "purchaseResultToEmit";
 const PENDING_PURCHASE_SOUND_STORAGE_KEY = "pendingPurchaseSoundEffect";
@@ -271,6 +277,17 @@ function App() {
   }, []);
 
 
+  const emitIfConnected = useCallback((eventName, payload, callback) => {
+    if (!socket.connected) {
+      discardBufferedSocketEmits();
+      return false;
+    }
+
+    socket.emit(eventName, payload, callback);
+    return true;
+  }, []);
+
+
   const clearSessionState = useCallback(() => {
     localStorage.removeItem("roomId");
     localStorage.removeItem("sessionToken");
@@ -424,10 +441,13 @@ function App() {
     const purchaseResultToEmit = localStorage.getItem(PURCHASE_RESULT_TO_EMIT_STORAGE_KEY);
     if (purchaseResultToEmit !== "success" && purchaseResultToEmit !== "cancelled") return;
     const purchaseSucceeded = purchaseResultToEmit === "success";
+    if (!emitIfConnected("entitlement:purchase:result", { roomId, playerId, success: purchaseSucceeded })) {
+      return;
+    }
+
     suppressNextPurchaseResultRef.current = purchaseSucceeded;
-    socket.emit("entitlement:purchase:result", { roomId, playerId, success: purchaseSucceeded });
     localStorage.removeItem(PURCHASE_RESULT_TO_EMIT_STORAGE_KEY);
-  }, [roomId, playerId]);
+  }, [emitIfConnected, roomId, playerId]);
 
   const attemptSessionRejoin = useCallback(() => {
     const savedRoomId = localStorage.getItem("roomId");
@@ -456,10 +476,12 @@ function App() {
       setIsSocketReconnecting(false);
     };
     const handleDisconnect = () => {
+      discardBufferedSocketEmits();
       setIsSocketConnected(false);
       setIsSocketReconnecting(true);
     };
     const handleReconnectAttempt = () => {
+      discardBufferedSocketEmits();
       setIsSocketConnected(false);
       setIsSocketReconnecting(true);
     };
@@ -505,7 +527,7 @@ function App() {
   }, [name]);
 
   useEffect(() => {
-    socket.emit("player:register", { profileId, name }, (response) => {
+    emitIfConnected("player:register", { profileId, name }, (response) => {
       if (response?.error) return;
       if (response.profileId && response.profileId !== profileId) {
         setProfileId(response.profileId);
@@ -515,20 +537,26 @@ function App() {
       setProfileEntitledModeKeys(response.entitledModeKeys ?? []);
       setProfileEntitledModeExpiriesMs(response.entitledModeExpiriesMs ?? {});
     });
-  }, [profileId, name]);
+  }, [emitIfConnected, profileId, name]);
 
 
   useEffect(() => {
     const syncServerTime = () => {
+      if (!socket.connected) {
+        discardBufferedSocketEmits();
+        setPingMs(null);
+        return;
+      }
+
       const clientSentAt = Date.now();
 
-      socket.emit("time:sync:ping", { clientSentAt }, ({ serverTime }) => {
+      socket.volatile.emit("time:sync:ping", { clientSentAt }, ({ serverTime }) => {
         const clientReceivedAt = Date.now();
         const rtt = clientReceivedAt - clientSentAt;
         setPingMs(rtt);
 
-        if (roomId && playerId) {
-          socket.emit("player:ping", { roomId, playerId, pingMs: rtt });
+        if (roomId && playerId && socket.connected) {
+          socket.volatile.emit("player:ping", { roomId, playerId, pingMs: rtt });
         }
 
         if (typeof serverTime !== "number") {
@@ -555,7 +583,7 @@ function App() {
   }, [serverOffsetMs]);
 
   const createRoom = () => {
-    socket.emit("room:create", { name, profileId, selectedModeId: selectedLobbyModeId }, (response) => {
+    emitIfConnected("room:create", { name, profileId, selectedModeId: selectedLobbyModeId }, (response) => {
       if (response?.error) {
         alert(response.error);
         return;
@@ -565,14 +593,14 @@ function App() {
   };
 
   const joinRoomWithCode = useCallback((nextRoomId, nextName) => {
-    socket.emit("room:join", { roomId: nextRoomId.toUpperCase(), name: nextName, profileId }, (response) => {
+    emitIfConnected("room:join", { roomId: nextRoomId.toUpperCase(), name: nextName, profileId }, (response) => {
       if (response?.error) {
         alert(response.error);
         return;
       }
       applyJoinResponse(response);
     });
-  }, [applyJoinResponse, profileId]);
+  }, [applyJoinResponse, emitIfConnected, profileId]);
 
   const joinRoom = () => joinRoomWithCode(roomIdInput, name);
 
@@ -589,43 +617,46 @@ function App() {
 
   const exitRoom = () => {
     if (roomId && playerId) {
-      socket.emit("room:leave", { roomId, playerId });
+      emitIfConnected("room:leave", { roomId, playerId });
     }
 
     clearSessionState();
   };
 
   const setPlayerColor = (color) => {
-    socket.emit("player:setColor", { roomId, playerId, color }, (response) => {
+    emitIfConnected("player:setColor", { roomId, playerId, color }, (response) => {
       if (response?.error) alert(response.error);
     });
   };
 
   const setRoomMode = (modeId) => {
-    socket.emit("room:setMode", { roomId, playerId, modeId }, (response) => {
+    emitIfConnected("room:setMode", { roomId, playerId, modeId }, (response) => {
       if (response?.error) alert(response.error);
     });
   };
 
   const setPlayerReady = (ready) => {
-    socket.emit("player:setReady", { roomId, playerId, ready }, (response) => {
+    emitIfConnected("player:setReady", { roomId, playerId, ready }, (response) => {
       if (response?.error) alert(response.error);
     });
   };
 
   const submitAnswer = (answer) => {
-    playVoteSendSound();
-    socket.emit("game:submit", { roomId, playerId, answer }, (response) => {
+    const didSend = emitIfConnected("game:submit", { roomId, playerId, answer }, (response) => {
       if (response?.error) alert(response.error);
     });
+
+    if (didSend) {
+      playVoteSendSound();
+    }
   };
 
   const notifyAssetsLoaded = useCallback(() => {
     if (!roomId || !playerId) return;
-    socket.emit("game:assetsLoaded", { roomId, playerId }, (response) => {
+    emitIfConnected("game:assetsLoaded", { roomId, playerId }, (response) => {
       if (response?.error) alert(response.error);
     });
-  }, [playerId, roomId]);
+  }, [emitIfConnected, playerId, roomId]);
 
 
   const purchaseProduct = (productKey = "glitch_party_pack") => {
@@ -662,7 +693,7 @@ function App() {
       return;
     }
 
-    socket.emit("entitlement:purchase:start", { roomId, playerId, productKey }, (response) => {
+    emitIfConnected("entitlement:purchase:start", { roomId, playerId, productKey }, (response) => {
       if (response?.error) {
         alert(response.error);
         return;
@@ -741,7 +772,7 @@ function App() {
             onExit={exitRoom}
             connectionState={connectionState}
             onUiButtonClick={playClickSound}
-            canManageReady={roomState?.phase === "lobby" || (isViewingRoomPage && me?.game?.status === "gameover")}
+            canManageReady={(connectionState === CONNECTION_STATES.CONNECTED || connectionState === CONNECTION_STATES.DEGRADED) && (roomState?.phase === "lobby" || (isViewingRoomPage && me?.game?.status === "gameover"))}
             canOpenStore={Boolean(me?.isHost)}
             isPreviewRoom={isPreviewRoom}
             onOpenStore={() => setShowStore(true)}

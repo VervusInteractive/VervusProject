@@ -100,11 +100,13 @@ function RoomPage({
     const modeExpiryMs = entitledModeExpiriesMs?.[mode.id] ?? entitlementExpiresAtMs;
     const hasTimedEntitlement = typeof modeExpiryMs === "number";
     const remainingMs = hasTimedEntitlement ? (modeExpiryMs - currentTimeMs) : null;
-    const entitlementStatus = ownsMode
+    const hasActiveEntitlement = ownsMode && (!hasTimedEntitlement || remainingMs > 0);
+    const entitlementStatus = hasActiveEntitlement
       ? (hasTimedEntitlement ? formatRemainingTime(remainingMs) : "Owned")
       : (mode.id === "standard" ? "Preview" : "Purchase Mode");
     return {
       ...mode,
+      disabled: canSelectMode && !hasActiveEntitlement,
       label: `${mode.title} · ${entitlementStatus}`
     };
   });
@@ -175,7 +177,7 @@ function RoomPage({
           <>
             <select className="field-input" value={selectedModeId} disabled={!canSelectMode} onChange={(event) => { onUiButtonClick?.(); onSetMode?.(event.target.value); }}>
               {modeOptions.map((mode) => (
-                <option key={mode.id} value={mode.id}>{mode.label}</option>
+                <option key={mode.id} value={mode.id} disabled={mode.disabled}>{mode.label}</option>
               ))}
             </select>
             {!canSelectMode ? <span className="field-label">Preview rooms are locked to GLiTCH!.</span> : null}

@@ -217,6 +217,7 @@ function App() {
   const [purchaseOverlayStatus, setPurchaseOverlayStatus] = useState(null);
   const [isSoloChaosLabOpen, setIsSoloChaosLabOpen] = useState(false);
   const [selectedLobbyModeId, setSelectedLobbyModeId] = useState("standard");
+  const [entitlementRefreshRequestedAtMs, setEntitlementRefreshRequestedAtMs] = useState(null);
   const [roomId, setRoomId] = useState("");
   const [playerId, setPlayerId] = useState("");
   const [roomState, setRoomState] = useState(null);
@@ -291,6 +292,22 @@ function App() {
     socket.emit(eventName, payload, callback);
     return true;
   }, []);
+
+
+  const applyProfileEntitlementResponse = useCallback((response) => {
+    if (response?.error) return;
+    if (response.profileId && response.profileId !== profileId) {
+      setProfileId(response.profileId);
+      localStorage.setItem("playerProfileId", response.profileId);
+    }
+    setProfileEntitlementExpiresAtMs(response.entitlementExpiresAtMs ?? null);
+    setProfileEntitledModeKeys(response.entitledModeKeys ?? []);
+    setProfileEntitledModeExpiriesMs(response.entitledModeExpiriesMs ?? {});
+  }, [profileId]);
+
+  const refreshProfileEntitlements = useCallback(() => {
+    emitIfConnected("player:register", { profileId, name }, applyProfileEntitlementResponse);
+  }, [applyProfileEntitlementResponse, emitIfConnected, name, profileId]);
 
 
   const clearSessionState = useCallback(() => {
@@ -408,6 +425,9 @@ function App() {
 
     localStorage.setItem(PURCHASE_RESULT_TO_EMIT_STORAGE_KEY, purchaseSucceeded ? "success" : "cancelled");
     localStorage.removeItem(PENDING_PURCHASE_STORAGE_KEY);
+    if (purchaseSucceeded) {
+      window.setTimeout(() => setEntitlementRefreshRequestedAtMs(Date.now()), 0);
+    }
 
     if (normalizedPurchaseResult === "success" || normalizedPurchaseResult === "cancelled") {
       params.delete("purchase");
@@ -530,17 +550,30 @@ function App() {
   }, [name]);
 
   useEffect(() => {
-    emitIfConnected("player:register", { profileId, name }, (response) => {
-      if (response?.error) return;
-      if (response.profileId && response.profileId !== profileId) {
-        setProfileId(response.profileId);
-        localStorage.setItem("playerProfileId", response.profileId);
+    if (!isSocketConnected) return;
+    refreshProfileEntitlements();
+  }, [isSocketConnected, refreshProfileEntitlements]);
+
+  useEffect(() => {
+    if (!entitlementRefreshRequestedAtMs) return;
+
+    let attemptCount = 0;
+    const refreshUntilWebhookCatchesUp = () => {
+      attemptCount += 1;
+      refreshProfileEntitlements();
+    };
+
+    refreshUntilWebhookCatchesUp();
+    const interval = window.setInterval(() => {
+      if (attemptCount >= 8) {
+        window.clearInterval(interval);
+        return;
       }
-      setProfileEntitlementExpiresAtMs(response.entitlementExpiresAtMs ?? null);
-      setProfileEntitledModeKeys(response.entitledModeKeys ?? []);
-      setProfileEntitledModeExpiriesMs(response.entitledModeExpiriesMs ?? {});
-    });
-  }, [emitIfConnected, profileId, name]);
+      refreshUntilWebhookCatchesUp();
+    }, 1500);
+
+    return () => window.clearInterval(interval);
+  }, [entitlementRefreshRequestedAtMs, refreshProfileEntitlements]);
 
 
   useEffect(() => {
@@ -711,6 +744,26 @@ function App() {
     setStoredRoomViewPreference(roomId, true);
     setIsViewingRoomPage(true);
   };
+
+  const ownedLobbyModeIds = useMemo(() => {
+    const entitlementKeys = new Set(profileEntitledModeKeys || []);
+    return LOBBY_MODE_OPTIONS
+      .filter((mode) => entitlementKeys.has(mode.id))
+      .map((mode) => mode.id);
+  }, [profileEntitledModeKeys]);
+
+  useEffect(() => {
+    if (ownedLobbyModeIds.length === 0) {
+      if (selectedLobbyModeId !== "standard") {
+        window.setTimeout(() => setSelectedLobbyModeId("standard"), 0);
+      }
+      return;
+    }
+
+    if (!ownedLobbyModeIds.includes(selectedLobbyModeId)) {
+      window.setTimeout(() => setSelectedLobbyModeId(ownedLobbyModeIds[0]), 0);
+    }
+  }, [ownedLobbyModeIds, selectedLobbyModeId]);
 
   const players = roomState?.players ?? [];
   const me = players.find((player) => player.playerId === playerId);

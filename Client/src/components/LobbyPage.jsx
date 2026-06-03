@@ -40,11 +40,13 @@ function LobbyPage({
     const modeExpiryMs = entitledModeExpiriesMs?.[mode.id] ?? profileEntitlementExpiresAtMs;
     const hasTimedEntitlement = typeof modeExpiryMs === "number";
     const remainingMs = hasTimedEntitlement ? (modeExpiryMs - currentTimeMs) : null;
-    const entitlementStatus = ownsMode
+    const hasActiveEntitlement = ownsMode && (!hasTimedEntitlement || remainingMs > 0);
+    const entitlementStatus = hasActiveEntitlement
       ? (hasTimedEntitlement ? formatRemainingTime(remainingMs) : "Owned")
       : (mode.id === "standard" ? "Preview" : "Purchase Mode");
     return {
       ...mode,
+      disabled: canSelectMode && !hasActiveEntitlement,
       label: `${mode.title} · ${entitlementStatus}`
     };
   });
@@ -80,10 +82,11 @@ function LobbyPage({
           disabled={!canSelectMode || actionsLocked}
         >
           {modeOptions.map((mode) => (
-            <option key={mode.id} value={mode.id}>{mode.label}</option>
+            <option key={mode.id} value={mode.id} disabled={mode.disabled}>{mode.label}</option>
           ))}
         </select>
         {!canSelectMode ? <span className="field-label">Purchase entitlement to select game mode.</span> : null}
+        {canSelectMode ? <span className="field-label">Only actively owned modes can be selected.</span> : null}
       </label>
 
       <div className="join-row">

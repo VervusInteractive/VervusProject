@@ -1,4 +1,5 @@
 const { Pool } = require('pg');
+const crypto = require('crypto');
 const fs = require("fs");
 const path = require("path");
 
@@ -44,6 +45,12 @@ async function ensurePlayerProfileTables() {
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_player_profile_entitlements_active ON vervus_data.player_profile_entitlements(player_profile_id, game_mode_id, expires_at);`);
   await pool.query(`ALTER TABLE IF EXISTS vervus_data.purchases ADD COLUMN IF NOT EXISTS entitlement_granted_at TIMESTAMPTZ NULL;`);
   await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_purchases_stripe_checkout_session_unique ON vervus_data.purchases(stripe_checkout_session_id) WHERE stripe_checkout_session_id IS NOT NULL;`);
+  await pool.query(`CREATE TABLE IF NOT EXISTS vervus_data.entitlement_transfer_tokens (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), source_player_profile_id UUID NOT NULL REFERENCES vervus_data.player_profiles(id) ON DELETE CASCADE, token_hash TEXT NOT NULL UNIQUE, expires_at TIMESTAMPTZ NOT NULL, consumed_at TIMESTAMPTZ NULL, consumed_by_player_profile_id UUID REFERENCES vervus_data.player_profiles(id) ON DELETE SET NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT now());`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_entitlement_transfer_tokens_source_active ON vervus_data.entitlement_transfer_tokens(source_player_profile_id, expires_at) WHERE consumed_at IS NULL;`);
+}
+
+function hashEntitlementTransferToken(token) {
+  return crypto.createHash('sha256').update(String(token || ''), 'utf8').digest('hex');
 }
 async function upsertPlayerProfile({ profileId, displayName }) {
   await ensurePlayerProfileTables();
@@ -137,6 +144,81 @@ async function getActiveEntitlementExpiriesByMode({ profileId }) {
     return acc;
   }, {});
 }
+
+async function createEntitlementTransferToken({ sourceProfileId, ttlMinutes = 15 }) {
+  await ensurePlayerProfileTables();
+  const activeEntitlement = await getActivePlayerProfileEntitlement({ profileId: sourceProfileId });
+  if (!activeEntitlement) return null;
+
+  const token = crypto.randomBytes(32).toString("base64url");
+  const tokenHash = hashEntitlementTransferToken(token);
+  const { rows } = await pool.query(
+    `INSERT INTO vervus_data.entitlement_transfer_tokens (source_player_profile_id, token_hash, expires_at)
+     VALUES ($1::uuid, $2, now() + make_interval(mins => $3::int))
+     RETURNING expires_at`,
+    [sourceProfileId, tokenHash, ttlMinutes]
+  );
+  return { token, expiresAt: rows[0]?.expires_at || null };
+}
+
+async function consumeEntitlementTransferToken({ token, targetProfileId, displayName = null }) {
+  await ensurePlayerProfileTables();
+  const tokenHash = hashEntitlementTransferToken(token);
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+    await client.query(
+      `INSERT INTO vervus_data.player_profiles (id, display_name, last_seen_at)
+       VALUES ($1::uuid, $2, now())
+       ON CONFLICT (id) DO UPDATE SET display_name = COALESCE(EXCLUDED.display_name, vervus_data.player_profiles.display_name), last_seen_at = now()`,
+      [targetProfileId, displayName]
+    );
+
+    const tokenResult = await client.query(
+      `SELECT id, source_player_profile_id, expires_at, consumed_at
+       FROM vervus_data.entitlement_transfer_tokens
+       WHERE token_hash = $1
+       FOR UPDATE`,
+      [tokenHash]
+    );
+    const transferToken = tokenResult.rows[0];
+    if (!transferToken || transferToken.consumed_at || transferToken.expires_at <= new Date()) {
+      await client.query('ROLLBACK');
+      return null;
+    }
+
+    const updatedEntitlements = await client.query(
+      `UPDATE vervus_data.player_profile_entitlements
+       SET player_profile_id = $2::uuid
+       WHERE player_profile_id = $1::uuid
+         AND expires_at > now()
+       RETURNING expires_at`,
+      [transferToken.source_player_profile_id, targetProfileId]
+    );
+
+    if (updatedEntitlements.rowCount < 1) {
+      await client.query('ROLLBACK');
+      return null;
+    }
+
+    await client.query(
+      `UPDATE vervus_data.entitlement_transfer_tokens
+       SET consumed_at = now(), consumed_by_player_profile_id = $2::uuid
+       WHERE id = $1::uuid`,
+      [transferToken.id, targetProfileId]
+    );
+
+    await client.query('COMMIT');
+    return { profileId: targetProfileId, sourceProfileId: transferToken.source_player_profile_id };
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
 async function getProductByKey(productKey = 'glitch_party_pack') {
   const { rows } = await pool.query(
     `SELECT id, product_key, product_name, price_cents, currency_code, validity_duration_hours, stripe_price_id
@@ -299,4 +381,4 @@ async function deletePlayerRecord(playerId) { await pool.query('DELETE FROM verv
 async function updateRoomStatus({ roomCode, status }) { await ensureRoomTrackingTables(); await pool.query(`UPDATE vervus_data.rooms SET status = $2::vervus_data.room_status, started_at = CASE WHEN $2 IN ('preview', 'premium', 'active') THEN COALESCE(started_at, now()) ELSE started_at END, ended_at = CASE WHEN $2 IN ('ended', 'expired') THEN now() ELSE ended_at END WHERE room_code = $1`, [roomCode, status]); }
 async function deleteRoomRecord(roomCode) { await pool.query('DELETE FROM vervus_data.rooms WHERE room_code = $1', [roomCode]); }
 
-module.exports = { pool, testDbConnection, ensureRoomTrackingTables, logRoomHistoryEvent, logErrorEntry, ensurePlayerProfileTables, upsertPlayerProfile, grantPlayerProfileEntitlement, getActivePlayerProfileEntitlement, getActiveEntitledModeKeys, getActiveEntitlementExpiriesByMode, getProductByKey, createPendingPurchase, attachStripeSessionToPurchase, completePurchaseAndGrantEntitlementByStripeSession, markPurchaseFailedByStripeSession, getProductById, createRoomRecord, addPlayerRecord, updatePlayerReady, updatePlayerConnection, deletePlayerRecord, updateRoomStatus, deleteRoomRecord };
+module.exports = { pool, testDbConnection, ensureRoomTrackingTables, logRoomHistoryEvent, logErrorEntry, ensurePlayerProfileTables, upsertPlayerProfile, grantPlayerProfileEntitlement, getActivePlayerProfileEntitlement, getActiveEntitledModeKeys, getActiveEntitlementExpiriesByMode, createEntitlementTransferToken, consumeEntitlementTransferToken, getProductByKey, createPendingPurchase, attachStripeSessionToPurchase, completePurchaseAndGrantEntitlementByStripeSession, markPurchaseFailedByStripeSession, getProductById, createRoomRecord, addPlayerRecord, updatePlayerReady, updatePlayerConnection, deletePlayerRecord, updateRoomStatus, deleteRoomRecord };

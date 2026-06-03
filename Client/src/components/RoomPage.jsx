@@ -30,9 +30,12 @@ function RoomPage({
   entitledModeKeys = [],
   entitledModeExpiriesMs = {},
   onSetMode,
+  onCreateEntitlementTransfer,
   modeDebugConfigs = []
 }) {
   const [showQrCode, setShowQrCode] = useState(false);
+  const [transferLink, setTransferLink] = useState(null);
+  const [isCreatingTransferLink, setIsCreatingTransferLink] = useState(false);
   const [showDebug, setShowDebug] = useState(false);
   const [currentTimeMs, setCurrentTimeMs] = useState(() => Date.now());
   const currentPlayer = useMemo(
@@ -43,6 +46,9 @@ function RoomPage({
   const clientUrl = import.meta.env.VITE_CLIENT_URL || window.location.origin;
   const roomInviteUrl = `${clientUrl}/?room=${encodeURIComponent(roomId)}`;
   const roomInviteQrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(roomInviteUrl)}`;
+  const entitlementTransferQrUrl = transferLink?.transferUrl
+    ? `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(transferLink.transferUrl)}`
+    : null;
   const selectedMode = useMemo(() => {
     const debugMode = modeDebugConfigs.find((mode) => mode.id === selectedModeId) || null;
     const availableMode = availableModes.find((mode) => mode.id === selectedModeId) || null;
@@ -111,6 +117,19 @@ function RoomPage({
     };
   });
 
+  const handleCreateEntitlementTransfer = async () => {
+    if (!onCreateEntitlementTransfer || isCreatingTransferLink) return;
+    setIsCreatingTransferLink(true);
+    try {
+      const result = await onCreateEntitlementTransfer();
+      if (result?.transferUrl) {
+        setTransferLink(result);
+      }
+    } finally {
+      setIsCreatingTransferLink(false);
+    }
+  };
+
   return (
     <section className="panel">
       {isWrongOrientation ? (
@@ -170,6 +189,25 @@ function RoomPage({
         </div>
       ) : null}
 
+      {transferLink ? (
+        <div className="qr-modal-backdrop" onClick={() => { onUiButtonClick?.(); setTransferLink(null); }}>
+          <div className="qr-modal" onClick={(event) => event.stopPropagation()}>
+            <h2 className="qr-modal-title">Transfer entitlement</h2>
+            <p className="panel-subtitle">Scan this QR code on another device. The one-time magic link transfers your active entitlement to that device.</p>
+            {entitlementTransferQrUrl ? <img className="qr-image" src={entitlementTransferQrUrl} alt="QR code to transfer entitlement" /> : null}
+            <p className="qr-link">{transferLink.transferUrl}</p>
+            {transferLink.expiresAtMs ? <p className="field-label">Link expires at {new Date(transferLink.expiresAtMs).toLocaleTimeString()}.</p> : null}
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={() => { onUiButtonClick?.(); setTransferLink(null); }}
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      ) : null}
+
 
       <div className="room-meta">
         <p><strong>Mode:</strong></p>
@@ -190,6 +228,16 @@ function RoomPage({
       {canOpenStore ? (
         <div className="single-action-row">
           <button className="btn btn-primary" onClick={() => { onUiButtonClick?.(); onOpenStore?.(); }}>Store</button>
+          {currentPlayer?.hasEntitlement ? (
+            <button
+              className="btn btn-secondary"
+              type="button"
+              disabled={isCreatingTransferLink}
+              onClick={() => { onUiButtonClick?.(); handleCreateEntitlementTransfer(); }}
+            >
+              {isCreatingTransferLink ? "Creating transfer…" : "Transfer Entitlement"}
+            </button>
+          ) : null}
         </div>
       ) : null}
 

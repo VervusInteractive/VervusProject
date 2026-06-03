@@ -26,7 +26,9 @@ const PENDING_PURCHASE_STORAGE_KEY = "pendingPurchaseCheckout";
 const PURCHASE_RESULT_TO_EMIT_STORAGE_KEY = "purchaseResultToEmit";
 const PENDING_PURCHASE_SOUND_STORAGE_KEY = "pendingPurchaseSoundEffect";
 const PLAYER_COLORS = ["#ef4444", "#3b82f6", "#22c55e", "#eab308"];
-const initialRoomFromQuery = new URLSearchParams(window.location.search).get("room")?.trim().toUpperCase() || "";
+const initialSearchParams = new URLSearchParams(window.location.search);
+const initialRoomFromQuery = initialSearchParams.get("room")?.trim().toUpperCase() || "";
+const initialEntitlementTransferToken = initialSearchParams.get("entitlementTransfer")?.trim() || "";
 const ROOM_VIEW_PREFERENCE_KEY = "roomViewPreference";
 const LOBBY_MODE_OPTIONS = [
   { id: "standard", title: "GLiTCH!" },
@@ -239,6 +241,7 @@ function App() {
   const hasPlayedReturnPurchaseSoundRef = useRef(false);
   const suppressNextPurchaseResultRef = useRef(null);
   const pendingAutoJoinRoomIdRef = useRef(initialRoomFromQuery);
+  const pendingEntitlementTransferTokenRef = useRef(initialEntitlementTransferToken);
   const playPurchaseSoundWithFallback = useCallback((success) => {
     const pendingSoundValue = success ? "success" : "cancelled";
     const playNow = () => (success ? playSuccessPurchaseSound() : playFailedPurchaseSound());
@@ -555,6 +558,27 @@ function App() {
   }, [isSocketConnected, refreshProfileEntitlements]);
 
   useEffect(() => {
+    if (!isSocketConnected || !pendingEntitlementTransferTokenRef.current) return;
+    const token = pendingEntitlementTransferTokenRef.current;
+    pendingEntitlementTransferTokenRef.current = "";
+
+    emitIfConnected("entitlement:transfer:claim", { token, targetProfileId: profileId, name }, (response) => {
+      if (response?.error) {
+        alert(response.error);
+      } else {
+        applyProfileEntitlementResponse(response);
+        alert("Entitlement transferred to this device.");
+      }
+
+      const params = new URLSearchParams(window.location.search);
+      params.delete("entitlementTransfer");
+      const nextQuery = params.toString();
+      const nextUrl = `${window.location.pathname}${nextQuery ? `?${nextQuery}` : ""}${window.location.hash}`;
+      window.history.replaceState({}, "", nextUrl);
+    });
+  }, [applyProfileEntitlementResponse, emitIfConnected, isSocketConnected, name, profileId]);
+
+  useEffect(() => {
     if (!entitlementRefreshRequestedAtMs) return;
 
     let attemptCount = 0;
@@ -693,6 +717,32 @@ function App() {
       if (response?.error) alert(response.error);
     });
   }, [emitIfConnected, playerId, roomId]);
+
+
+  const createEntitlementTransfer = useCallback(() => new Promise((resolve) => {
+    if (!profileId) {
+      alert("Create or join a room first to initialize your profile.");
+      resolve(null);
+      return;
+    }
+
+    const didEmit = emitIfConnected("entitlement:transfer:create", { profileId }, (response) => {
+      if (response?.error) {
+        alert(response.error);
+        resolve(null);
+        return;
+      }
+
+      const clientUrl = import.meta.env.VITE_CLIENT_URL || window.location.origin;
+      const transferUrl = `${clientUrl}/?entitlementTransfer=${encodeURIComponent(response.token)}`;
+      resolve({ transferUrl, expiresAtMs: response.expiresAtMs ?? null });
+    });
+
+    if (!didEmit) {
+      alert("Connect to the server before creating a transfer link.");
+      resolve(null);
+    }
+  }), [emitIfConnected, profileId]);
 
 
   const purchaseProduct = (productKey = "glitch_party_pack") => {
@@ -840,6 +890,7 @@ function App() {
             entitledModeKeys={me?.entitledModeKeys ?? []}
             entitledModeExpiriesMs={me?.entitledModeExpiriesMs ?? {}}
             onSetMode={setRoomMode}
+            onCreateEntitlementTransfer={createEntitlementTransfer}
             modeDebugConfigs={modeDebugConfigs}
           />
         )

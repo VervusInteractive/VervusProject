@@ -20,6 +20,8 @@ const {
   getActivePlayerProfileEntitlement,
   getActiveEntitledModeKeys,
   getActiveEntitlementExpiriesByMode,
+  createEntitlementTransferToken,
+  consumeEntitlementTransferToken,
   getProductByKey,
   logRoomHistoryEvent,
   logErrorEntry
@@ -58,6 +60,11 @@ function registerSocketHandlers(io) {
   startRoomCleanupScheduler(io);
 
   const normalizeSocketPayload = (payload) => (payload && typeof payload === "object" ? payload : {});
+  const normalizeEntitlementTransferToken = (value) => {
+    const normalized = String(value || "").trim();
+    return /^[A-Za-z0-9_-]{32,128}$/.test(normalized) ? normalized : null;
+  };
+
 
   const emitState = (roomId) => {
     touchRoom(rooms.get(roomId));
@@ -302,18 +309,24 @@ function registerSocketHandlers(io) {
         player.assetsLoaded = false;
       }
       const host = room.players.get(room.creatorPlayerId);
-      const hasEntitlement = Boolean(host?.entitlementExpiresAtMs && host.entitlementExpiresAtMs > Date.now());
+      const requestedModeId = room.selectedModeId || "standard";
+      const hostModeExpiryMs = host?.entitledModeExpiriesMs?.[requestedModeId] ?? null;
+      const hasSelectedModeEntitlement = Boolean(
+        hostModeExpiryMs &&
+        hostModeExpiryMs > Date.now() &&
+        (host?.entitledModeKeys || []).includes(requestedModeId)
+      );
       room.phase = "play";
-      const selectedModeId = hasEntitlement ? (room.selectedModeId || "standard") : "standard";
+      const selectedModeId = hasSelectedModeEntitlement ? requestedModeId : "standard";
       room.game = createGameState(selectedModeId);
       room.game.status = "loading";
-      room.game.isPreview = !hasEntitlement;
+      room.game.isPreview = !hasSelectedModeEntitlement;
       room.game.previewEndsAtMs = room.game.isPreview ? (Date.now() + 60000) : null;
-      room.expiresAtMs = hasEntitlement ? (host.entitlementExpiresAtMs ?? null) : room.game.previewEndsAtMs;
+      room.expiresAtMs = hasSelectedModeEntitlement ? hostModeExpiryMs : room.game.previewEndsAtMs;
       clearPreviewTimer(room);
-      transitionRoomStatus(room, roomId, hasEntitlement ? ROOM_STATUSES.PREMIUM : ROOM_STATUSES.PREVIEW, {
+      transitionRoomStatus(room, roomId, hasSelectedModeEntitlement ? ROOM_STATUSES.PREMIUM : ROOM_STATUSES.PREVIEW, {
         eventType: "room_started",
-        metadata: { modeId: selectedModeId, isPreview: !hasEntitlement, expiresAtMs: room.expiresAtMs }
+        metadata: { modeId: selectedModeId, isPreview: !hasSelectedModeEntitlement, expiresAtMs: room.expiresAtMs }
       });
       clearRoomGameTimers(room);
       if (room.game.isPreview) {
@@ -825,6 +838,62 @@ function registerSocketHandlers(io) {
       room.selectedModeId = normalizedModeId;
       emitState(roomId);
       callback?.({ ok: true });
+    });
+
+    socket.on("entitlement:transfer:create", async (payload = {}, callback) => {
+      payload = normalizeSocketPayload(payload);
+      const profileId = normalizeUuid(payload.profileId);
+      if (!profileId) return callback?.({ error: "Invalid profile" });
+
+      try {
+        const transfer = await createEntitlementTransferToken({ sourceProfileId: profileId });
+        if (!transfer) return callback?.({ error: "No active entitlement to transfer" });
+        callback?.({
+          ok: true,
+          token: transfer.token,
+          expiresAtMs: transfer.expiresAt ? new Date(transfer.expiresAt).getTime() : null
+        });
+      } catch (error) {
+        console.error("DB entitlement transfer create failed", error);
+        callback?.({ error: "Failed to create entitlement transfer link" });
+      }
+    });
+
+    socket.on("entitlement:transfer:claim", async (payload = {}, callback) => {
+      payload = normalizeSocketPayload(payload);
+      const token = normalizeEntitlementTransferToken(payload.token);
+      const targetProfileId = normalizeUuid(payload.targetProfileId) || createRandomId();
+      const displayName = normalizePlayerName(payload.name, "Player");
+      if (!token) return callback?.({ error: "Invalid or expired entitlement transfer link" });
+
+      try {
+        const claimed = await consumeEntitlementTransferToken({ token, targetProfileId, displayName });
+        if (!claimed) return callback?.({ error: "Invalid, expired, or already-used entitlement transfer link" });
+        for (const [candidateRoomId, candidateRoom] of rooms.entries()) {
+          const sourcePlayer = candidateRoom.players.get(claimed.sourceProfileId);
+          if (!sourcePlayer) continue;
+          sourcePlayer.entitlementExpiresAtMs = null;
+          sourcePlayer.entitledModeKeys = [];
+          sourcePlayer.entitledModeExpiriesMs = {};
+          if (candidateRoom.creatorPlayerId === claimed.sourceProfileId && candidateRoom.phase === "lobby") {
+            candidateRoom.selectedModeId = "standard";
+          }
+          emitState(candidateRoomId);
+        }
+        const entitlementExpiry = await getActivePlayerProfileEntitlement({ profileId: targetProfileId });
+        const entitledModeKeys = await getActiveEntitledModeKeys({ profileId: targetProfileId });
+        const entitledModeExpiriesMs = await getActiveEntitlementExpiriesByMode({ profileId: targetProfileId });
+        callback?.({
+          ok: true,
+          profileId: targetProfileId,
+          entitlementExpiresAtMs: entitlementExpiry ? new Date(entitlementExpiry).getTime() : null,
+          entitledModeKeys,
+          entitledModeExpiriesMs
+        });
+      } catch (error) {
+        console.error("DB entitlement transfer claim failed", error);
+        callback?.({ error: "Failed to claim entitlement transfer link" });
+      }
     });
 
     socket.on("entitlement:purchase:start", async (payload = {}, callback) => {

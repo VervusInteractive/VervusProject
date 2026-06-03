@@ -1,7 +1,7 @@
 const {
   rooms,
   getRoomState,
-  generateRoomCode,
+  generateUniqueRoomCode,
   createRandomId,
   createSessionToken,
   PLAYER_COLORS,
@@ -17,7 +17,6 @@ const {
   deletePlayerRecord,
   deleteRoomRecord,
   upsertPlayerProfile,
-  grantPlayerProfileEntitlement,
   getActivePlayerProfileEntitlement,
   getActiveEntitledModeKeys,
   getActiveEntitlementExpiriesByMode,
@@ -44,9 +43,21 @@ const {
   updatePlayerLatencyState
 } = require("./connectionState");
 const { getDifficultyProfile, normalizeModeId, hydrateStandardModeFromDb, hydrateHeatSurgeConfigsFromDb, hydrateModeCorruptionBandsFromDb, getGameModesFromDb, getGameModesFallback } = require("./gameModes");
+const {
+  normalizeAnswer,
+  normalizeBoolean,
+  normalizePlayerName,
+  normalizeProductKey,
+  normalizePingMs,
+  normalizeRoomCode,
+  normalizeUuid,
+  isValidRoomCode
+} = require("./validation");
 
 function registerSocketHandlers(io) {
   startRoomCleanupScheduler(io);
+
+  const normalizeSocketPayload = (payload) => (payload && typeof payload === "object" ? payload : {});
 
   const emitState = (roomId) => {
     touchRoom(rooms.get(roomId));
@@ -98,7 +109,13 @@ function registerSocketHandlers(io) {
   const registerTimer = (room, timerId) => {
     room.gameTimers = room.gameTimers || [];
     room.gameTimers.push(timerId);
+    timerId.unref?.();
     return timerId;
+  };
+
+  const unregisterTimer = (room, timerId) => {
+    if (!room?.gameTimers) return;
+    room.gameTimers = room.gameTimers.filter((candidate) => candidate !== timerId);
   };
 
   const persistError = (payload) => {
@@ -113,6 +130,7 @@ function registerSocketHandlers(io) {
 
   const scheduleNextRound = (room, roomId, delayMs = 0, replayRound = null) => {
     const timer = setTimeout(() => {
+      unregisterTimer(room, timer);
       if (!rooms.has(roomId) || room.phase !== "play" || room.game?.status !== "active") {
         return;
       }
@@ -144,9 +162,11 @@ function registerSocketHandlers(io) {
       room.game.lastRoundResult = null;
       emitState(roomId);
 
+      const endDelayMs = Math.max(0, round.decisionDeadlineMs - Date.now());
       const endTimer = setTimeout(() => {
+        unregisterTimer(room, endTimer);
         resolveRound(room, roomId, round.id);
-      }, round.timerMs);
+      }, endDelayMs);
       registerTimer(room, endTimer);
     }, delayMs);
 
@@ -208,7 +228,7 @@ function registerSocketHandlers(io) {
     round.isResolved = true;
 
     const activePlayerIds = Array.from(room.players.values())
-      .filter((player) => player.connected && !player.waitingForNextGame)
+      .filter((player) => player.connected && player.currentGameParticipant && !player.waitingForNextGame)
       .map((player) => player.playerId);
     const evaluation = evaluateRound(round, activePlayerIds);
 
@@ -298,6 +318,7 @@ function registerSocketHandlers(io) {
       clearRoomGameTimers(room);
       if (room.game.isPreview) {
         room.previewTimer = setTimeout(() => {
+          unregisterTimer(room, room.previewTimer);
           room.previewTimer = null;
           if (!rooms.has(roomId) || room.phase !== "play" || room.game?.status !== "active") return;
           room.game.status = "gameover";
@@ -403,10 +424,12 @@ function registerSocketHandlers(io) {
   io.on("connection", (socket) => {
     console.log("Socket connected:", socket.id);
 
-    socket.on("player:register", async ({ profileId, name }, callback) => {
-      const nextProfileId = profileId || createRandomId();
+    socket.on("player:register", async (payload = {}, callback) => {
+      payload = normalizeSocketPayload(payload);
+      const nextProfileId = normalizeUuid(payload.profileId) || createRandomId();
+      const displayName = normalizePlayerName(payload.name, "Player");
       try {
-        await upsertPlayerProfile({ profileId: nextProfileId, displayName: name || null });
+        await upsertPlayerProfile({ profileId: nextProfileId, displayName });
         const entitlementExpiry = await getActivePlayerProfileEntitlement({ profileId: nextProfileId });
         const entitledModeKeys = await getActiveEntitledModeKeys({ profileId: nextProfileId });
         const entitledModeExpiriesMs = await getActiveEntitlementExpiriesByMode({ profileId: nextProfileId });
@@ -416,9 +439,18 @@ function registerSocketHandlers(io) {
       }
     });
 
-    socket.on("room:create", async ({ name, profileId, selectedModeId }, callback) => {
-      const roomId = generateRoomCode();
-      const playerId = profileId || createRandomId();
+    socket.on("room:create", async (payload = {}, callback) => {
+      payload = normalizeSocketPayload(payload);
+      let roomId;
+      try {
+        roomId = generateUniqueRoomCode();
+      } catch (error) {
+        callback?.({ error: "Could not allocate room code" });
+        return;
+      }
+      const playerId = normalizeUuid(payload.profileId) || createRandomId();
+      const displayName = normalizePlayerName(payload.name, "Host");
+      const selectedModeId = payload.selectedModeId;
       const sessionToken = createSessionToken();
 
       const room = {
@@ -438,7 +470,7 @@ function registerSocketHandlers(io) {
         playerId,
         socketId: socket.id,
         sessionToken,
-        name: name || "Host",
+        name: displayName,
         connected: true,
         connectionState: CONNECTION_STATES.CONNECTED,
         connectionStateChangedAtMs: Date.now(),
@@ -462,7 +494,7 @@ function registerSocketHandlers(io) {
       socket.join(roomId);
 
       try {
-        await upsertPlayerProfile({ profileId: playerId, displayName: name || "Host" });
+        await upsertPlayerProfile({ profileId: playerId, displayName });
         const entitlementExpiry = await getActivePlayerProfileEntitlement({ profileId: playerId });
         const entitledModeKeys = await getActiveEntitledModeKeys({ profileId: playerId });
         const entitlementExpiresAtMs = entitlementExpiry ? new Date(entitlementExpiry).getTime() : null;
@@ -481,12 +513,12 @@ function registerSocketHandlers(io) {
         const normalizedSelectedModeId = normalizeModeId(selectedModeId);
         room.selectedModeId = (normalizedSelectedModeId && entitledModeKeys.includes(normalizedSelectedModeId)) ? normalizedSelectedModeId : "standard";
         await createRoomRecord({ roomCode: roomId });
-        await addPlayerRecord({ roomCode: roomId, playerId, displayName: name || "Host", isHost: true, slot: 1 });
+        await addPlayerRecord({ roomCode: roomId, playerId, displayName, isHost: true, slot: 1 });
         await logRoomHistoryEvent({ roomCode: roomId, eventType: "room_created", actorPlayerId: playerId, toStatus: "lobby", metadata: { selectedModeId: room.selectedModeId } });
         await logRoomHistoryEvent({ roomCode: roomId, eventType: "room_joined", actorPlayerId: playerId, toStatus: "lobby", metadata: { isHost: true } });
       } catch (error) {
         console.error("DB room:create persistence failed", error);
-        persistError({ roomCode: roomId, playerId, source: "room:create", message: error.message, stackTrace: error.stack, context: { name, profileId } });
+        persistError({ roomCode: roomId, playerId, source: "room:create", message: error.message, stackTrace: error.stack, context: { name: displayName, profileId: playerId } });
       }
 
       const allowedModeIds = new Set((room.availableModes || []).map((mode) => mode.id));
@@ -497,8 +529,13 @@ function registerSocketHandlers(io) {
       emitState(roomId);
     });
 
-    socket.on("room:join", async ({ roomId, name, profileId }, callback) => {
-      const normalizedRoomId = String(roomId || "").toUpperCase();
+    socket.on("room:join", async (payload = {}, callback) => {
+      payload = normalizeSocketPayload(payload);
+      const normalizedRoomId = normalizeRoomCode(payload.roomId);
+      if (!isValidRoomCode(normalizedRoomId)) {
+        callback?.({ error: "Invalid room code" });
+        return;
+      }
       const room = rooms.get(normalizedRoomId);
 
       if (!room) {
@@ -511,7 +548,12 @@ function registerSocketHandlers(io) {
         return;
       }
 
-      const playerId = profileId || createRandomId();
+      const playerId = normalizeUuid(payload.profileId) || createRandomId();
+      if (room.players.has(playerId)) {
+        callback?.({ error: "Player is already in this room. Rejoin with the saved session instead." });
+        return;
+      }
+      const displayName = normalizePlayerName(payload.name, "Player");
       const sessionToken = createSessionToken();
       const waitingForNextGame = room.phase === "play" && room.game?.status === "active";
 
@@ -519,7 +561,7 @@ function registerSocketHandlers(io) {
         playerId,
         socketId: socket.id,
         sessionToken,
-        name: name || "Player",
+        name: displayName,
         connected: true,
         connectionState: CONNECTION_STATES.CONNECTED,
         connectionStateChangedAtMs: Date.now(),
@@ -541,24 +583,26 @@ function registerSocketHandlers(io) {
       socket.join(normalizedRoomId);
 
       try {
-        await upsertPlayerProfile({ profileId: playerId, displayName: name || "Player" });
+        await upsertPlayerProfile({ profileId: playerId, displayName });
         const entitlementExpiry = await getActivePlayerProfileEntitlement({ profileId: playerId });
         room.players.get(playerId).entitlementExpiresAtMs = entitlementExpiry ? new Date(entitlementExpiry).getTime() : null;
         room.players.get(playerId).entitledModeKeys = await getActiveEntitledModeKeys({ profileId: playerId });
         room.players.get(playerId).entitledModeExpiriesMs = await getActiveEntitlementExpiriesByMode({ profileId: playerId });
-        await addPlayerRecord({ roomCode: normalizedRoomId, playerId, displayName: name || "Player", isHost: false, slot: room.players.size });
+        await addPlayerRecord({ roomCode: normalizedRoomId, playerId, displayName, isHost: false, slot: room.players.size });
         await logRoomHistoryEvent({ roomCode: normalizedRoomId, eventType: "room_joined", actorPlayerId: playerId, toStatus: room.status || (room.phase === "play" ? "premium" : "lobby") });
       } catch (error) {
         console.error("DB room:join persistence failed", error);
-        persistError({ roomCode: normalizedRoomId, playerId, source: "room:join", message: error.message, stackTrace: error.stack, context: { name, profileId } });
+        persistError({ roomCode: normalizedRoomId, playerId, source: "room:join", message: error.message, stackTrace: error.stack, context: { name: displayName, profileId: playerId } });
       }
 
       if (callback) callback({ roomId: normalizedRoomId, playerId, sessionToken, state: getRoomState(normalizedRoomId) });
       emitState(normalizedRoomId);
     });
 
-    socket.on("room:rejoin", async ({ roomId, sessionToken }, callback) => {
-      const normalizedRoomId = String(roomId || "").toUpperCase();
+    socket.on("room:rejoin", async (payload = {}, callback) => {
+      payload = normalizeSocketPayload(payload);
+      const normalizedRoomId = normalizeRoomCode(payload.roomId);
+      const sessionToken = typeof payload.sessionToken === "string" ? payload.sessionToken : "";
       const room = rooms.get(normalizedRoomId);
       if (!room) {
         const creatorTimedOut = consumeCreatorTimeoutNotice(sessionToken);
@@ -619,7 +663,10 @@ function registerSocketHandlers(io) {
       emitState(normalizedRoomId);
     });
 
-    socket.on("room:leave", ({ roomId, playerId }, callback) => {
+    socket.on("room:leave", (payload = {}, callback) => {
+      payload = normalizeSocketPayload(payload);
+      const roomId = normalizeRoomCode(payload.roomId);
+      const playerId = normalizeUuid(payload.playerId);
       const room = rooms.get(roomId);
       if (!room) {
         if (callback) callback({ error: "Room not found" });
@@ -676,7 +723,11 @@ function registerSocketHandlers(io) {
       if (callback) callback({ ok: true });
     });
 
-    socket.on("player:setColor", ({ roomId, playerId, color }, callback) => {
+    socket.on("player:setColor", (payload = {}, callback) => {
+      payload = normalizeSocketPayload(payload);
+      const roomId = normalizeRoomCode(payload.roomId);
+      const playerId = normalizeUuid(payload.playerId);
+      const color = typeof payload.color === "string" ? payload.color : "";
       const room = rooms.get(roomId);
       if (!room) {
         if (callback) callback({ error: "Room not found" });
@@ -711,7 +762,11 @@ function registerSocketHandlers(io) {
       if (callback) callback({ ok: true });
     });
 
-    socket.on("player:setReady", async ({ roomId, playerId, ready }, callback) => {
+    socket.on("player:setReady", async (payload = {}, callback) => {
+      payload = normalizeSocketPayload(payload);
+      const roomId = normalizeRoomCode(payload.roomId);
+      const playerId = normalizeUuid(payload.playerId);
+      const ready = normalizeBoolean(payload.ready);
       const room = rooms.get(roomId);
       if (!room) {
         if (callback) callback({ error: "Room not found" });
@@ -736,7 +791,12 @@ function registerSocketHandlers(io) {
         return;
       }
 
-      player.ready = Boolean(ready);
+      if (!player.connected) {
+        if (callback) callback({ error: "Cannot change ready state while disconnected" });
+        return;
+      }
+
+      player.ready = ready;
       updatePlayerReady({ playerId, isReady: player.ready }).catch((error) => console.error("DB ready update failed", error));
       await maybeAdvanceToPlayPhase(room, roomId);
       emitState(roomId);
@@ -744,7 +804,11 @@ function registerSocketHandlers(io) {
     });
 
 
-    socket.on("room:setMode", ({ roomId, playerId, modeId }, callback) => {
+    socket.on("room:setMode", (payload = {}, callback) => {
+      payload = normalizeSocketPayload(payload);
+      const roomId = normalizeRoomCode(payload.roomId);
+      const playerId = normalizeUuid(payload.playerId);
+      const modeId = payload.modeId;
       const room = rooms.get(roomId);
       if (!room) return callback?.({ error: "Room not found" });
       const player = room.players.get(playerId);
@@ -763,7 +827,12 @@ function registerSocketHandlers(io) {
       callback?.({ ok: true });
     });
 
-    socket.on("entitlement:purchase:start", async ({ roomId, playerId, productKey }, callback) => {
+    socket.on("entitlement:purchase:start", async (payload = {}, callback) => {
+      payload = normalizeSocketPayload(payload);
+      const roomId = normalizeRoomCode(payload.roomId);
+      const playerId = normalizeUuid(payload.playerId);
+      const productKey = normalizeProductKey(payload.productKey);
+      if (!productKey) return callback?.({ error: "Invalid product" });
       const room = rooms.get(roomId);
       if (!room) {
         callback?.({ error: "Room not found" });
@@ -805,7 +874,11 @@ function registerSocketHandlers(io) {
       callback?.({ ok: true });
     });
 
-    socket.on("entitlement:purchase:result", ({ roomId, playerId, success }, callback) => {
+    socket.on("entitlement:purchase:result", (payload = {}, callback) => {
+      payload = normalizeSocketPayload(payload);
+      const roomId = normalizeRoomCode(payload.roomId);
+      const playerId = normalizeUuid(payload.playerId);
+      const success = normalizeBoolean(payload.success);
       const room = rooms.get(roomId);
       if (!room) return callback?.({ error: "Room not found" });
       const player = room.players.get(playerId);
@@ -834,51 +907,15 @@ function registerSocketHandlers(io) {
       return callback?.({ ok: true });
     });
 
-    socket.on("entitlement:purchase", async ({ playerId }, callback) => {
-      try {
-        await upsertPlayerProfile({ profileId: playerId, displayName: null });
-        const productKey = "glitch_party_pack";
-        const expiresAt = await grantPlayerProfileEntitlement({ profileId: playerId, productKey });
-        const expiresAtMs = expiresAt ? new Date(expiresAt).getTime() : Date.now() + (24 * 60 * 60 * 1000);
-
-        for (const room of rooms.values()) {
-          const player = room.players.get(playerId);
-          if (!player) continue;
-
-          player.entitlementExpiresAtMs = expiresAtMs;
-          player.entitledModeKeys = await getActiveEntitledModeKeys({ profileId: playerId });
-          player.entitledModeExpiriesMs = await getActiveEntitlementExpiriesByMode({ profileId: playerId });
-          const isHost = room.creatorPlayerId === playerId;
-          if (isHost) {
-            room.hostUnlockingPending = false;
-            room.unlockingStartedAtMs = null;
-            room.unlockingPreviousHasEntitlement = null;
-            room.unlockingProductName = null;
-
-            if (room.game?.isPreview) {
-              room.game.isPreview = false;
-              room.game.previewEndsAtMs = null;
-              clearPreviewTimer(room);
-            }
-          }
-          if (isHost) {
-            room.expiresAtMs = expiresAtMs;
-            transitionRoomStatus(room, room.id, ROOM_STATUSES.PREMIUM, {
-              eventType: "settings_changed",
-              metadata: { reason: "entitlement_activated", expiresAtMs }
-            });
-          }
-
-          io.to(room.id).emit("room:state", getRoomState(room.id));
-        }
-
-        callback?.({ ok: true, expiresAtMs });
-      } catch (error) {
-        callback?.({ error: "Failed to purchase entitlement" });
-      }
+    socket.on("entitlement:purchase", (payload = {}, callback) => {
+      payload = normalizeSocketPayload(payload);
+      callback?.({ error: "Entitlements are activated only by the Stripe webhook" });
     });
 
-    socket.on("game:assetsLoaded", ({ roomId, playerId }, callback) => {
+    socket.on("game:assetsLoaded", (payload = {}, callback) => {
+      payload = normalizeSocketPayload(payload);
+      const roomId = normalizeRoomCode(payload.roomId);
+      const playerId = normalizeUuid(payload.playerId);
       const room = rooms.get(roomId);
       if (!room || room.phase !== "play") {
         callback?.({ error: "Match is not in play phase" });
@@ -902,7 +939,11 @@ function registerSocketHandlers(io) {
       emitState(roomId);
     });
 
-    socket.on("game:submit", ({ roomId, playerId, answer }, callback) => {
+    socket.on("game:submit", (payload = {}, callback) => {
+      payload = normalizeSocketPayload(payload);
+      const roomId = normalizeRoomCode(payload.roomId);
+      const playerId = normalizeUuid(payload.playerId);
+      const answer = normalizeAnswer(payload.answer);
       const room = rooms.get(roomId);
       if (!room || room.phase !== "play") {
         if (callback) callback({ error: "Match is not in play phase" });
@@ -922,12 +963,22 @@ function registerSocketHandlers(io) {
         return;
       }
 
+      if (!player.currentGameParticipant || player.waitingForNextGame || !player.connected) {
+        if (callback) callback({ error: "Only active game participants can submit" });
+        return;
+      }
+
+      if (round.isResolved || Date.now() > round.decisionDeadlineMs) {
+        if (callback) callback({ error: "Round deadline passed" });
+        return;
+      }
+
       if (round.playerAnswers[playerId]) {
         if (callback) callback({ ok: true });
         return;
       }
 
-      if (!["sync", "glitch"].includes(answer)) {
+      if (!answer) {
         if (callback) callback({ error: "Invalid answer" });
         return;
       }
@@ -937,7 +988,7 @@ function registerSocketHandlers(io) {
       if (callback) callback({ ok: true });
 
       const activePlayerIds = Array.from(room.players.values())
-        .filter((candidate) => candidate.connected && !candidate.waitingForNextGame)
+        .filter((candidate) => candidate.connected && candidate.currentGameParticipant && !candidate.waitingForNextGame)
         .map((candidate) => candidate.playerId);
 
       const everyoneAnswered = activePlayerIds.every((activePlayerId) => Boolean(round.playerAnswers[activePlayerId]));
@@ -946,20 +997,25 @@ function registerSocketHandlers(io) {
       }
     });
 
-    socket.on("time:sync:ping", ({ clientSentAt }, callback) => {
+    socket.on("time:sync:ping", (payload = {}, callback) => {
+      payload = normalizeSocketPayload(payload);
+      const clientSentAt = typeof payload.clientSentAt === "number" ? payload.clientSentAt : null;
       if (callback) {
         callback({ clientSentAt, serverTime: Date.now() });
       }
     });
 
-    socket.on("player:ping", ({ roomId, playerId, pingMs }) => {
+    socket.on("player:ping", (payload = {}) => {
+      payload = normalizeSocketPayload(payload);
+      const roomId = normalizeRoomCode(payload.roomId);
+      const playerId = normalizeUuid(payload.playerId);
       const room = rooms.get(roomId);
       if (!room) return;
       const player = room.players.get(playerId);
       if (!player || player.socketId !== socket.id) return;
 
-      const normalizedPingMs = Math.round(Number(pingMs));
-      if (!Number.isFinite(normalizedPingMs) || normalizedPingMs < 0) return;
+      const normalizedPingMs = normalizePingMs(payload.pingMs);
+      if (normalizedPingMs === null) return;
 
       player.pingMs = normalizedPingMs;
       const transition = updatePlayerLatencyState(player, normalizedPingMs);

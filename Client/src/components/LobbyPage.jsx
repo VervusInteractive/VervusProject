@@ -16,7 +16,8 @@ function LobbyPage({
   profileEntitlementExpiresAtMs = null,
   entitledModeKeys = [],
   entitledModeExpiriesMs = {},
-  onSelectedModeChange
+  onSelectedModeChange,
+  actionsLocked = false
 }) {
   const [currentTimeMs, setCurrentTimeMs] = useState(() => Date.now());
 
@@ -65,8 +66,8 @@ function LobbyPage({
       </label>
 
       <div className="single-action-row">
-        <button className="btn btn-primary" onClick={() => { onUiButtonClick?.(); onCreateRoom(); }}>Create Room</button>
-        <button className="btn btn-secondary" onClick={() => { onUiButtonClick?.(); onOpenStore?.(); }}>Store</button>
+        <button className="btn btn-primary" disabled={actionsLocked} onClick={() => { onUiButtonClick?.(); onCreateRoom(); }}>Create Room</button>
+        <button className="btn btn-secondary" disabled={actionsLocked} onClick={() => { onUiButtonClick?.(); onOpenStore?.(); }}>Store</button>
       </div>
 
 
@@ -76,7 +77,7 @@ function LobbyPage({
           className="field-input"
           value={selectedModeId}
           onChange={(event) => onSelectedModeChange?.(event.target.value)}
-          disabled={!canSelectMode}
+          disabled={!canSelectMode || actionsLocked}
         >
           {modeOptions.map((mode) => (
             <option key={mode.id} value={mode.id}>{mode.label}</option>
@@ -95,7 +96,7 @@ function LobbyPage({
             onChange={(event) => onRoomIdInputChange(event.target.value)}
           />
         </label>
-        <button className="btn btn-primary" onClick={() => { onUiButtonClick?.(); onJoinRoom(); }}>Join Room</button>
+        <button className="btn btn-primary" disabled={actionsLocked} onClick={() => { onUiButtonClick?.(); onJoinRoom(); }}>Join Room</button>
       </div>
     </section>
   );

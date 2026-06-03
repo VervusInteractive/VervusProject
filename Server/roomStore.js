@@ -1,3 +1,5 @@
+const crypto = require("crypto");
+
 const rooms = new Map();
 const CREATOR_RECONNECT_GRACE_MS = 3 * 60 * 1000;
 const CREATOR_UNLOCK_RECONNECT_GRACE_MS = 10 * 60 * 1000;
@@ -6,6 +8,7 @@ const { getModeDebugConfig } = require("./gameModes");
 const { CONNECTION_STATE_LABELS, getRoomConnectionState, normalizeConnectionState } = require("./connectionState");
 const CREATOR_TIMEOUT_NOTICE_TTL_MS = 10 * 60 * 1000;
 const creatorTimeoutNotices = new Map();
+const MODE_DEBUG_ENABLED = process.env.MODE_DEBUG_ENABLED === "true";
 
 function markCreatorTimedOut(sessionToken) {
   if (!sessionToken) return;
@@ -110,7 +113,9 @@ function getRoomState(roomId) {
       : null,
     selectedModeId: room.selectedModeId || "standard",
     availableModes: room.availableModes || [],
-    modeDebugConfigs: (room.availableModes || []).map((mode) => getModeDebugConfig(mode.id)),
+    modeDebugConfigs: MODE_DEBUG_ENABLED
+      ? (room.availableModes || []).map((mode) => getModeDebugConfig(mode.id))
+      : [],
     players: Array.from(room.players.values()).map((player) => ({
       playerId: player.playerId,
       name: player.name,
@@ -138,18 +143,35 @@ function getRoomState(roomId) {
   };
 }
 
-function generateRoomCode() {
-  return Math.random().toString(36).slice(2, 6).toUpperCase();
+const ROOM_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+const ROOM_CODE_LENGTH = 6;
+
+function secureRandomString(alphabet, length) {
+  const chars = [];
+  for (let i = 0; i < length; i += 1) {
+    chars.push(alphabet[crypto.randomInt(0, alphabet.length)]);
+  }
+  return chars.join("");
 }
 
-const crypto = require("crypto");
+function generateRoomCode() {
+  return secureRandomString(ROOM_CODE_ALPHABET, ROOM_CODE_LENGTH);
+}
+
+function generateUniqueRoomCode(maxAttempts = 20) {
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    const roomCode = generateRoomCode();
+    if (!rooms.has(roomCode)) return roomCode;
+  }
+  throw new Error("Failed to allocate a unique room code");
+}
 
 function createRandomId() {
   return crypto.randomUUID();
 }
 
 function createSessionToken() {
-  return Math.random().toString(36).slice(2) + Date.now().toString(36);
+  return crypto.randomBytes(32).toString("base64url");
 }
 
 module.exports = {
@@ -163,6 +185,7 @@ module.exports = {
   getSpawnPosition,
   getRoomState,
   generateRoomCode,
+  generateUniqueRoomCode,
   createRandomId,
   createSessionToken
 };

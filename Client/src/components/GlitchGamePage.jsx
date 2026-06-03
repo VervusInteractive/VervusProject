@@ -852,8 +852,8 @@ function GlitchGamePage({ roomId, playerId, players, myGame, serverNow, onSubmit
         </div>
 
       <div className="answer-row">
-          <button className="btn btn-primary answer-btn" disabled={answered || myGame.status !== "active" || !currentRound} onClick={() => onSubmitAnswer("sync")}>SYNC</button>
-          <button className="btn btn-secondary answer-btn" disabled={answered || myGame.status !== "active" || !currentRound} onClick={() => onSubmitAnswer("glitch")}>GLiTCH!</button>
+          <button className="btn btn-primary answer-btn" disabled={answered || myGame.status !== "active" || !currentRound || connectionState === CONNECTION_STATES.DISCONNECTED || connectionState === CONNECTION_STATES.RECONNECTING} onClick={() => onSubmitAnswer("sync")}>SYNC</button>
+          <button className="btn btn-secondary answer-btn" disabled={answered || myGame.status !== "active" || !currentRound || connectionState === CONNECTION_STATES.DISCONNECTED || connectionState === CONNECTION_STATES.RECONNECTING} onClick={() => onSubmitAnswer("glitch")}>GLiTCH!</button>
         </div>
 
       {saveItLabel ? (

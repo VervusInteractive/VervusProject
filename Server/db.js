@@ -2,11 +2,11 @@ const { Pool } = require('pg');
 const fs = require("fs");
 const path = require("path");
 
-const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://admin:uvoiezjFb5HyfK7zsy3jZJLN2BuVIfVM@dpg-d7l34lm47okc73b5oe10-a/Vervus_data';
+const DATABASE_URL = process.env.DATABASE_URL;
 
 const pool = new Pool({
   connectionString: DATABASE_URL,
-  ssl: { rejectUnauthorized: false }
+  ssl: process.env.DB_SSL === 'false' ? false : { rejectUnauthorized: false }
 });
 
 async function testDbConnection() { await pool.query('SELECT 1'); }
@@ -42,6 +42,8 @@ async function ensurePlayerProfileTables() {
   await pool.query(`CREATE TABLE IF NOT EXISTS vervus_data.player_profiles (id UUID PRIMARY KEY, display_name TEXT, created_at TIMESTAMPTZ NOT NULL DEFAULT now(), last_seen_at TIMESTAMPTZ NOT NULL DEFAULT now());`);
   await pool.query(`CREATE TABLE IF NOT EXISTS vervus_data.player_profile_entitlements (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), player_profile_id UUID NOT NULL REFERENCES vervus_data.player_profiles(id) ON DELETE CASCADE, starts_at TIMESTAMPTZ NOT NULL DEFAULT now(), expires_at TIMESTAMPTZ NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT now(), game_mode_id UUID REFERENCES vervus_data.game_modes(id) ON DELETE CASCADE);`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_player_profile_entitlements_active ON vervus_data.player_profile_entitlements(player_profile_id, game_mode_id, expires_at);`);
+  await pool.query(`ALTER TABLE IF EXISTS vervus_data.purchases ADD COLUMN IF NOT EXISTS entitlement_granted_at TIMESTAMPTZ NULL;`);
+  await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_purchases_stripe_checkout_session_unique ON vervus_data.purchases(stripe_checkout_session_id) WHERE stripe_checkout_session_id IS NOT NULL;`);
 }
 async function upsertPlayerProfile({ profileId, displayName }) {
   await ensurePlayerProfileTables();
@@ -162,24 +164,118 @@ async function attachStripeSessionToPurchase({ purchaseId, stripeCheckoutSession
     [purchaseId, stripeCheckoutSessionId]
   );
 }
-async function completePurchaseByStripeSession({ stripeCheckoutSessionId, stripePaymentIntentId }) {
-  const { rows } = await pool.query(
-    `UPDATE vervus_data.purchases
-      SET payment_status = 'paid'::vervus_data.payment_status,
-          stripe_payment_intent_id = COALESCE($2, stripe_payment_intent_id),
-          paid_at = now()
-      WHERE stripe_checkout_session_id = $1
-      RETURNING player_id, product_id`,
-    [stripeCheckoutSessionId, stripePaymentIntentId || null]
-  );
-  return rows[0] || null;
+async function completePurchaseAndGrantEntitlementByStripeSession({ stripeCheckoutSessionId, stripePaymentIntentId }) {
+  if (!stripeCheckoutSessionId) return null;
+  await ensurePlayerProfileTables();
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+    const { rows } = await client.query(
+      `SELECT p.id,
+              p.player_id,
+              p.product_id,
+              p.payment_status::text AS payment_status,
+              p.entitlement_granted_at,
+              pr.product_key,
+              pr.validity_duration_hours
+       FROM vervus_data.purchases p
+       JOIN vervus_data.products pr ON pr.id = p.product_id
+       WHERE p.stripe_checkout_session_id = $1
+       FOR UPDATE`,
+      [stripeCheckoutSessionId]
+    );
+    const purchase = rows[0];
+    if (!purchase) {
+      await client.query('ROLLBACK');
+      return null;
+    }
+
+    if (purchase.entitlement_granted_at) {
+      await client.query('COMMIT');
+      return { ...purchase, granted: false, alreadyGranted: true };
+    }
+
+    if (!['pending', 'paid'].includes(purchase.payment_status)) {
+      await client.query('ROLLBACK');
+      return null;
+    }
+
+    await client.query(
+      `UPDATE vervus_data.purchases
+       SET payment_status = 'paid'::vervus_data.payment_status,
+           stripe_payment_intent_id = COALESCE($2, stripe_payment_intent_id),
+           paid_at = COALESCE(paid_at, now())
+       WHERE id = $1::uuid`,
+      [purchase.id, stripePaymentIntentId || null]
+    );
+
+    await client.query(
+      `INSERT INTO vervus_data.player_profiles (id, display_name, last_seen_at)
+       VALUES ($1::uuid, NULL, now())
+       ON CONFLICT (id) DO UPDATE SET last_seen_at = now()`,
+      [purchase.player_id]
+    );
+
+    const entitlementResult = await client.query(
+      `WITH target_modes AS (
+         SELECT DISTINCT pm.mode_id
+         FROM vervus_data.products p
+         JOIN vervus_data.product_modes pm ON pm.product_id = p.id
+         WHERE p.id = $2::uuid
+           AND p.status = 'active'::vervus_data.product_status
+       ), entitlement_base AS (
+         SELECT tm.mode_id,
+                COALESCE(
+                  MAX(ppe.expires_at) FILTER (WHERE ppe.expires_at > now()),
+                  now()
+                ) AS base_expires_at
+         FROM target_modes tm
+         LEFT JOIN vervus_data.player_profile_entitlements ppe
+           ON ppe.player_profile_id = $1::uuid
+          AND ppe.game_mode_id = tm.mode_id
+         GROUP BY tm.mode_id
+       ), inserted AS (
+         INSERT INTO vervus_data.player_profile_entitlements (player_profile_id, game_mode_id, starts_at, expires_at)
+         SELECT $1::uuid,
+                eb.mode_id,
+                eb.base_expires_at,
+                eb.base_expires_at + make_interval(hours => $3::int)
+         FROM entitlement_base eb
+         RETURNING expires_at
+       )
+       SELECT MAX(expires_at) AS expires_at
+       FROM inserted;`,
+      [purchase.player_id, purchase.product_id, purchase.validity_duration_hours || 24]
+    );
+
+    await client.query(
+      `UPDATE vervus_data.purchases
+       SET entitlement_granted_at = now()
+       WHERE id = $1::uuid`,
+      [purchase.id]
+    );
+
+    await client.query('COMMIT');
+    return {
+      ...purchase,
+      granted: true,
+      expires_at: entitlementResult.rows[0]?.expires_at || null
+    };
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 async function markPurchaseFailedByStripeSession({ stripeCheckoutSessionId }) {
   await pool.query(
     `UPDATE vervus_data.purchases
       SET payment_status = 'failed'::vervus_data.payment_status,
           failed_at = now()
-      WHERE stripe_checkout_session_id = $1`,
+      WHERE stripe_checkout_session_id = $1
+        AND payment_status <> 'paid'::vervus_data.payment_status`,
     [stripeCheckoutSessionId]
   );
 }
@@ -203,4 +299,4 @@ async function deletePlayerRecord(playerId) { await pool.query('DELETE FROM verv
 async function updateRoomStatus({ roomCode, status }) { await ensureRoomTrackingTables(); await pool.query(`UPDATE vervus_data.rooms SET status = $2::vervus_data.room_status, started_at = CASE WHEN $2 IN ('preview', 'premium', 'active') THEN COALESCE(started_at, now()) ELSE started_at END, ended_at = CASE WHEN $2 IN ('ended', 'expired') THEN now() ELSE ended_at END WHERE room_code = $1`, [roomCode, status]); }
 async function deleteRoomRecord(roomCode) { await pool.query('DELETE FROM vervus_data.rooms WHERE room_code = $1', [roomCode]); }
 
-module.exports = { pool, testDbConnection, ensureRoomTrackingTables, logRoomHistoryEvent, logErrorEntry, ensurePlayerProfileTables, upsertPlayerProfile, grantPlayerProfileEntitlement, getActivePlayerProfileEntitlement, getActiveEntitledModeKeys, getActiveEntitlementExpiriesByMode, getProductByKey, createPendingPurchase, attachStripeSessionToPurchase, completePurchaseByStripeSession, markPurchaseFailedByStripeSession, getProductById, createRoomRecord, addPlayerRecord, updatePlayerReady, updatePlayerConnection, deletePlayerRecord, updateRoomStatus, deleteRoomRecord };
+module.exports = { pool, testDbConnection, ensureRoomTrackingTables, logRoomHistoryEvent, logErrorEntry, ensurePlayerProfileTables, upsertPlayerProfile, grantPlayerProfileEntitlement, getActivePlayerProfileEntitlement, getActiveEntitledModeKeys, getActiveEntitlementExpiriesByMode, getProductByKey, createPendingPurchase, attachStripeSessionToPurchase, completePurchaseAndGrantEntitlementByStripeSession, markPurchaseFailedByStripeSession, getProductById, createRoomRecord, addPlayerRecord, updatePlayerReady, updatePlayerConnection, deletePlayerRecord, updateRoomStatus, deleteRoomRecord };

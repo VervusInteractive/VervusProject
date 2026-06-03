@@ -12,7 +12,10 @@ import successPurchaseSoundFile from "./assets/audio/Sound_SuccessPurchase.mp3";
 import failedPurchaseSoundFile from "./assets/audio/Sound_FailedPurchase.mp3";
 
 const serverUrl = import.meta.env.VITE_SERVER_URL;
-const socket = io(serverUrl);
+if (!serverUrl) {
+  throw new Error("VITE_SERVER_URL is required");
+}
+const socket = io(serverUrl, { autoConnect: true });
 
 const discardBufferedSocketEmits = () => {
   if (Array.isArray(socket.sendBuffer) && socket.sendBuffer.length > 0) {
@@ -216,15 +219,17 @@ function App() {
   const [selectedLobbyModeId, setSelectedLobbyModeId] = useState("standard");
   const [roomId, setRoomId] = useState("");
   const [playerId, setPlayerId] = useState("");
-  const [sessionToken, setSessionToken] = useState("");
   const [roomState, setRoomState] = useState(null);
-  const modeDebugConfigs = roomState?.modeDebugConfigs || DEFAULT_MODE_DEBUG_CONFIGS;
+  const modeDebugConfigs = roomState?.modeDebugConfigs?.length
+    ? roomState.modeDebugConfigs
+    : (import.meta.env.DEV ? DEFAULT_MODE_DEBUG_CONFIGS : []);
   const [isViewingRoomPage, setIsViewingRoomPage] = useState(false);
   const [serverNow, setServerNow] = useState(null);
   const [serverOffsetMs, setServerOffsetMs] = useState(null);
   const [isSocketConnected, setIsSocketConnected] = useState(socket.connected);
   const [isSocketReconnecting, setIsSocketReconnecting] = useState(!socket.connected);
   const [pingMs, setPingMs] = useState(null);
+  const actionsLocked = !isSocketConnected;
   const connectionState = useMemo(() => deriveSocketConnectionState({
     socketConnected: isSocketConnected,
     isReconnecting: isSocketReconnecting && !isSocketConnected,
@@ -297,14 +302,12 @@ function App() {
     setRoomId("");
     setRoomIdInput("");
     setPlayerId("");
-    setSessionToken("");
     setRoomState(null);
     setIsViewingRoomPage(false);
   }, [roomId]);
   const applyJoinResponse = useCallback((response) => {
     setRoomId(response.roomId);
     setPlayerId(response.playerId);
-    setSessionToken(response.sessionToken);
     setRoomState(response.state);
 
     localStorage.setItem("roomId", response.roomId);
@@ -764,7 +767,6 @@ function App() {
             roomStatus={roomState?.status ?? roomState?.phase ?? "-"}
             serverNow={serverOffsetMs === null ? null : serverNow}
             pingMs={pingMs}
-            sessionToken={sessionToken}
             waitingForNextGame={Boolean(me?.waitingForNextGame)}
             colors={PLAYER_COLORS}
             onSetColor={setPlayerColor}
@@ -772,7 +774,7 @@ function App() {
             onExit={exitRoom}
             connectionState={connectionState}
             onUiButtonClick={playClickSound}
-            canManageReady={(connectionState === CONNECTION_STATES.CONNECTED || connectionState === CONNECTION_STATES.DEGRADED) && (roomState?.phase === "lobby" || (isViewingRoomPage && me?.game?.status === "gameover"))}
+            canManageReady={!actionsLocked && (connectionState === CONNECTION_STATES.CONNECTED || connectionState === CONNECTION_STATES.DEGRADED) && (roomState?.phase === "lobby" || (isViewingRoomPage && me?.game?.status === "gameover"))}
             canOpenStore={Boolean(me?.isHost)}
             isPreviewRoom={isPreviewRoom}
             onOpenStore={() => setShowStore(true)}
@@ -780,7 +782,7 @@ function App() {
             unlockingProductName={roomState?.unlockingProductName ?? null}
             selectedModeId={roomState?.selectedModeId ?? "standard"}
             availableModes={roomState?.availableModes ?? []}
-            canSelectMode={Boolean(me?.isHost && me?.hasEntitlement && (roomState?.phase === "lobby" || (isViewingRoomPage && me?.game?.status === "gameover")))}
+            canSelectMode={Boolean(!actionsLocked && me?.isHost && me?.hasEntitlement && (roomState?.phase === "lobby" || (isViewingRoomPage && me?.game?.status === "gameover")))}
             entitlementExpiresAtMs={me?.entitlementExpiresAtMs ?? null}
             entitledModeKeys={me?.entitledModeKeys ?? []}
             entitledModeExpiriesMs={me?.entitledModeExpiriesMs ?? {}}
@@ -806,7 +808,8 @@ function App() {
           onUiButtonClick={playClickSound}
           selectedModeId={selectedLobbyModeId}
           availableModes={LOBBY_MODE_OPTIONS}
-          canSelectMode={Boolean(profileEntitledModeKeys.length)}
+          canSelectMode={Boolean(!actionsLocked && profileEntitledModeKeys.length)}
+          actionsLocked={actionsLocked}
           profileEntitlementExpiresAtMs={profileEntitlementExpiresAtMs}
           entitledModeKeys={profileEntitledModeKeys}
           entitledModeExpiriesMs={profileEntitledModeExpiriesMs}
@@ -820,10 +823,10 @@ function App() {
             <h2 className="qr-modal-title">Store</h2>
             <p className="panel-subtitle">Buy a single mode or the Party Pack bundle.</p>
             <div className="store-action-list">
-              <button className="btn btn-secondary" onClick={() => purchaseProduct("glitch_standard_mode")}>Buy GLiTCH! Mode</button>
-              <button className="btn btn-secondary" onClick={() => purchaseProduct("glitch_chaos_mode")}>Buy Chaos Mode</button>
-              <button className="btn btn-secondary" onClick={() => purchaseProduct("glitch_blitz_mode")}>Buy Blitz Mode</button>
-              <button className="btn btn-primary" onClick={() => purchaseProduct("glitch_party_pack")}>Buy Party Pack</button>
+              <button className="btn btn-secondary" disabled={actionsLocked} onClick={() => purchaseProduct("glitch_standard_mode")}>Buy GLiTCH! Mode</button>
+              <button className="btn btn-secondary" disabled={actionsLocked} onClick={() => purchaseProduct("glitch_chaos_mode")}>Buy Chaos Mode</button>
+              <button className="btn btn-secondary" disabled={actionsLocked} onClick={() => purchaseProduct("glitch_blitz_mode")}>Buy Blitz Mode</button>
+              <button className="btn btn-primary" disabled={actionsLocked} onClick={() => purchaseProduct("glitch_party_pack")}>Buy Party Pack</button>
             </div>
             <button className="btn btn-primary store-close-btn" onClick={() => setShowStore(false)}>Close</button>
           </div>

@@ -6,25 +6,53 @@ const { Server } = require("socket.io");
 const { registerSocketHandlers } = require("./socketHandlers");
 const {
   testDbConnection,
-  grantPlayerProfileEntitlement,
-  upsertPlayerProfile,
   getProductByKey,
   createPendingPurchase,
   attachStripeSessionToPurchase,
-  completePurchaseByStripeSession,
+  completePurchaseAndGrantEntitlementByStripeSession,
   markPurchaseFailedByStripeSession,
-  getProductById,
   ensureRoomTrackingTables,
   logErrorEntry
 } = require("./db");
 const { hydrateStandardModeFromDb, hydrateHeatSurgeConfigsFromDb, hydrateModeCorruptionBandsFromDb } = require("./gameModes");
 
 const app = express();
-app.use(cors());
 
 const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
 const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET;
-const CLIENT_URL = process.env.CLIENT_URL || "http://localhost:5173";
+const CLIENT_URL = process.env.CLIENT_URL;
+const ALLOWED_ORIGINS = (process.env.CORS_ORIGINS || CLIENT_URL || "")
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
+function validateStartupEnvironment() {
+  const required = ["DATABASE_URL", "CLIENT_URL"];
+  const paymentConfigured = Boolean(process.env.STRIPE_SECRET_KEY && process.env.STRIPE_WEBHOOK_SECRET);
+  if (process.env.PAYMENTS_REQUIRED !== "false") {
+    required.push("STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET");
+  }
+
+  const missing = required.filter((key) => !process.env[key]);
+  if (missing.length > 0) {
+    throw new Error(`Missing required environment variable(s): ${missing.join(", ")}`);
+  }
+
+  if (process.env.NODE_ENV === "production" && CLIENT_URL.startsWith("http://localhost")) {
+    throw new Error("CLIENT_URL must not point at localhost in production");
+  }
+
+  if (!paymentConfigured) {
+    console.warn("Stripe payments are disabled because PAYMENTS_REQUIRED=false or Stripe configuration is incomplete.");
+  }
+}
+
+validateStartupEnvironment();
+
+app.use(cors({
+  origin: ALLOWED_ORIGINS.length > 0 ? ALLOWED_ORIGINS : false,
+  methods: ["GET", "POST"]
+}));
 
 const stripeApiRequest = async (path, body) => {
   const response = await fetch(`https://api.stripe.com${path}`, {
@@ -61,9 +89,9 @@ app.post("/api/stripe/webhook", express.raw({ type: "application/json" }), async
       return;
     }
 
-    const [timestampPart, signaturePart] = signatureHeader.split(",");
-    const timestamp = timestampPart?.split("=")[1];
-    const stripeSignature = signaturePart?.split("=")[1];
+    const signatureParts = Object.fromEntries(signatureHeader.split(",").map((part) => part.split("=", 2)));
+    const timestamp = signatureParts.t;
+    const stripeSignature = signatureParts.v1;
     const payload = req.body.toString("utf8");
     const signedPayload = `${timestamp}.${payload}`;
     const expectedSignature = crypto
@@ -71,7 +99,11 @@ app.post("/api/stripe/webhook", express.raw({ type: "application/json" }), async
       .update(signedPayload, "utf8")
       .digest("hex");
 
-    if (expectedSignature !== stripeSignature) {
+    const signatureMatches = typeof stripeSignature === "string"
+      && /^[a-f0-9]{64}$/i.test(stripeSignature)
+      && crypto.timingSafeEqual(Buffer.from(expectedSignature, "hex"), Buffer.from(stripeSignature, "hex"));
+
+    if (!signatureMatches) {
       res.status(400).json({ error: "Invalid Stripe signature" });
       return;
     }
@@ -81,17 +113,7 @@ app.post("/api/stripe/webhook", express.raw({ type: "application/json" }), async
       const session = event.data?.object;
       const stripeCheckoutSessionId = session?.id;
       const stripePaymentIntentId = session?.payment_intent;
-      const purchase = await completePurchaseByStripeSession({ stripeCheckoutSessionId, stripePaymentIntentId });
-
-      if (purchase?.player_id && purchase?.product_id) {
-        const product = await getProductById(purchase.product_id);
-        await upsertPlayerProfile({ profileId: purchase.player_id, displayName: null });
-        await grantPlayerProfileEntitlement({
-          profileId: purchase.player_id,
-          productKey: product?.product_key || "glitch_party_pack",
-          hours: product?.validity_duration_hours || 24
-        });
-      }
+      await completePurchaseAndGrantEntitlementByStripeSession({ stripeCheckoutSessionId, stripePaymentIntentId });
     } else if (event.type === "checkout.session.expired") {
       const session = event.data?.object;
       await markPurchaseFailedByStripeSession({ stripeCheckoutSessionId: session?.id });
@@ -104,7 +126,7 @@ app.post("/api/stripe/webhook", express.raw({ type: "application/json" }), async
   }
 });
 
-app.use(express.json());
+app.use(express.json({ limit: "32kb" }));
 
 app.post("/api/stripe/checkout-session", async (req, res) => {
   if (!STRIPE_SECRET_KEY) {
@@ -112,7 +134,9 @@ app.post("/api/stripe/checkout-session", async (req, res) => {
     return;
   }
 
-  const { profileId, productKey = "glitch_party_pack" } = req.body ?? {};
+  const { normalizeProductKey, normalizeUuid } = require("./validation");
+  const profileId = normalizeUuid(req.body?.profileId);
+  const productKey = normalizeProductKey(req.body?.productKey);
   if (!profileId || !productKey) {
     res.status(400).json({ error: "Missing profileId or productKey" });
     return;
@@ -157,7 +181,7 @@ const httpServer = http.createServer(app);
 
 const io = new Server(httpServer, {
   cors: {
-    origin: "*",
+    origin: ALLOWED_ORIGINS.length > 0 ? ALLOWED_ORIGINS : false,
     methods: ["GET", "POST"]
   }
 });

@@ -10,7 +10,6 @@ function RoomPage({
   roomStatus = phase,
   serverNow,
   pingMs,
-  sessionToken,
   waitingForNextGame = false,
   colors,
   onSetColor,
@@ -41,7 +40,7 @@ function RoomPage({
     [players, playerId]
   );
   
-  const clientUrl = import.meta.env.VITE_CLIENT_URL;
+  const clientUrl = import.meta.env.VITE_CLIENT_URL || window.location.origin;
   const roomInviteUrl = `${clientUrl}/?room=${encodeURIComponent(roomId)}`;
   const roomInviteQrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(roomInviteUrl)}`;
   const selectedMode = useMemo(() => {
@@ -94,6 +93,7 @@ function RoomPage({
     expired: "Expired"
   };
   const roomStatusLabel = roomStatusLabels[roomStatus] || roomStatus;
+  const canShowDebug = modeDebugConfigs.length > 0;
 
   const modeOptions = (availableModes || []).map((mode) => {
     const ownsMode = (entitledModeKeys || []).includes(mode.id);
@@ -118,8 +118,10 @@ function RoomPage({
           </div>
         </div>
       ) : null}
-      <button type="button" className="btn btn-secondary debug-button" onClick={() => { onUiButtonClick?.(); setShowDebug(true); }}>Debug</button>
-      {showDebug ? <ModeDebugOverlay mode={selectedMode} heatSurgeConfig={selectedMode?.heatSurgeConfig} onClose={() => { onUiButtonClick?.(); setShowDebug(false); }} /> : null}
+      {canShowDebug ? (
+        <button type="button" className="btn btn-secondary debug-button" onClick={() => { onUiButtonClick?.(); setShowDebug(true); }}>Debug</button>
+      ) : null}
+      {canShowDebug && showDebug ? <ModeDebugOverlay mode={selectedMode} heatSurgeConfig={selectedMode?.heatSurgeConfig} onClose={() => { onUiButtonClick?.(); setShowDebug(false); }} /> : null}
       <div className="room-header">
         <div>
           <h1 className="panel-title">Room {roomId}</h1>
@@ -274,7 +276,6 @@ function RoomPage({
         <p><strong>Phase:</strong> {phase}</p>
         <p><strong>Ping:</strong> {pingMs === null ? "-" : `${pingMs} ms`}</p>
         <p><strong>Server Time:</strong> {serverNow ? new Date(serverNow).toLocaleTimeString() : "-"}</p>
-        <p><strong>Session:</strong> {sessionToken || "-"}</p>
       </div>
     </section>
   );

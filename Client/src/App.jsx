@@ -15,7 +15,20 @@ const serverUrl = import.meta.env.VITE_SERVER_URL;
 if (!serverUrl) {
   throw new Error("VITE_SERVER_URL is required");
 }
-const socket = io(serverUrl, { autoConnect: false, withCredentials: true });
+const PROFILE_SESSION_STORAGE_KEY = "profileSessionToken";
+const getStoredProfileSessionToken = () => localStorage.getItem(PROFILE_SESSION_STORAGE_KEY) || "";
+const buildProfileSessionHeaders = () => {
+  const token = getStoredProfileSessionToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+};
+const socket = io(serverUrl, {
+  autoConnect: false,
+  withCredentials: true,
+  auth: { profileSessionToken: getStoredProfileSessionToken() }
+});
+const setSocketProfileSessionToken = (token) => {
+  socket.auth = { ...(socket.auth || {}), profileSessionToken: token || "" };
+};
 
 const discardBufferedSocketEmits = () => {
   if (Array.isArray(socket.sendBuffer) && socket.sendBuffer.length > 0) {
@@ -299,6 +312,10 @@ function App() {
 
   const applyProfileEntitlementResponse = useCallback((response) => {
     if (response?.error) return;
+    if (response.profileSessionToken) {
+      localStorage.setItem(PROFILE_SESSION_STORAGE_KEY, response.profileSessionToken);
+      setSocketProfileSessionToken(response.profileSessionToken);
+    }
     if (response.profileId && response.profileId !== profileId) {
       setProfileId(response.profileId);
     }
@@ -349,7 +366,7 @@ function App() {
     fetch(`${serverUrl}/api/player-session`, {
       method: "POST",
       credentials: "include",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...buildProfileSessionHeaders() },
       body: JSON.stringify({ name })
     })
       .then(async (response) => {
@@ -591,7 +608,7 @@ function App() {
     fetch(`${serverUrl}/api/entitlement-transfer/claim`, {
       method: "POST",
       credentials: "include",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...buildProfileSessionHeaders() },
       body: JSON.stringify({ token, name })
     })
       .then(async (response) => {
@@ -778,7 +795,7 @@ function App() {
       fetch(`${serverUrl}/api/stripe/checkout-session`, {
         method: "POST",
         credentials: "include",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...buildProfileSessionHeaders() },
         body: JSON.stringify({ productKey })
       })
         .then(async (response) => {

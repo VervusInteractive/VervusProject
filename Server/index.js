@@ -91,9 +91,21 @@ function buildProfileSessionCookie(token) {
   return attrs.join("; ");
 }
 
-async function getProfileIdFromRequest(req) {
+function getSessionTokenFromRequest(req) {
   const cookies = parseCookies(req.headers.cookie || "");
-  const token = cookies[PROFILE_SESSION_COOKIE_NAME];
+  const cookieToken = cookies[PROFILE_SESSION_COOKIE_NAME];
+  if (cookieToken) return cookieToken;
+
+  const authHeader = String(req.headers.authorization || "");
+  const bearerMatch = authHeader.match(/^Bearer\s+(.+)$/i);
+  if (bearerMatch?.[1]) return bearerMatch[1].trim();
+
+  const headerToken = String(req.headers["x-vervus-profile-session"] || "").trim();
+  return headerToken || null;
+}
+
+async function getProfileIdFromRequest(req) {
+  const token = getSessionTokenFromRequest(req);
   if (!token) return null;
   return getPlayerProfileIdBySessionToken({ token });
 }
@@ -107,6 +119,7 @@ async function createSessionResponse({ res, profileId, displayName }) {
   const entitledModeExpiriesMs = await getActiveEntitlementExpiriesByMode({ profileId });
   return {
     profileId,
+    profileSessionToken: session.token,
     entitlementExpiresAtMs: entitlementExpiry ? new Date(entitlementExpiry).getTime() : null,
     entitledModeKeys,
     entitledModeExpiriesMs
@@ -301,7 +314,9 @@ const io = new Server(httpServer, {
 io.use(async (socket, next) => {
   try {
     const cookies = parseCookies(socket.handshake.headers.cookie || "");
-    const token = cookies[PROFILE_SESSION_COOKIE_NAME];
+    const cookieToken = cookies[PROFILE_SESSION_COOKIE_NAME];
+    const authToken = typeof socket.handshake.auth?.profileSessionToken === "string" ? socket.handshake.auth.profileSessionToken.trim() : "";
+    const token = cookieToken || authToken;
     socket.data.profileId = token ? await getPlayerProfileIdBySessionToken({ token }) : null;
     next();
   } catch (error) {

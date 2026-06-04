@@ -125,6 +125,23 @@ function registerSocketHandlers(io) {
     room.gameTimers = room.gameTimers.filter((candidate) => candidate !== timerId);
   };
 
+  const getProfileSocketRoom = (profileId) => `profile:${profileId}`;
+
+  const joinProfileSocketRoom = (socket, profileId) => {
+    const normalizedProfileId = normalizeUuid(profileId);
+    if (!normalizedProfileId) return;
+    socket.join(getProfileSocketRoom(normalizedProfileId));
+  };
+
+  const notifyEntitlementTransferCompleted = (profileId) => {
+    const normalizedProfileId = normalizeUuid(profileId);
+    if (!normalizedProfileId) return;
+
+    io.to(getProfileSocketRoom(normalizedProfileId)).emit("entitlement:transfer:completed", {
+      message: "Your entitlement was transferred to another device. Refreshing entitlements…"
+    });
+  };
+
   const persistError = (payload) => {
     logErrorEntry(payload).catch((dbError) => console.error("DB error log failed", dbError));
   };
@@ -436,12 +453,14 @@ function registerSocketHandlers(io) {
 
   io.on("connection", (socket) => {
     console.log("Socket connected:", socket.id);
+    joinProfileSocketRoom(socket, socket.data.profileId);
 
     socket.on("player:register", async (payload = {}, callback) => {
       payload = normalizeSocketPayload(payload);
       const nextProfileId = normalizeUuid(socket.data.profileId);
       const displayName = normalizePlayerName(payload.name, "Player");
       if (!nextProfileId) return callback?.({ error: "Session required" });
+      joinProfileSocketRoom(socket, nextProfileId);
       try {
         await upsertPlayerProfile({ profileId: nextProfileId, displayName });
         const entitlementExpiry = await getActivePlayerProfileEntitlement({ profileId: nextProfileId });
@@ -873,6 +892,7 @@ function registerSocketHandlers(io) {
       try {
         const claimed = await consumeEntitlementTransferToken({ token, targetProfileId, displayName });
         if (!claimed) return callback?.({ error: "Invalid, expired, or already-used entitlement transfer link" });
+        notifyEntitlementTransferCompleted(claimed.sourceProfileId);
         for (const [candidateRoomId, candidateRoom] of rooms.entries()) {
           const sourcePlayer = candidateRoom.players.get(claimed.sourceProfileId);
           if (!sourcePlayer) continue;

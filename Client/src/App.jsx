@@ -405,22 +405,31 @@ function App() {
     socket.on("room:state", handleRoomState);
     socket.on("room:warning", handleRoomWarning);
     socket.on("room:disbanded", handleRoomDisbanded);
-    socket.on("entitlement:purchase:result", ({ success }) => {
+    const handlePurchaseResult = ({ success }) => {
       const isSuccess = Boolean(success);
       if (suppressNextPurchaseResultRef.current !== null && suppressNextPurchaseResultRef.current === isSuccess) {
         suppressNextPurchaseResultRef.current = null;
         return;
       }
       playPurchaseSoundWithFallback(isSuccess);
-    });
+    };
+
+    const handleEntitlementTransferCompleted = ({ message } = {}) => {
+      refreshProfileEntitlements();
+      alert(message || "Your entitlement was transferred to another device. Entitlements refreshed.");
+    };
+
+    socket.on("entitlement:purchase:result", handlePurchaseResult);
+    socket.on("entitlement:transfer:completed", handleEntitlementTransferCompleted);
 
     return () => {
       socket.off("room:state", handleRoomState);
       socket.off("room:warning", handleRoomWarning);
       socket.off("room:disbanded", handleRoomDisbanded);
-      socket.off("entitlement:purchase:result");
+      socket.off("entitlement:purchase:result", handlePurchaseResult);
+      socket.off("entitlement:transfer:completed", handleEntitlementTransferCompleted);
     };
-  }, [clearSessionState, playPurchaseSoundWithFallback]);
+  }, [clearSessionState, playPurchaseSoundWithFallback, refreshProfileEntitlements]);
 
 
   useEffect(() => {

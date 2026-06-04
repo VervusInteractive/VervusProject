@@ -232,6 +232,10 @@ app.post("/api/entitlement-transfer/claim", async (req, res) => {
       return;
     }
 
+    io.to(getProfileSocketRoom(claimed.sourceProfileId)).emit("entitlement:transfer:completed", {
+      message: "Your entitlement was transferred to another device. Refreshing entitlements…"
+    });
+
     for (const [candidateRoomId, candidateRoom] of rooms.entries()) {
       const sourcePlayer = candidateRoom.players.get(claimed.sourceProfileId);
       if (!sourcePlayer) continue;
@@ -323,6 +327,8 @@ io.use(async (socket, next) => {
     next(error);
   }
 });
+
+const getProfileSocketRoom = (profileId) => `profile:${profileId}`;
 
 registerSocketHandlers(io);
 

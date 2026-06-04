@@ -15,7 +15,7 @@ const serverUrl = import.meta.env.VITE_SERVER_URL;
 if (!serverUrl) {
   throw new Error("VITE_SERVER_URL is required");
 }
-const socket = io(serverUrl, { autoConnect: true });
+const socket = io(serverUrl, { autoConnect: false, withCredentials: true });
 
 const discardBufferedSocketEmits = () => {
   if (Array.isArray(socket.sendBuffer) && socket.sendBuffer.length > 0) {
@@ -211,7 +211,7 @@ if (AUDIO_DEBUG_ENABLED) {
 function App() {
   const [name, setName] = useState(() => localStorage.getItem("playerName") || "");
   const [roomIdInput, setRoomIdInput] = useState(initialRoomFromQuery);
-  const [profileId, setProfileId] = useState(() => localStorage.getItem("playerProfileId") || "");
+  const [profileId, setProfileId] = useState("");
   const [profileEntitlementExpiresAtMs, setProfileEntitlementExpiresAtMs] = useState(null);
   const [profileEntitledModeKeys, setProfileEntitledModeKeys] = useState([]);
   const [profileEntitledModeExpiriesMs, setProfileEntitledModeExpiriesMs] = useState({});
@@ -301,7 +301,6 @@ function App() {
     if (response?.error) return;
     if (response.profileId && response.profileId !== profileId) {
       setProfileId(response.profileId);
-      localStorage.setItem("playerProfileId", response.profileId);
     }
     setProfileEntitlementExpiresAtMs(response.entitlementExpiresAtMs ?? null);
     setProfileEntitledModeKeys(response.entitledModeKeys ?? []);
@@ -309,8 +308,8 @@ function App() {
   }, [profileId]);
 
   const refreshProfileEntitlements = useCallback(() => {
-    emitIfConnected("player:register", { profileId, name }, applyProfileEntitlementResponse);
-  }, [applyProfileEntitlementResponse, emitIfConnected, name, profileId]);
+    emitIfConnected("player:register", { name }, applyProfileEntitlementResponse);
+  }, [applyProfileEntitlementResponse, emitIfConnected, name]);
 
 
   const clearSessionState = useCallback(() => {
@@ -343,6 +342,33 @@ function App() {
       || (isGameOver && getStoredRoomViewPreference(response.roomId))
     );
   }, [getStoredRoomViewPreference]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    fetch(`${serverUrl}/api/player-session`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name })
+    })
+      .then(async (response) => {
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload?.error || "Failed to establish player session");
+        if (!isMounted) return;
+        applyProfileEntitlementResponse(payload);
+        if (!socket.connected && !socket.active) {
+          socket.connect();
+        }
+      })
+      .catch((error) => {
+        if (isMounted) alert(error.message || "Failed to establish player session");
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [applyProfileEntitlementResponse, name]);
 
   useEffect(() => {
     const handleRoomState = (state) => setRoomState(state);
@@ -562,21 +588,29 @@ function App() {
     const token = pendingEntitlementTransferTokenRef.current;
     pendingEntitlementTransferTokenRef.current = "";
 
-    emitIfConnected("entitlement:transfer:claim", { token, targetProfileId: profileId, name }, (response) => {
-      if (response?.error) {
-        alert(response.error);
-      } else {
-        applyProfileEntitlementResponse(response);
+    fetch(`${serverUrl}/api/entitlement-transfer/claim`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token, name })
+    })
+      .then(async (response) => {
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload?.error || "Failed to claim entitlement transfer");
+        applyProfileEntitlementResponse(payload);
         alert("Entitlement transferred to this device.");
-      }
-
-      const params = new URLSearchParams(window.location.search);
-      params.delete("entitlementTransfer");
-      const nextQuery = params.toString();
-      const nextUrl = `${window.location.pathname}${nextQuery ? `?${nextQuery}` : ""}${window.location.hash}`;
-      window.history.replaceState({}, "", nextUrl);
-    });
-  }, [applyProfileEntitlementResponse, emitIfConnected, isSocketConnected, name, profileId]);
+        if (socket.connected) socket.disconnect();
+        socket.connect();
+      })
+      .catch((error) => alert(error.message || "Failed to claim entitlement transfer"))
+      .finally(() => {
+        const params = new URLSearchParams(window.location.search);
+        params.delete("entitlementTransfer");
+        const nextQuery = params.toString();
+        const nextUrl = `${window.location.pathname}${nextQuery ? `?${nextQuery}` : ""}${window.location.hash}`;
+        window.history.replaceState({}, "", nextUrl);
+      });
+  }, [applyProfileEntitlementResponse, isSocketConnected, name]);
 
   useEffect(() => {
     if (!entitlementRefreshRequestedAtMs) return;
@@ -643,7 +677,7 @@ function App() {
   }, [serverOffsetMs]);
 
   const createRoom = () => {
-    emitIfConnected("room:create", { name, profileId, selectedModeId: selectedLobbyModeId }, (response) => {
+    emitIfConnected("room:create", { name, selectedModeId: selectedLobbyModeId }, (response) => {
       if (response?.error) {
         alert(response.error);
         return;
@@ -653,14 +687,14 @@ function App() {
   };
 
   const joinRoomWithCode = useCallback((nextRoomId, nextName) => {
-    emitIfConnected("room:join", { roomId: nextRoomId.toUpperCase(), name: nextName, profileId }, (response) => {
+    emitIfConnected("room:join", { roomId: nextRoomId.toUpperCase(), name: nextName }, (response) => {
       if (response?.error) {
         alert(response.error);
         return;
       }
       applyJoinResponse(response);
     });
-  }, [applyJoinResponse, emitIfConnected, profileId]);
+  }, [applyJoinResponse, emitIfConnected]);
 
   const joinRoom = () => joinRoomWithCode(roomIdInput, name);
 
@@ -720,13 +754,7 @@ function App() {
 
 
   const createEntitlementTransfer = useCallback(() => new Promise((resolve) => {
-    if (!profileId) {
-      alert("Create or join a room first to initialize your profile.");
-      resolve(null);
-      return;
-    }
-
-    const didEmit = emitIfConnected("entitlement:transfer:create", { profileId }, (response) => {
+    const didEmit = emitIfConnected("entitlement:transfer:create", {}, (response) => {
       if (response?.error) {
         alert(response.error);
         resolve(null);
@@ -742,20 +770,16 @@ function App() {
       alert("Connect to the server before creating a transfer link.");
       resolve(null);
     }
-  }), [emitIfConnected, profileId]);
+  }), [emitIfConnected]);
 
 
   const purchaseProduct = (productKey = "glitch_party_pack") => {
-    if (!profileId) {
-      alert("Create or join a room first to initialize your profile.");
-      return;
-    }
-
     const startCheckout = () => {
       fetch(`${serverUrl}/api/stripe/checkout-session`, {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ profileId, productKey })
+        body: JSON.stringify({ productKey })
       })
         .then(async (response) => {
           const payload = await response.json();

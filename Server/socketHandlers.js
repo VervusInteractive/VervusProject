@@ -439,8 +439,9 @@ function registerSocketHandlers(io) {
 
     socket.on("player:register", async (payload = {}, callback) => {
       payload = normalizeSocketPayload(payload);
-      const nextProfileId = normalizeUuid(payload.profileId) || createRandomId();
+      const nextProfileId = normalizeUuid(socket.data.profileId);
       const displayName = normalizePlayerName(payload.name, "Player");
+      if (!nextProfileId) return callback?.({ error: "Session required" });
       try {
         await upsertPlayerProfile({ profileId: nextProfileId, displayName });
         const entitlementExpiry = await getActivePlayerProfileEntitlement({ profileId: nextProfileId });
@@ -461,8 +462,9 @@ function registerSocketHandlers(io) {
         callback?.({ error: "Could not allocate room code" });
         return;
       }
-      const playerId = normalizeUuid(payload.profileId) || createRandomId();
+      const playerId = normalizeUuid(socket.data.profileId);
       const displayName = normalizePlayerName(payload.name, "Host");
+      if (!playerId) return callback?.({ error: "Session required" });
       const selectedModeId = payload.selectedModeId;
       const sessionToken = createSessionToken();
 
@@ -561,7 +563,8 @@ function registerSocketHandlers(io) {
         return;
       }
 
-      const playerId = normalizeUuid(payload.profileId) || createRandomId();
+      const playerId = normalizeUuid(socket.data.profileId);
+      if (!playerId) return callback?.({ error: "Session required" });
       if (room.players.has(playerId)) {
         callback?.({ error: "Player is already in this room. Rejoin with the saved session instead." });
         return;
@@ -842,8 +845,8 @@ function registerSocketHandlers(io) {
 
     socket.on("entitlement:transfer:create", async (payload = {}, callback) => {
       payload = normalizeSocketPayload(payload);
-      const profileId = normalizeUuid(payload.profileId);
-      if (!profileId) return callback?.({ error: "Invalid profile" });
+      const profileId = normalizeUuid(socket.data.profileId);
+      if (!profileId) return callback?.({ error: "Session required" });
 
       try {
         const transfer = await createEntitlementTransferToken({ sourceProfileId: profileId });
@@ -862,8 +865,9 @@ function registerSocketHandlers(io) {
     socket.on("entitlement:transfer:claim", async (payload = {}, callback) => {
       payload = normalizeSocketPayload(payload);
       const token = normalizeEntitlementTransferToken(payload.token);
-      const targetProfileId = normalizeUuid(payload.targetProfileId) || createRandomId();
+      const targetProfileId = normalizeUuid(socket.data.profileId);
       const displayName = normalizePlayerName(payload.name, "Player");
+      if (!targetProfileId) return callback?.({ error: "Session required" });
       if (!token) return callback?.({ error: "Invalid or expired entitlement transfer link" });
 
       try {

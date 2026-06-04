@@ -6,6 +6,13 @@ const { Server } = require("socket.io");
 const { registerSocketHandlers } = require("./socketHandlers");
 const {
   testDbConnection,
+  upsertPlayerProfile,
+  getActivePlayerProfileEntitlement,
+  getActiveEntitledModeKeys,
+  getActiveEntitlementExpiriesByMode,
+  createPlayerProfileSession,
+  getPlayerProfileIdBySessionToken,
+  consumeEntitlementTransferToken,
   getProductByKey,
   createPendingPurchase,
   attachStripeSessionToPurchase,
@@ -15,8 +22,11 @@ const {
   logErrorEntry
 } = require("./db");
 const { hydrateStandardModeFromDb, hydrateHeatSurgeConfigsFromDb, hydrateModeCorruptionBandsFromDb } = require("./gameModes");
+const { rooms, getRoomState } = require("./roomStore");
 
 const app = express();
+const PROFILE_SESSION_COOKIE_NAME = "vervus_profile_session";
+const PROFILE_SESSION_COOKIE_MAX_AGE_SECONDS = 30 * 24 * 60 * 60;
 
 const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
 const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET;
@@ -51,8 +61,57 @@ validateStartupEnvironment();
 
 app.use(cors({
   origin: ALLOWED_ORIGINS.length > 0 ? ALLOWED_ORIGINS : false,
-  methods: ["GET", "POST"]
+  methods: ["GET", "POST"],
+  credentials: true
 }));
+
+
+function parseCookies(cookieHeader = "") {
+  return Object.fromEntries(String(cookieHeader || "")
+    .split(";")
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .map((part) => {
+      const [name, ...valueParts] = part.split("=");
+      return [name, decodeURIComponent(valueParts.join("="))];
+    }));
+}
+
+function buildProfileSessionCookie(token) {
+  const attrs = [
+    `${PROFILE_SESSION_COOKIE_NAME}=${encodeURIComponent(token)}`,
+    "Path=/",
+    "HttpOnly",
+    `Max-Age=${PROFILE_SESSION_COOKIE_MAX_AGE_SECONDS}`,
+    "SameSite=None"
+  ];
+  if (process.env.NODE_ENV === "production" || process.env.COOKIE_SECURE !== "false") {
+    attrs.push("Secure");
+  }
+  return attrs.join("; ");
+}
+
+async function getProfileIdFromRequest(req) {
+  const cookies = parseCookies(req.headers.cookie || "");
+  const token = cookies[PROFILE_SESSION_COOKIE_NAME];
+  if (!token) return null;
+  return getPlayerProfileIdBySessionToken({ token });
+}
+
+async function createSessionResponse({ res, profileId, displayName }) {
+  await upsertPlayerProfile({ profileId, displayName });
+  const session = await createPlayerProfileSession({ profileId });
+  res.setHeader("Set-Cookie", buildProfileSessionCookie(session.token));
+  const entitlementExpiry = await getActivePlayerProfileEntitlement({ profileId });
+  const entitledModeKeys = await getActiveEntitledModeKeys({ profileId });
+  const entitledModeExpiriesMs = await getActiveEntitlementExpiriesByMode({ profileId });
+  return {
+    profileId,
+    entitlementExpiresAtMs: entitlementExpiry ? new Date(entitlementExpiry).getTime() : null,
+    entitledModeKeys,
+    entitledModeExpiriesMs
+  };
+}
 
 const stripeApiRequest = async (path, body) => {
   const response = await fetch(`https://api.stripe.com${path}`, {
@@ -128,17 +187,69 @@ app.post("/api/stripe/webhook", express.raw({ type: "application/json" }), async
 
 app.use(express.json({ limit: "32kb" }));
 
+app.post("/api/player-session", async (req, res) => {
+  const { normalizePlayerName } = require("./validation");
+  const displayName = normalizePlayerName(req.body?.name, "Player");
+  try {
+    const cookieProfileId = await getProfileIdFromRequest(req);
+    const profileId = cookieProfileId || crypto.randomUUID();
+    const payload = await createSessionResponse({ res, profileId, displayName });
+    res.status(200).json(payload);
+  } catch (error) {
+    logErrorEntry({ source: "player-session", message: error.message || "Failed to establish player session", stackTrace: error.stack }).catch(() => {});
+    res.status(500).json({ error: "Failed to establish player session" });
+  }
+});
+
+app.post("/api/entitlement-transfer/claim", async (req, res) => {
+  const { normalizePlayerName } = require("./validation");
+  const token = String(req.body?.token || "").trim();
+  if (!/^[A-Za-z0-9_-]{32,128}$/.test(token)) {
+    res.status(400).json({ error: "Invalid or expired entitlement transfer link" });
+    return;
+  }
+
+  const displayName = normalizePlayerName(req.body?.name, "Player");
+  try {
+    const cookieProfileId = await getProfileIdFromRequest(req);
+    const targetProfileId = cookieProfileId || crypto.randomUUID();
+    const claimed = await consumeEntitlementTransferToken({ token, targetProfileId, displayName });
+    if (!claimed) {
+      res.status(400).json({ error: "Invalid, expired, or already-used entitlement transfer link" });
+      return;
+    }
+
+    for (const [candidateRoomId, candidateRoom] of rooms.entries()) {
+      const sourcePlayer = candidateRoom.players.get(claimed.sourceProfileId);
+      if (!sourcePlayer) continue;
+      sourcePlayer.entitlementExpiresAtMs = null;
+      sourcePlayer.entitledModeKeys = [];
+      sourcePlayer.entitledModeExpiriesMs = {};
+      if (candidateRoom.creatorPlayerId === claimed.sourceProfileId && candidateRoom.phase === "lobby") {
+        candidateRoom.selectedModeId = "standard";
+      }
+      io.to(candidateRoomId).emit("room:state", getRoomState(candidateRoomId));
+    }
+
+    const payload = await createSessionResponse({ res, profileId: targetProfileId, displayName });
+    res.status(200).json(payload);
+  } catch (error) {
+    logErrorEntry({ source: "entitlement-transfer:claim", message: error.message || "Failed to claim entitlement transfer", stackTrace: error.stack }).catch(() => {});
+    res.status(500).json({ error: "Failed to claim entitlement transfer link" });
+  }
+});
+
 app.post("/api/stripe/checkout-session", async (req, res) => {
   if (!STRIPE_SECRET_KEY) {
     res.status(500).json({ error: "STRIPE_SECRET_KEY is not configured" });
     return;
   }
 
-  const { normalizeProductKey, normalizeUuid } = require("./validation");
-  const profileId = normalizeUuid(req.body?.profileId);
+  const { normalizeProductKey } = require("./validation");
   const productKey = normalizeProductKey(req.body?.productKey);
+  const profileId = await getProfileIdFromRequest(req);
   if (!profileId || !productKey) {
-    res.status(400).json({ error: "Missing profileId or productKey" });
+    res.status(400).json({ error: "Missing session or productKey" });
     return;
   }
 
@@ -182,7 +293,19 @@ const httpServer = http.createServer(app);
 const io = new Server(httpServer, {
   cors: {
     origin: ALLOWED_ORIGINS.length > 0 ? ALLOWED_ORIGINS : false,
-    methods: ["GET", "POST"]
+    methods: ["GET", "POST"],
+    credentials: true
+  }
+});
+
+io.use(async (socket, next) => {
+  try {
+    const cookies = parseCookies(socket.handshake.headers.cookie || "");
+    const token = cookies[PROFILE_SESSION_COOKIE_NAME];
+    socket.data.profileId = token ? await getPlayerProfileIdBySessionToken({ token }) : null;
+    next();
+  } catch (error) {
+    next(error);
   }
 });
 

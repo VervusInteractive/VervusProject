@@ -914,7 +914,6 @@ function App() {
             entitledModeKeys={me?.entitledModeKeys ?? []}
             entitledModeExpiriesMs={me?.entitledModeExpiriesMs ?? {}}
             onSetMode={setRoomMode}
-            onCreateEntitlementTransfer={createEntitlementTransfer}
             modeDebugConfigs={modeDebugConfigs}
           />
         )
@@ -942,6 +941,7 @@ function App() {
           entitledModeKeys={profileEntitledModeKeys}
           entitledModeExpiriesMs={profileEntitledModeExpiriesMs}
           onSelectedModeChange={setSelectedLobbyModeId}
+          onCreateEntitlementTransfer={createEntitlementTransfer}
           modeDebugConfigs={modeDebugConfigs}
         />
       )}

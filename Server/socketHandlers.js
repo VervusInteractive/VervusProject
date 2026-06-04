@@ -44,7 +44,7 @@ const {
   applyPlayerConnectionState,
   updatePlayerLatencyState
 } = require("./connectionState");
-const { getDifficultyProfile, normalizeModeId, hydrateStandardModeFromDb, hydrateHeatSurgeConfigsFromDb, hydrateModeCorruptionBandsFromDb, getGameModesFromDb, getGameModesFallback } = require("./gameModes");
+const { getDifficultyProfile, normalizeModeId, hydrateGameModesFromDb, hydrateHeatSurgeConfigsFromDb, hydrateModeCorruptionBandsFromDb, getGameModesFromDb, getGameModesFallback } = require("./gameModes");
 const {
   normalizeAnswer,
   normalizeBoolean,
@@ -314,7 +314,7 @@ function registerSocketHandlers(io) {
 
     if (allReady) {
       try {
-        await hydrateStandardModeFromDb();
+        await hydrateGameModesFromDb();
         await hydrateHeatSurgeConfigsFromDb();
         await hydrateModeCorruptionBandsFromDb();
       } catch (error) {
@@ -538,6 +538,7 @@ function registerSocketHandlers(io) {
 
         try {
           room.availableModes = await getGameModesFromDb();
+          await hydrateGameModesFromDb();
           await hydrateHeatSurgeConfigsFromDb();
           await hydrateModeCorruptionBandsFromDb();
         } catch (error) {

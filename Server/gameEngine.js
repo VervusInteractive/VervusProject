@@ -8,6 +8,20 @@ const FALSE_TWINS = {
   smiley: { readable: "smiley_readable_twin", doubt: "smiley_doubt_twin" },
   star: { readable: "star_readable_twin", doubt: "star_doubt_twin" }
 };
+const PARTIAL_BREAKS = {
+  eye: "eye_partial_break",
+  bolt: "bolt_partial_break",
+  skull: "skull_partial_break",
+  smiley: "smiley_partial_break",
+  star: "star_partial_break"
+};
+const PARTIAL_BREAK_LABELS = {
+  eye: "Broken Eye",
+  bolt: "Broken Bolt",
+  skull: "Broken Skull",
+  smiley: "Broken Smiley",
+  star: "Broken Star"
+};
 
 function randomItem(list) {
   return list[Math.floor(Math.random() * list.length)];
@@ -16,6 +30,20 @@ function randomItem(list) {
 function pickDifferentIcon(baseIcon) {
   const alternatives = ICONS.filter((icon) => icon !== baseIcon);
   return randomItem(alternatives);
+}
+
+function pickDeviationType(difficulty) {
+  const shapeSwapChance = Math.max(0, Number(difficulty.shapeSwapChance) || 0);
+  const falseTwinChance = Math.max(0, Number(difficulty.falseTwinChance) || 0);
+  const partialBreakChance = difficulty.allowPartialBreak ? Math.max(0, Number(difficulty.partialBreakChance) || 0) : 0;
+  const total = shapeSwapChance + falseTwinChance + partialBreakChance;
+
+  if (total <= 0) return "shape_swap";
+
+  const pick = Math.random() * total;
+  if (pick < shapeSwapChance) return "shape_swap";
+  if (pick < shapeSwapChance + falseTwinChance) return "false_twin";
+  return "partial_break";
 }
 
 function createGameState(modeId = "standard") {
@@ -73,11 +101,15 @@ function buildRound({ modeId, combo, gameState, playerIds, replayRound = null })
   let deviatingStimulus = baseIcon;
 
   if (isGlitchRound) {
-    const pick = Math.random();
-    if (pick < difficulty.shapeSwapChance) {
+    const selectedDeviationType = pickDeviationType(difficulty);
+    if (selectedDeviationType === "shape_swap") {
       deviationType = "shape_swap";
       deviatingStimulus = pickDifferentIcon(baseIcon);
       deviationLabel = "Shape Swap";
+    } else if (selectedDeviationType === "partial_break") {
+      deviationType = "partial_break";
+      deviatingStimulus = PARTIAL_BREAKS[baseIcon];
+      deviationLabel = PARTIAL_BREAK_LABELS[baseIcon] || "Partial Break";
     } else {
       deviationType = "false_twin";
       const twinType = Math.random() < difficulty.readableTwinChance ? "readable" : "doubt";
@@ -188,6 +220,7 @@ function evaluateRound(round, playerIds) {
 
 module.exports = {
   ICONS,
+  PARTIAL_BREAKS,
   createGameState,
   buildRound,
   updateHeatSurgeStateForNextRound,

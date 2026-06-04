@@ -1,14 +1,22 @@
 const { pool } = require("./db");
 
 const STANDARD_CURVE = [
-  { minCombo: 0, timerMs: 5000, glitchChance: 0.15, shapeSwapChance: 1, falseTwinChance: 0, readableTwinChance: 1 },
-  { minCombo: 7, timerMs: 4800, glitchChance: 0.18, shapeSwapChance: 0.85, falseTwinChance: 0.15, readableTwinChance: 1 },
-  { minCombo: 15, timerMs: 4600, glitchChance: 0.2, shapeSwapChance: 0.65, falseTwinChance: 0.35, readableTwinChance: 0.8 },
-  { minCombo: 25, timerMs: 4300, glitchChance: 0.22, shapeSwapChance: 0.5, falseTwinChance: 0.5, readableTwinChance: 0.6 },
-  { minCombo: 35, timerMs: 3900, glitchChance: 0.25, shapeSwapChance: 0.4, falseTwinChance: 0.6, readableTwinChance: 0.4 },
-  { minCombo: 45, timerMs: 3400, glitchChance: 0.27, shapeSwapChance: 0.35, falseTwinChance: 0.65, readableTwinChance: 0.3 },
-  { minCombo: 55, timerMs: 3000, glitchChance: 0.3, shapeSwapChance: 0.3, falseTwinChance: 0.7, readableTwinChance: 0.25 }
+  { minCombo: 0, timerMs: 5000, glitchChance: 0.15, shapeSwapChance: 1, falseTwinChance: 0, partialBreakChance: 0, readableTwinChance: 1 },
+  { minCombo: 7, timerMs: 4800, glitchChance: 0.18, shapeSwapChance: 0.85, falseTwinChance: 0.15, partialBreakChance: 0, readableTwinChance: 1 },
+  { minCombo: 15, timerMs: 4600, glitchChance: 0.2, shapeSwapChance: 0.65, falseTwinChance: 0.35, partialBreakChance: 0, readableTwinChance: 0.8 },
+  { minCombo: 25, timerMs: 4300, glitchChance: 0.22, shapeSwapChance: 0.5, falseTwinChance: 0.5, partialBreakChance: 0, readableTwinChance: 0.6 },
+  { minCombo: 35, timerMs: 3900, glitchChance: 0.25, shapeSwapChance: 0.4, falseTwinChance: 0.6, partialBreakChance: 0, readableTwinChance: 0.4 },
+  { minCombo: 45, timerMs: 3400, glitchChance: 0.27, shapeSwapChance: 0.35, falseTwinChance: 0.65, partialBreakChance: 0, readableTwinChance: 0.3 },
+  { minCombo: 55, timerMs: 3000, glitchChance: 0.3, shapeSwapChance: 0.3, falseTwinChance: 0.7, partialBreakChance: 0, readableTwinChance: 0.25 }
 ];
+
+const CHAOS_CURVE = STANDARD_CURVE.map((band) => ({
+  ...band,
+  shapeSwapChance: 0.3,
+  falseTwinChance: 0.45,
+  partialBreakChance: 0.25,
+  readableTwinChance: 0.45
+}));
 
 const GAME_MODES = {
   standard: {
@@ -29,10 +37,10 @@ const GAME_MODES = {
     goodRunRound: 50,
     hasLastChance: false,
     curve: [
-      { minCombo: 0, timerMs: 4300, glitchChance: 0.22, shapeSwapChance: 0.5, falseTwinChance: 0.5, readableTwinChance: 0.5 },
-      { minCombo: 5, timerMs: 3900, glitchChance: 0.25, shapeSwapChance: 0.45, falseTwinChance: 0.55, readableTwinChance: 0.5 },
-      { minCombo: 10, timerMs: 3400, glitchChance: 0.27, shapeSwapChance: 0.4, falseTwinChance: 0.6, readableTwinChance: 0.45 },
-      { minCombo: 15, timerMs: 3000, glitchChance: 0.3, shapeSwapChance: 0.35, falseTwinChance: 0.65, readableTwinChance: 0.35 }
+      { minCombo: 0, timerMs: 4300, glitchChance: 0.22, shapeSwapChance: 0.5, falseTwinChance: 0.45, partialBreakChance: 0.05, readableTwinChance: 0.5 },
+      { minCombo: 5, timerMs: 3900, glitchChance: 0.25, shapeSwapChance: 0.45, falseTwinChance: 0.48, partialBreakChance: 0.07, readableTwinChance: 0.5 },
+      { minCombo: 10, timerMs: 3400, glitchChance: 0.27, shapeSwapChance: 0.4, falseTwinChance: 0.5, partialBreakChance: 0.1, readableTwinChance: 0.45 },
+      { minCombo: 15, timerMs: 3000, glitchChance: 0.3, shapeSwapChance: 0.35, falseTwinChance: 0.53, partialBreakChance: 0.12, readableTwinChance: 0.35 }
     ],
     allowPartialBreak: true
   },
@@ -43,7 +51,7 @@ const GAME_MODES = {
     transitionBeatMs: 300,
     goodRunRound: 50,
     hasLastChance: true,
-    curve: STANDARD_CURVE,
+    curve: CHAOS_CURVE,
     allowPartialBreak: true
   }
 };
@@ -98,44 +106,106 @@ function getCorruptionBand(modeId = "standard", combo = 0) {
   return selected;
 }
 
-async function hydrateStandardModeFromDb() {
-  const modeResult = await pool.query(`SELECT id, display_name FROM vervus_data.game_modes WHERE mode_key = 'standard' LIMIT 1`);
+function clampChance(value, fallback = 0) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return fallback;
+  return Math.max(0, Math.min(1, numeric));
+}
+
+function normalizeDeviationMix(deviationMix = {}, fallbackProfile = {}) {
+  const fallback = {
+    shapeSwapChance: clampChance(fallbackProfile.shapeSwapChance, 1),
+    falseTwinChance: clampChance(fallbackProfile.falseTwinChance, 0),
+    partialBreakChance: clampChance(fallbackProfile.partialBreakChance, 0)
+  };
+
+  const hasConfiguredMix = ["shape_swap", "false_twin", "partial_break"].some((key) => deviationMix[key] !== undefined);
+  if (!hasConfiguredMix) return fallback;
+
+  const weights = {
+    shapeSwapChance: clampChance(deviationMix.shape_swap, 0),
+    falseTwinChance: clampChance(deviationMix.false_twin, 0),
+    partialBreakChance: clampChance(deviationMix.partial_break, 0)
+  };
+  const total = weights.shapeSwapChance + weights.falseTwinChance + weights.partialBreakChance;
+
+  if (total <= 0) return fallback;
+
+  return {
+    shapeSwapChance: weights.shapeSwapChance / total,
+    falseTwinChance: weights.falseTwinChance / total,
+    partialBreakChance: weights.partialBreakChance / total
+  };
+}
+
+function getFallbackProfile(mode, comboMin) {
+  let profile = mode.curve[0] || {};
+  for (const candidate of mode.curve || []) {
+    if (Number(comboMin) >= Number(candidate.minCombo || 0)) {
+      profile = candidate;
+    }
+  }
+  return profile;
+}
+
+async function hydrateGameModesFromDb() {
+  const modeResult = await pool.query(
+    `SELECT id, mode_key, display_name
+     FROM vervus_data.game_modes
+     WHERE mode_key = ANY($1::text[])`,
+    [Object.keys(GAME_MODES)]
+  );
   if (modeResult.rowCount === 0) return false;
 
-  const modeDbId = modeResult.rows[0].id;
+  const modeRows = modeResult.rows.filter((row) => row.mode_key && GAME_MODES[row.mode_key]);
+  if (modeRows.length === 0) return false;
 
-  const configResult = await pool.query(
-    `SELECT has_last_chance, result_lock_ms, transition_beat_ms, good_run_round
-     FROM vervus_data.mode_configs
-     WHERE mode_id = $1`,
-    [modeDbId]
-  );
+  for (const row of modeRows) {
+    MODE_KEY_BY_DB_ID[row.id] = row.mode_key;
+  }
 
-  const bandsResult = await pool.query(
-    `SELECT id, combo_min, decision_time_ms, glitch_chance_percent
-     FROM vervus_data.mode_difficulty_bands
-     WHERE mode_id = $1
-     ORDER BY sort_order ASC`,
-    [modeDbId]
-  );
-
-  const bandIds = bandsResult.rows.map((row) => row.id);
-  if (bandIds.length === 0) return false;
-
-  const [deviationMixResult, falseTwinMixResult] = await Promise.all([
+  const modeIds = modeRows.map((row) => row.id);
+  const [configResult, bandsResult] = await Promise.all([
     pool.query(
-      `SELECT difficulty_band_id, deviation_type, weight_percent
-       FROM vervus_data.mode_deviation_mix
-       WHERE difficulty_band_id = ANY($1::uuid[])`,
-      [bandIds]
+      `SELECT mode_id, has_last_chance, result_lock_ms, transition_beat_ms, good_run_round
+       FROM vervus_data.mode_configs
+       WHERE mode_id = ANY($1::uuid[])`,
+      [modeIds]
     ),
     pool.query(
-      `SELECT difficulty_band_id, false_twin_type, weight_percent
-       FROM vervus_data.mode_false_twin_mix
-       WHERE difficulty_band_id = ANY($1::uuid[])`,
-      [bandIds]
+      `SELECT id, mode_id, combo_min, decision_time_ms, glitch_chance_percent
+       FROM vervus_data.mode_difficulty_bands
+       WHERE mode_id = ANY($1::uuid[])
+       ORDER BY mode_id ASC, sort_order ASC`,
+      [modeIds]
     )
   ]);
+
+  const bandIds = bandsResult.rows.map((row) => row.id);
+  const [deviationMixResult, falseTwinMixResult] = bandIds.length > 0
+    ? await Promise.all([
+      pool.query(
+        `SELECT difficulty_band_id, deviation_type, weight_percent
+         FROM vervus_data.mode_deviation_mix
+         WHERE difficulty_band_id = ANY($1::uuid[])`,
+        [bandIds]
+      ),
+      pool.query(
+        `SELECT difficulty_band_id, false_twin_type, weight_percent
+         FROM vervus_data.mode_false_twin_mix
+         WHERE difficulty_band_id = ANY($1::uuid[])`,
+        [bandIds]
+      )
+    ])
+    : [{ rows: [] }, { rows: [] }];
+
+  const configByModeId = new Map(configResult.rows.map((row) => [row.mode_id, row]));
+  const bandsByModeId = new Map();
+  for (const band of bandsResult.rows) {
+    const current = bandsByModeId.get(band.mode_id) || [];
+    current.push(band);
+    bandsByModeId.set(band.mode_id, current);
+  }
 
   const deviationByBand = new Map();
   for (const row of deviationMixResult.rows) {
@@ -153,32 +223,46 @@ async function hydrateStandardModeFromDb() {
     falseTwinByBand.set(key, current);
   }
 
-  const curve = bandsResult.rows.map((band) => {
-    const deviationMix = deviationByBand.get(band.id) || {};
-    const falseTwinMix = falseTwinByBand.get(band.id) || {};
+  for (const modeRow of modeRows) {
+    const mode = GAME_MODES[modeRow.mode_key];
+    const config = configByModeId.get(modeRow.id);
+    const bands = bandsByModeId.get(modeRow.id) || [];
+    const curve = bands.length > 0
+      ? bands.map((band) => {
+        const fallbackProfile = getFallbackProfile(mode, band.combo_min);
+        const deviationMix = normalizeDeviationMix(deviationByBand.get(band.id), fallbackProfile);
+        const falseTwinMix = falseTwinByBand.get(band.id) || {};
+        const readableTwinChance = falseTwinMix.readable_twin !== undefined
+          ? falseTwinMix.readable_twin
+          : (falseTwinMix.doubt_twin !== undefined ? 1 - falseTwinMix.doubt_twin : fallbackProfile.readableTwinChance ?? 1);
 
-    return {
-      minCombo: band.combo_min,
-      timerMs: band.decision_time_ms,
-      glitchChance: Number(band.glitch_chance_percent) / 100,
-      shapeSwapChance: deviationMix.shape_swap ?? 1,
-      falseTwinChance: deviationMix.false_twin ?? 0,
-      readableTwinChance: falseTwinMix.readable_twin ?? 1
+        return {
+          minCombo: Number(band.combo_min) || 0,
+          timerMs: Number(band.decision_time_ms) || fallbackProfile.timerMs,
+          glitchChance: clampChance(Number(band.glitch_chance_percent) / 100, fallbackProfile.glitchChance),
+          ...deviationMix,
+          readableTwinChance: clampChance(readableTwinChance, fallbackProfile.readableTwinChance ?? 1)
+        };
+      })
+      : mode.curve;
+
+    GAME_MODES[modeRow.mode_key] = {
+      ...mode,
+      title: modeRow.display_name || mode.title,
+      hasLastChance: config?.has_last_chance ?? mode.hasLastChance,
+      roundResultLockMs: config?.result_lock_ms ?? mode.roundResultLockMs,
+      transitionBeatMs: config?.transition_beat_ms ?? mode.transitionBeatMs,
+      goodRunRound: config?.good_run_round ?? mode.goodRunRound ?? 50,
+      allowPartialBreak: curve.some((band) => clampChance(band.partialBreakChance, 0) > 0),
+      curve
     };
-  });
-
-  const config = configResult.rows[0];
-  GAME_MODES.standard = {
-    ...GAME_MODES.standard,
-    title: modeResult.rows[0].display_name || GAME_MODES.standard.title,
-    hasLastChance: config?.has_last_chance ?? GAME_MODES.standard.hasLastChance,
-    roundResultLockMs: config?.result_lock_ms ?? GAME_MODES.standard.roundResultLockMs,
-    transitionBeatMs: config?.transition_beat_ms ?? GAME_MODES.standard.transitionBeatMs,
-    goodRunRound: config?.good_run_round ?? GAME_MODES.standard.goodRunRound ?? 50,
-    curve
-  };
+  }
 
   return true;
+}
+
+async function hydrateStandardModeFromDb() {
+  return hydrateGameModesFromDb();
 }
 
 async function hydrateHeatSurgeConfigsFromDb() {
@@ -290,6 +374,7 @@ module.exports = {
   getDifficultyProfile,
   getHeatSurgeConfig,
   getCorruptionBand,
+  hydrateGameModesFromDb,
   hydrateStandardModeFromDb,
   hydrateHeatSurgeConfigsFromDb,
   hydrateModeCorruptionBandsFromDb,

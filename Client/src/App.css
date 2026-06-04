@@ -488,6 +488,13 @@
   line-height: 1;
 }
 
+.partial-break-stimulus {
+  display: inline-block;
+  filter: contrast(1.2) drop-shadow(0 0 10px rgba(248, 113, 113, 0.35));
+  letter-spacing: -0.08em;
+  transform: skew(-4deg) rotate(-2deg);
+}
+
 .corruption-intensity-medium {
   box-shadow:
     0 0 0 calc(1px + (1px * var(--corruption-medium-glow, 0))) rgba(99, 102, 241, calc(0.08 + (0.2 * var(--corruption-medium-glow, 0)))),

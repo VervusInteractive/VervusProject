@@ -24,8 +24,21 @@ const ICON_LABELS = {
   smiley_readable_twin: "🙂◡",
   smiley_doubt_twin: "🙂◠",
   star_readable_twin: "⭐✦",
-  star_doubt_twin: "⭐✧"
+  star_doubt_twin: "⭐✧",
+  eye_partial_break: "👁️╱",
+  bolt_partial_break: "⚡╳",
+  skull_partial_break: "💀◞",
+  smiley_partial_break: "🙂⌁",
+  star_partial_break: "⭐✂"
 };
+
+function isPartialBreakToken(token) {
+  return typeof token === "string" && token.endsWith("_partial_break");
+}
+
+function getStimulusClassName(token) {
+  return isPartialBreakToken(token) ? "partial-break-stimulus" : "";
+}
 
 function formatTimeLeft(ms) {
   if (typeof ms !== "number") return "-";
@@ -793,6 +806,7 @@ function GlitchGamePage({ roomId, playerId, players, myGame, serverNow, onSubmit
 
   const iconToken = displayedIconToken;
   const iconLabel = iconToken ? (ICON_LABELS[iconToken] || "❔") : "";
+  const stimulusClassName = getStimulusClassName(iconToken);
   const isHeatSurgeEnabled = Boolean(currentRound?.heatSurgeActive);
   const corruptionEffects = currentRound?.corruptionEffects;
   const corruptionClasses = getCorruptionVisualClasses(corruptionEffects).join(" ");
@@ -841,7 +855,7 @@ function GlitchGamePage({ roomId, playerId, players, myGame, serverNow, onSubmit
               );
             })}
           </div>
-          <div className={`glitch-icon ${isRoundTransitionShaking ? "round-transition-shake" : ""}`}>{iconLabel}</div>
+          <div className={`glitch-icon ${stimulusClassName} ${isRoundTransitionShaking ? "round-transition-shake" : ""}`}>{iconLabel}</div>
           {isHeatSurgeEnabled ? <p className="heat-surge-callout" role="status" aria-live="assertive">🔥 Heat Surge active</p> : null}
           {corruptionEffects ? (
             <p className="panel-meta">

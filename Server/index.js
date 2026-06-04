@@ -21,7 +21,7 @@ const {
   ensureRoomTrackingTables,
   logErrorEntry
 } = require("./db");
-const { hydrateStandardModeFromDb, hydrateHeatSurgeConfigsFromDb, hydrateModeCorruptionBandsFromDb } = require("./gameModes");
+const { hydrateGameModesFromDb, hydrateHeatSurgeConfigsFromDb, hydrateModeCorruptionBandsFromDb } = require("./gameModes");
 const { rooms, getRoomState } = require("./roomStore");
 
 const app = express();
@@ -340,14 +340,14 @@ testDbConnection()
     await ensureRoomTrackingTables();
 
     try {
-      const loaded = await hydrateStandardModeFromDb();
+      const loaded = await hydrateGameModesFromDb();
       console.log(loaded
-        ? "Loaded standard GLiTCH! mode tuning from DB"
-        : "Standard GLiTCH! mode tuning not found in DB, using defaults");
+        ? "Loaded GLiTCH! mode tuning from DB"
+        : "GLiTCH! mode tuning not found in DB, using defaults");
       await hydrateHeatSurgeConfigsFromDb();
       await hydrateModeCorruptionBandsFromDb();
     } catch (error) {
-      console.warn("Failed to hydrate standard GLiTCH! mode tuning, using defaults", error.message);
+      console.warn("Failed to hydrate GLiTCH! mode tuning, using defaults", error.message);
     }
 
     httpServer.listen(PORT, "0.0.0.0", () => {

@@ -4,6 +4,8 @@ const {
   generateUniqueRoomCode,
   createRandomId,
   createSessionToken,
+  MIN_PLAYERS_PER_ROOM,
+  MAX_PLAYERS_PER_ROOM,
   PLAYER_COLORS,
   consumeCreatorTimeoutNotice,
   getAvailableColor,
@@ -113,6 +115,16 @@ function registerSocketHandlers(io) {
     io.to(targetPlayer.socketId).emit("room:warning", { message });
   };
 
+  const getConnectedPlayerCount = (room) => Array.from(room?.players?.values?.() || [])
+    .filter((player) => player.connected).length;
+
+  const isRoomOpenForJoin = (room) => {
+    if (!room) return false;
+    if ([ROOM_STATUSES.ENDED, ROOM_STATUSES.EXPIRED].includes(room.status)) return false;
+    if (room.phase === "play" && room.game?.status === "gameover") return false;
+    return true;
+  };
+
   const registerTimer = (room, timerId) => {
     room.gameTimers = room.gameTimers || [];
     room.gameTimers.push(timerId);
@@ -162,7 +174,7 @@ function registerSocketHandlers(io) {
       const activePlayers = Array.from(room.players.values()).filter(
         (player) => player.connected && !player.waitingForNextGame
       );
-      if (activePlayers.length < 2) {
+      if (activePlayers.length < MIN_PLAYERS_PER_ROOM) {
         room.game.status = "paused";
         room.preReconnectStatus = room.status || (room.game?.isPreview ? ROOM_STATUSES.PREVIEW : ROOM_STATUSES.PREMIUM);
         transitionRoomStatus(room, roomId, ROOM_STATUSES.RECONNECTING, {
@@ -304,7 +316,7 @@ function registerSocketHandlers(io) {
   const maybeAdvanceToPlayPhase = async (room, roomId) => {
     const canStartFromLobby = room.phase === "lobby";
     const canRestartFromGameOver = room.phase === "play" && room.game?.status === "gameover";
-    if ((!canStartFromLobby && !canRestartFromGameOver) || room.players.size < 2) {
+    if ((!canStartFromLobby && !canRestartFromGameOver) || getConnectedPlayerCount(room) < MIN_PLAYERS_PER_ROOM) {
       return;
     }
 
@@ -388,7 +400,7 @@ function registerSocketHandlers(io) {
     if (room.phase !== "play" || room.game?.status !== "loading") return;
 
     const participants = Array.from(room.players.values()).filter((player) => player.currentGameParticipant && !player.waitingForNextGame);
-    if (participants.length < 2) return;
+    if (participants.length < MIN_PLAYERS_PER_ROOM) return;
 
     const everyoneLoaded = participants.every((player) => player.assetsLoaded);
     if (!everyoneLoaded) return;
@@ -431,7 +443,7 @@ function registerSocketHandlers(io) {
     const activeParticipants = Array.from(room.players.values()).filter(
       (player) => player.currentGameParticipant && !player.waitingForNextGame
     );
-    if (activeParticipants.length < 2) {
+    if (activeParticipants.length < MIN_PLAYERS_PER_ROOM) {
       return;
     }
 
@@ -512,6 +524,10 @@ function registerSocketHandlers(io) {
         disconnectedAtMs: null,
         reconnectTimer: null,
         pingMs: null,
+        clockOffsetMs: null,
+        timeSyncJitterMs: null,
+        timeSyncQuality: "syncing",
+        lastTimeSyncAtMs: null,
         color: getAvailableColor(room),
         ready: false,
         waitingForNextGame: false,
@@ -578,7 +594,12 @@ function registerSocketHandlers(io) {
         return;
       }
 
-      if (room.players.size >= 4) {
+      if (!isRoomOpenForJoin(room)) {
+        if (callback) callback({ error: "Room is no longer accepting players" });
+        return;
+      }
+
+      if (room.players.size >= MAX_PLAYERS_PER_ROOM) {
         if (callback) callback({ error: "Room full" });
         return;
       }
@@ -605,6 +626,10 @@ function registerSocketHandlers(io) {
         disconnectedAtMs: null,
         reconnectTimer: null,
         pingMs: null,
+        clockOffsetMs: null,
+        timeSyncJitterMs: null,
+        timeSyncQuality: "syncing",
+        lastTimeSyncAtMs: null,
         color: getAvailableColor(room),
         ready: false,
         waitingForNextGame,
@@ -732,7 +757,7 @@ function registerSocketHandlers(io) {
         logRoomHistoryEvent({ roomCode: roomId, eventType: "room_deleted", actorPlayerId: playerId }).catch((error) => console.error("DB room history deleted failed", error));
         deleteRoomRecord(roomId).catch((error) => console.error("DB delete room failed", error));
       } else {
-        if (room.phase === "play" && room.game?.status === "active" && room.players.size === 1) {
+        if (room.phase === "play" && room.game?.status === "active" && room.players.size < MIN_PLAYERS_PER_ROOM) {
           const [remainingPlayer] = room.players.values();
           room.phase = "lobby";
           room.game = null;
@@ -1092,10 +1117,18 @@ function registerSocketHandlers(io) {
     });
 
     socket.on("time:sync:ping", (payload = {}, callback) => {
+      const serverReceivedAt = Date.now();
       payload = normalizeSocketPayload(payload);
       const clientSentAt = typeof payload.clientSentAt === "number" ? payload.clientSentAt : null;
+      const sequence = Number.isInteger(payload.sequence) ? payload.sequence : null;
       if (callback) {
-        callback({ clientSentAt, serverTime: Date.now() });
+        callback({
+          clientSentAt,
+          sequence,
+          serverTime: serverReceivedAt,
+          serverReceivedAt,
+          serverSentAt: Date.now()
+        });
       }
     });
 
@@ -1112,9 +1145,35 @@ function registerSocketHandlers(io) {
       if (normalizedPingMs === null) return;
 
       player.pingMs = normalizedPingMs;
+      const clockOffsetMs = typeof payload.clockOffsetMs === "number" && Number.isFinite(payload.clockOffsetMs)
+        ? Math.round(payload.clockOffsetMs)
+        : null;
+      const timeSyncJitterMs = typeof payload.timeSyncJitterMs === "number" && Number.isFinite(payload.timeSyncJitterMs)
+        ? Math.max(0, Math.round(payload.timeSyncJitterMs))
+        : null;
+      const timeSyncQuality = ["syncing", "synced", "degraded"].includes(payload.timeSyncQuality)
+        ? payload.timeSyncQuality
+        : null;
+
+      const previousClockOffsetMs = player.clockOffsetMs;
+      const previousTimeSyncJitterMs = player.timeSyncJitterMs;
+      const previousTimeSyncQuality = player.timeSyncQuality;
+      const previousLastTimeSyncAtMs = player.lastTimeSyncAtMs || 0;
+
+      if (clockOffsetMs !== null) player.clockOffsetMs = clockOffsetMs;
+      if (timeSyncJitterMs !== null) player.timeSyncJitterMs = timeSyncJitterMs;
+      if (timeSyncQuality) player.timeSyncQuality = timeSyncQuality;
+      player.lastTimeSyncAtMs = Date.now();
+
+      const syncTelemetryChanged = Math.abs((player.clockOffsetMs ?? 0) - (previousClockOffsetMs ?? 0)) >= 10
+        || Math.abs((player.timeSyncJitterMs ?? 0) - (previousTimeSyncJitterMs ?? 0)) >= 10
+        || player.timeSyncQuality !== previousTimeSyncQuality
+        || player.lastTimeSyncAtMs - previousLastTimeSyncAtMs >= 10000;
       const transition = updatePlayerLatencyState(player, normalizedPingMs);
       if (transition) {
         persistConnectionState(player, transition.connectionState, "latency");
+      }
+      if (transition || syncTelemetryChanged) {
         emitState(roomId);
       }
     });

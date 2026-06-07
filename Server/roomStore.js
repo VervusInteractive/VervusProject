@@ -4,6 +4,8 @@ const rooms = new Map();
 const CREATOR_RECONNECT_GRACE_MS = 3 * 60 * 1000;
 const CREATOR_UNLOCK_RECONNECT_GRACE_MS = 10 * 60 * 1000;
 const PLAYER_COLORS = ["#ef4444", "#3b82f6", "#22c55e", "#eab308"];
+const MIN_PLAYERS_PER_ROOM = 2;
+const MAX_PLAYERS_PER_ROOM = 4;
 const { getModeDebugConfig } = require("./gameModes");
 const { CONNECTION_STATE_LABELS, getRoomConnectionState, normalizeConnectionState } = require("./connectionState");
 const CREATOR_TIMEOUT_NOTICE_TTL_MS = 10 * 60 * 1000;
@@ -99,6 +101,9 @@ function getRoomState(roomId) {
     statusChangedAtMs: room.statusChangedAtMs ?? null,
     lastActivityAtMs: room.lastActivityAtMs ?? null,
     expiresAtMs: room.expiresAtMs ?? null,
+    minPlayers: MIN_PLAYERS_PER_ROOM,
+    maxPlayers: MAX_PLAYERS_PER_ROOM,
+    currentPlayerCount: room.players.size,
     connectionState: getRoomConnectionState(room.players),
     connectionStateLabel: CONNECTION_STATE_LABELS[getRoomConnectionState(room.players)],
     hostUnlockingPending: Boolean(room.hostUnlockingPending),
@@ -126,6 +131,10 @@ function getRoomState(roomId) {
       reconnectingStartedAtMs: player.reconnectingStartedAtMs ?? null,
       disconnectedAtMs: player.disconnectedAtMs ?? null,
       pingMs: player.pingMs ?? null,
+      clockOffsetMs: player.clockOffsetMs ?? null,
+      timeSyncJitterMs: player.timeSyncJitterMs ?? null,
+      timeSyncQuality: player.timeSyncQuality || "syncing",
+      lastTimeSyncAtMs: player.lastTimeSyncAtMs ?? null,
       color: player.color,
       ready: player.ready,
       waitingForNextGame: Boolean(player.waitingForNextGame),
@@ -178,6 +187,8 @@ module.exports = {
   rooms,
   CREATOR_RECONNECT_GRACE_MS,
   CREATOR_UNLOCK_RECONNECT_GRACE_MS,
+  MIN_PLAYERS_PER_ROOM,
+  MAX_PLAYERS_PER_ROOM,
   PLAYER_COLORS,
   markCreatorTimedOut,
   consumeCreatorTimeoutNotice,

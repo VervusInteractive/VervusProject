@@ -4,6 +4,7 @@ function LobbyPage({
   name,
   roomIdInput,
   pingMs,
+  timeSyncStatus = null,
   onNameChange,
   onRoomIdInputChange,
   onCreateRoom,
@@ -77,6 +78,11 @@ function LobbyPage({
       <h1 className="panel-title">Vervus Lobby</h1>
       <p className="panel-subtitle">Create a room or join with an invite code.</p>
       <p className="panel-meta"><strong>Ping:</strong> {pingMs === null ? "-" : `${pingMs} ms`}</p>
+      <p className="panel-meta">
+        <strong>Clock sync:</strong> {timeSyncStatus?.quality || "syncing"}
+        {timeSyncStatus?.offsetMs === null || timeSyncStatus?.offsetMs === undefined ? "" : ` · offset ${timeSyncStatus.offsetMs} ms`}
+        {timeSyncStatus?.jitterMs === null || timeSyncStatus?.jitterMs === undefined ? "" : ` · jitter ${timeSyncStatus.jitterMs} ms`}
+      </p>
 
       <label className="field">
         <span className="field-label">Display name</span>

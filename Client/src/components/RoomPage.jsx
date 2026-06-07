@@ -6,10 +6,13 @@ function RoomPage({
   roomId,
   playerId,
   players,
+  minPlayers = 2,
+  maxPlayers = 4,
   phase,
   roomStatus = phase,
   serverNow,
   pingMs,
+  timeSyncStatus = null,
   waitingForNextGame = false,
   colors,
   onSetColor,
@@ -127,7 +130,7 @@ function RoomPage({
       <div className="room-header">
         <div>
           <h1 className="panel-title">Room {roomId}</h1>
-          <p className="panel-subtitle">Players currently in this room.</p>
+          <p className="panel-subtitle">Players currently in this room ({players.length}/{maxPlayers}, minimum {minPlayers} to start).</p>
           <p className="panel-subtitle"><strong>Room status:</strong> {roomStatusLabel}</p>
           {hostUnlockingPending
             ? <p className="panel-subtitle"><strong>Payment pending:</strong> The host is unlocking {unlockingProductLabel}. Stay here for the premium game and mode teasers.</p>
@@ -217,6 +220,10 @@ function RoomPage({
                 <span className="player-id">
                   <strong>Ping:</strong> {playerPingLabel}
                 </span>
+                <span className="player-id">
+                  <strong>Sync:</strong> {player.timeSyncQuality || "syncing"}
+                  {player.clockOffsetMs === null || player.clockOffsetMs === undefined ? "" : ` · ${player.clockOffsetMs} ms`}
+                </span>
               </div>
               <div className="player-right">
                 <span className={`ready-pill ${readyClassName}`}>
@@ -276,6 +283,7 @@ function RoomPage({
       <div className="room-meta">
         <p><strong>Phase:</strong> {phase}</p>
         <p><strong>Ping:</strong> {pingMs === null ? "-" : `${pingMs} ms`}</p>
+        <p><strong>Clock sync:</strong> {timeSyncStatus?.quality || "syncing"}{timeSyncStatus?.offsetMs === null || timeSyncStatus?.offsetMs === undefined ? "" : ` · offset ${timeSyncStatus.offsetMs} ms`}{timeSyncStatus?.jitterMs === null || timeSyncStatus?.jitterMs === undefined ? "" : ` · jitter ${timeSyncStatus.jitterMs} ms`}</p>
         <p><strong>Server Time:</strong> {serverNow ? new Date(serverNow).toLocaleTimeString() : "-"}</p>
       </div>
     </section>

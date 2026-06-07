@@ -50,6 +50,41 @@ const LOBBY_MODE_OPTIONS = [
   { id: "chaos", title: "GLiTCH! Chaos" }
 ];
 
+const TIME_SYNC_SAMPLE_LIMIT = 8;
+const TIME_SYNC_BEST_SAMPLE_COUNT = 5;
+const TIME_SYNC_DEGRADED_RTT_MS = 150;
+const TIME_SYNC_DEGRADED_JITTER_MS = 80;
+
+function median(values) {
+  if (!values.length) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  const midpoint = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 0
+    ? (sorted[midpoint - 1] + sorted[midpoint]) / 2
+    : sorted[midpoint];
+}
+
+function deriveTimeSyncEstimate(samples) {
+  const validSamples = samples
+    .filter((sample) => Number.isFinite(sample.offsetMs) && Number.isFinite(sample.rttMs))
+    .sort((a, b) => a.rttMs - b.rttMs)
+    .slice(0, TIME_SYNC_BEST_SAMPLE_COUNT);
+
+  if (!validSamples.length) {
+    return { offsetMs: null, rttMs: null, jitterMs: null, sampleCount: 0, quality: "syncing" };
+  }
+
+  const offsetMs = median(validSamples.map((sample) => sample.offsetMs));
+  const rttMs = median(validSamples.map((sample) => sample.rttMs));
+  const offsets = validSamples.map((sample) => sample.offsetMs);
+  const jitterMs = offsets.length > 1 ? Math.max(...offsets) - Math.min(...offsets) : 0;
+  const quality = rttMs > TIME_SYNC_DEGRADED_RTT_MS || jitterMs > TIME_SYNC_DEGRADED_JITTER_MS
+    ? "degraded"
+    : "synced";
+
+  return { offsetMs, rttMs, jitterMs, sampleCount: validSamples.length, quality };
+}
+
 const DEFAULT_MODE_DEBUG_CONFIGS = [
   {
     id: "standard",
@@ -243,6 +278,13 @@ function App() {
   const [isViewingRoomPage, setIsViewingRoomPage] = useState(false);
   const [serverNow, setServerNow] = useState(null);
   const [serverOffsetMs, setServerOffsetMs] = useState(null);
+  const [timeSyncStatus, setTimeSyncStatus] = useState({
+    rttMs: null,
+    offsetMs: null,
+    jitterMs: null,
+    sampleCount: 0,
+    quality: "syncing"
+  });
   const [isSocketConnected, setIsSocketConnected] = useState(socket.connected);
   const [isSocketReconnecting, setIsSocketReconnecting] = useState(!socket.connected);
   const [pingMs, setPingMs] = useState(null);
@@ -254,6 +296,8 @@ function App() {
   }), [isSocketConnected, isSocketReconnecting, pingMs]);
   const hasPlayedReturnPurchaseSoundRef = useRef(false);
   const suppressNextPurchaseResultRef = useRef(null);
+  const timeSyncSequenceRef = useRef(0);
+  const timeSyncSamplesRef = useRef([]);
   const pendingAutoJoinRoomIdRef = useRef(initialRoomFromQuery);
   const pendingEntitlementTransferTokenRef = useRef(initialEntitlementTransferToken);
   const playPurchaseSoundWithFallback = useCallback((success) => {
@@ -717,27 +761,60 @@ function App() {
     const syncServerTime = () => {
       if (!socket.connected) {
         discardBufferedSocketEmits();
+        timeSyncSamplesRef.current = [];
         setPingMs(null);
+        setServerOffsetMs(null);
+        setServerNow(null);
+        setTimeSyncStatus({ rttMs: null, offsetMs: null, jitterMs: null, sampleCount: 0, quality: "syncing" });
         return;
       }
 
       const clientSentAt = Date.now();
+      const sequence = timeSyncSequenceRef.current + 1;
+      timeSyncSequenceRef.current = sequence;
 
-      socket.volatile.emit("time:sync:ping", { clientSentAt }, ({ serverTime }) => {
+      socket.volatile.emit("time:sync:ping", { clientSentAt, sequence }, (response = {}) => {
         const clientReceivedAt = Date.now();
-        const rtt = clientReceivedAt - clientSentAt;
-        setPingMs(rtt);
-
-        if (roomId && playerId && socket.connected) {
-          socket.volatile.emit("player:ping", { roomId, playerId, pingMs: rtt });
-        }
-
-        if (typeof serverTime !== "number") {
+        if (response.sequence !== sequence || response.clientSentAt !== clientSentAt) {
           return;
         }
 
-        const estimatedServerNow = serverTime + rtt / 2;
-        setServerOffsetMs(estimatedServerNow - clientReceivedAt);
+        const serverReceivedAt = Number.isFinite(response.serverReceivedAt) ? response.serverReceivedAt : response.serverTime;
+        const serverSentAt = Number.isFinite(response.serverSentAt) ? response.serverSentAt : response.serverTime;
+        if (!Number.isFinite(serverReceivedAt) || !Number.isFinite(serverSentAt)) {
+          return;
+        }
+
+        const rttMs = Math.max(0, clientReceivedAt - clientSentAt - Math.max(0, serverSentAt - serverReceivedAt));
+        const estimatedServerNow = (serverReceivedAt + serverSentAt + rttMs) / 2;
+        const offsetMs = estimatedServerNow - clientReceivedAt;
+        const samples = [
+          ...timeSyncSamplesRef.current,
+          { sequence, rttMs, offsetMs, receivedAtMs: clientReceivedAt }
+        ].slice(-TIME_SYNC_SAMPLE_LIMIT);
+        timeSyncSamplesRef.current = samples;
+
+        const estimate = deriveTimeSyncEstimate(samples);
+        setPingMs(Math.round(estimate.rttMs ?? rttMs));
+        setServerOffsetMs(estimate.offsetMs);
+        setTimeSyncStatus({
+          rttMs: estimate.rttMs === null ? null : Math.round(estimate.rttMs),
+          offsetMs: estimate.offsetMs === null ? null : Math.round(estimate.offsetMs),
+          jitterMs: estimate.jitterMs === null ? null : Math.round(estimate.jitterMs),
+          sampleCount: estimate.sampleCount,
+          quality: estimate.quality
+        });
+
+        if (roomId && playerId && socket.connected) {
+          socket.volatile.emit("player:ping", {
+            roomId,
+            playerId,
+            pingMs: Math.round(estimate.rttMs ?? rttMs),
+            clockOffsetMs: Math.round(estimate.offsetMs ?? offsetMs),
+            timeSyncJitterMs: Math.round(estimate.jitterMs ?? 0),
+            timeSyncQuality: estimate.quality
+          });
+        }
       });
     };
 
@@ -972,10 +1049,13 @@ function App() {
             roomId={roomId}
             playerId={playerId}
             players={players}
+            minPlayers={roomState?.minPlayers ?? 2}
+            maxPlayers={roomState?.maxPlayers ?? 4}
             phase={roomState?.phase ?? "-"}
             roomStatus={roomState?.status ?? roomState?.phase ?? "-"}
             serverNow={serverOffsetMs === null ? null : serverNow}
             pingMs={pingMs}
+            timeSyncStatus={timeSyncStatus}
             waitingForNextGame={Boolean(me?.waitingForNextGame)}
             colors={PLAYER_COLORS}
             onSetColor={setPlayerColor}
@@ -1010,6 +1090,7 @@ function App() {
           name={name}
           roomIdInput={roomIdInput}
           pingMs={pingMs}
+          timeSyncStatus={timeSyncStatus}
           onNameChange={setName}
           onRoomIdInputChange={setRoomIdInput}
           onCreateRoom={createRoom}

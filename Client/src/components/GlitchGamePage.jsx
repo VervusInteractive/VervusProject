@@ -314,6 +314,9 @@ function getTransitionBassBoost(corruptionEffects, isHeatSurgeEnabled) {
 
 function GlitchGamePage({ roomId, playerId, players, myGame, serverNow, onSubmitAnswer, onAssetsLoaded, onReturnRoom, onExit, connectionState = CONNECTION_STATES.CONNECTING, onUiButtonClick, isPreviewRoom = false, availableModes = [], selectedModeId = "standard" }) {
   const currentRound = myGame?.currentRound;
+  const currentRoundCorruptionEffects = currentRound?.corruptionEffects ?? null;
+  const currentRoundAudioEffects = currentRoundCorruptionEffects?.audioEffects ?? null;
+  const currentRoundHeatSurgeActive = Boolean(currentRound?.heatSurgeActive);
 
   const selectedMode = useMemo(() => availableModes.find((mode) => mode.id === (myGame?.modeId || selectedModeId)) || null, [availableModes, myGame?.modeId, selectedModeId]);
   const selectedModeOrientationLock = (selectedMode?.orientationLock || "both").toLowerCase();
@@ -553,7 +556,7 @@ function GlitchGamePage({ roomId, playerId, players, myGame, serverNow, onSubmit
       transitionTimeoutRef.current = setTimeout(() => {
         setDisplayedIconToken(nextToken);
         if (transitionAudioRef.current) {
-          playSound(transitionAudioRef, "transition", { bassBoostDb: getTransitionBassBoost(currentRound?.corruptionEffects, Boolean(currentRound?.heatSurgeActive)), audioEffects: currentRound?.corruptionEffects?.audioEffects });
+          playSound(transitionAudioRef, "transition", { bassBoostDb: getTransitionBassBoost(currentRoundCorruptionEffects, currentRoundHeatSurgeActive), audioEffects: currentRoundAudioEffects });
         }
         setIsRoundTransitionShaking(false);
         transitionTimeoutRef.current = null;
@@ -576,7 +579,7 @@ function GlitchGamePage({ roomId, playerId, players, myGame, serverNow, onSubmit
     transitionTimeoutRef.current = setTimeout(() => {
       setDisplayedIconToken(nextToken);
       if (transitionAudioRef.current) {
-        playSound(transitionAudioRef, "transition", { bassBoostDb: getTransitionBassBoost(currentRound?.corruptionEffects, Boolean(currentRound?.heatSurgeActive)), audioEffects: currentRound?.corruptionEffects?.audioEffects });
+        playSound(transitionAudioRef, "transition", { bassBoostDb: getTransitionBassBoost(currentRoundCorruptionEffects, currentRoundHeatSurgeActive), audioEffects: currentRoundAudioEffects });
       }
       transitionStopTimeoutRef.current = setTimeout(() => {
         setIsRoundTransitionShaking(false);
@@ -586,7 +589,7 @@ function GlitchGamePage({ roomId, playerId, players, myGame, serverNow, onSubmit
     }, ICON_SHAKE_BEFORE_SWAP_MS);
 
     return undefined;
-  }, [currentRound?.id, currentRound?.yourStimulus]);
+  }, [currentRound?.id, currentRound?.yourStimulus, currentRoundAudioEffects, currentRoundCorruptionEffects, currentRoundHeatSurgeActive]);
 
   useEffect(() => () => {
     if (transitionTimeoutRef.current) {
@@ -666,41 +669,41 @@ function GlitchGamePage({ roomId, playerId, players, myGame, serverNow, onSubmit
     const previous = previousAnsweredPlayerIdsRef.current;
     const newlyAnsweredOthers = Array.from(answeredPlayerIds).some((id) => id !== playerId && !previous.has(id));
     if (newlyAnsweredOthers) {
-      playSound(voteReceiveAudioRef, "voteReceive", { audioEffects: currentRound?.corruptionEffects?.audioEffects });
+      playSound(voteReceiveAudioRef, "voteReceive", { audioEffects: currentRoundAudioEffects });
     }
     previousAnsweredPlayerIdsRef.current = new Set(answeredPlayerIds);
-  }, [answeredPlayerIds, playerId]);
+  }, [answeredPlayerIds, playerId, currentRoundAudioEffects]);
 
   useEffect(() => {
     if (isSaveItActive && !previousSaveItStateRef.current && lastChanceAudioRef.current) {
-      playSound(lastChanceAudioRef, "lastChance", { audioEffects: currentRound?.corruptionEffects?.audioEffects });
+      playSound(lastChanceAudioRef, "lastChance", { audioEffects: currentRoundAudioEffects });
     }
 
     previousSaveItStateRef.current = isSaveItActive;
-  }, [isSaveItActive]);
+  }, [isSaveItActive, currentRoundAudioEffects]);
 
   useEffect(() => {
     const previousRoundPassed = previousRoundPassedRef.current;
     const lastRoundPassed = myGame?.lastRoundResult?.passed ?? null;
 
     if ((previousRoundPassed !== true && lastRoundPassed === true) && correctAnswerAudioRef.current) {
-      playSound(correctAnswerAudioRef, "correctAnswer", { audioEffects: currentRound?.corruptionEffects?.audioEffects });
+      playSound(correctAnswerAudioRef, "correctAnswer", { audioEffects: currentRoundAudioEffects });
     }
 
     previousSaveItLabelRef.current = saveItLabel;
     previousRoundPassedRef.current = lastRoundPassed;
-  }, [myGame?.lastRoundResult?.passed, saveItLabel]);
+  }, [myGame?.lastRoundResult?.passed, saveItLabel, currentRoundAudioEffects]);
 
   useEffect(() => {
     const previousGameStatus = previousGameStatusRef.current;
     const nextGameStatus = myGame?.status ?? null;
 
     if (nextGameStatus === "gameover" && previousGameStatus !== "gameover" && gameOverAudioRef.current) {
-      playSound(gameOverAudioRef, "gameOver", { audioEffects: currentRound?.corruptionEffects?.audioEffects });
+      playSound(gameOverAudioRef, "gameOver", { audioEffects: currentRoundAudioEffects });
     }
 
     previousGameStatusRef.current = nextGameStatus;
-  }, [myGame?.status]);
+  }, [myGame?.status, currentRoundAudioEffects]);
 
   useEffect(() => () => {
     if (audioContextRef.current) {
@@ -712,10 +715,10 @@ function GlitchGamePage({ roomId, playerId, players, myGame, serverNow, onSubmit
   useEffect(() => {
     const previousNumber = previousPregameCountdownNumberRef.current;
     if (preGameCountdownNumber !== null && preGameCountdownNumber !== previousNumber && countAudioRef.current) {
-      playSound(countAudioRef, "count", { audioEffects: currentRound?.corruptionEffects?.audioEffects });
+      playSound(countAudioRef, "count", { audioEffects: currentRoundAudioEffects });
     }
     previousPregameCountdownNumberRef.current = preGameCountdownNumber;
-  }, [preGameCountdownNumber]);
+  }, [preGameCountdownNumber, currentRoundAudioEffects]);
 
   useEffect(() => {
     if (!currentRound || myGame?.status !== "active") return undefined;
@@ -734,7 +737,7 @@ function GlitchGamePage({ roomId, playerId, players, myGame, serverNow, onSubmit
     if (timeoutMs <= 0) return undefined;
 
     const tickHandle = window.setInterval(() => {
-      playSound(tickAudioRef, "tick", { stopPrevious: true, audioEffects: currentRound?.corruptionEffects?.audioEffects });
+      playSound(tickAudioRef, "tick", { stopPrevious: true, audioEffects: currentRoundAudioEffects });
     }, tickIntervalMs);
 
     const stopHandle = window.setTimeout(() => {
@@ -745,7 +748,7 @@ function GlitchGamePage({ roomId, playerId, players, myGame, serverNow, onSubmit
       window.clearInterval(tickHandle);
       window.clearTimeout(stopHandle);
     };
-  }, [currentRound?.id, currentRound?.roundNumber, currentRound?.goodRunRound, currentRound?.decisionDeadlineMs, currentRound?.isLastChanceReplay, myGame?.status, isSaveItActive]);
+  }, [currentRound, currentRoundAudioEffects, myGame?.status, isSaveItActive]);
 
   if (!myGame) {
     return (

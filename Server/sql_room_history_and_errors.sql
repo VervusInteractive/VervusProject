@@ -82,6 +82,64 @@ BEGIN
 END
 $$;
 
+
+-- Game-mode deviation compatibility: Partial Break is a first-class deviation
+-- configured through vervus_data.mode_deviation_mix.deviation_type.
+DO $$
+DECLARE
+  deviation_type_schema text;
+  deviation_type_name text;
+  deviation_type_kind "char";
+  constraint_record record;
+BEGIN
+  SELECT tn.nspname, t.typname, t.typtype
+    INTO deviation_type_schema, deviation_type_name, deviation_type_kind
+  FROM pg_attribute a
+  JOIN pg_class c ON c.oid = a.attrelid
+  JOIN pg_namespace cn ON cn.oid = c.relnamespace
+  JOIN pg_type t ON t.oid = a.atttypid
+  JOIN pg_namespace tn ON tn.oid = t.typnamespace
+  WHERE cn.nspname = 'vervus_data'
+    AND c.relname = 'mode_deviation_mix'
+    AND a.attname = 'deviation_type'
+    AND a.attnum > 0
+    AND NOT a.attisdropped;
+
+  IF deviation_type_kind = 'e' THEN
+    EXECUTE format('ALTER TYPE %I.%I ADD VALUE IF NOT EXISTS %L', deviation_type_schema, deviation_type_name, 'partial_break');
+  ELSIF deviation_type_kind IS NOT NULL THEN
+    FOR constraint_record IN
+      SELECT con.conname
+      FROM pg_constraint con
+      JOIN pg_class c ON c.oid = con.conrelid
+      JOIN pg_namespace n ON n.oid = c.relnamespace
+      WHERE n.nspname = 'vervus_data'
+        AND c.relname = 'mode_deviation_mix'
+        AND con.contype = 'c'
+        AND pg_get_constraintdef(con.oid) ILIKE '%deviation_type%'
+        AND pg_get_constraintdef(con.oid) ILIKE '%shape_swap%'
+        AND pg_get_constraintdef(con.oid) ILIKE '%false_twin%'
+    LOOP
+      EXECUTE format('ALTER TABLE vervus_data.mode_deviation_mix DROP CONSTRAINT %I', constraint_record.conname);
+    END LOOP;
+
+    IF NOT EXISTS (
+      SELECT 1
+      FROM pg_constraint con
+      JOIN pg_class c ON c.oid = con.conrelid
+      JOIN pg_namespace n ON n.oid = c.relnamespace
+      WHERE n.nspname = 'vervus_data'
+        AND c.relname = 'mode_deviation_mix'
+        AND con.conname = 'mode_deviation_mix_deviation_type_chk'
+    ) THEN
+      ALTER TABLE vervus_data.mode_deviation_mix
+        ADD CONSTRAINT mode_deviation_mix_deviation_type_chk
+        CHECK (deviation_type IN ('shape_swap', 'false_twin', 'partial_break'));
+    END IF;
+  END IF;
+END
+$$;
+
 CREATE TABLE IF NOT EXISTS vervus_data.room_history (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   room_id UUID NOT NULL REFERENCES vervus_data.rooms(id) ON DELETE CASCADE,

@@ -14,8 +14,13 @@ const CONNECTION_STATE_LABELS = Object.freeze({
   [CONNECTION_STATES.DISCONNECTED]: "Disconnected"
 });
 
-const PLAYER_RECONNECT_GRACE_MS = 15 * 1000;
-const DEGRADED_PING_THRESHOLD_MS = 100;
+function parsePositiveIntEnv(name, fallback) {
+  const value = Number(process.env[name]);
+  return Number.isFinite(value) && value > 0 ? value : fallback;
+}
+
+const PLAYER_RECONNECT_GRACE_MS = parsePositiveIntEnv("PLAYER_RECONNECT_GRACE_MS", 60 * 1000);
+const DEGRADED_PING_THRESHOLD_MS = parsePositiveIntEnv("DEGRADED_PING_THRESHOLD_MS", 150);
 
 function isValidConnectionState(state) {
   return Object.values(CONNECTION_STATES).includes(state);

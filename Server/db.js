@@ -382,6 +382,103 @@ async function completePurchaseAndGrantEntitlementByStripeSession({ stripeChecko
     client.release();
   }
 }
+
+async function recordStripeWebhookEvent({ eventId, eventType, payload = {} }) {
+  await ensureRoomTrackingTables();
+  const { rows } = await pool.query(
+    `INSERT INTO vervus_data.stripe_webhook_events (id, event_type, payload)
+     VALUES ($1, $2, $3::jsonb)
+     ON CONFLICT (id) DO UPDATE
+       SET received_at = vervus_data.stripe_webhook_events.received_at
+     RETURNING processed_at`,
+    [eventId, eventType, JSON.stringify(payload || {})]
+  );
+  return !rows[0]?.processed_at;
+}
+
+
+async function markStripeWebhookEventProcessed({ eventId }) {
+  await ensureRoomTrackingTables();
+  await pool.query(
+    `UPDATE vervus_data.stripe_webhook_events
+     SET processed_at = now(), failed_at = NULL, error_message = NULL
+     WHERE id = $1`,
+    [eventId]
+  );
+}
+
+async function markStripeWebhookEventFailed({ eventId, errorMessage }) {
+  await ensureRoomTrackingTables();
+  await pool.query(
+    `UPDATE vervus_data.stripe_webhook_events
+     SET failed_at = now(), error_message = $2
+     WHERE id = $1`,
+    [eventId, String(errorMessage || "Unknown Stripe webhook failure").slice(0, 1000)]
+  );
+}
+
+async function getPurchaseStatusByStripeSession({ stripeCheckoutSessionId, playerId }) {
+  if (!stripeCheckoutSessionId || !playerId) return null;
+  const { rows } = await pool.query(
+    `SELECT p.id,
+            p.payment_status::text AS payment_status,
+            p.stripe_checkout_session_id,
+            p.stripe_payment_intent_id,
+            p.paid_at,
+            p.failed_at,
+            p.entitlement_granted_at,
+            pr.product_key,
+            pr.product_name,
+            pr.validity_duration_hours
+     FROM vervus_data.purchases p
+     JOIN vervus_data.products pr ON pr.id = p.product_id
+     WHERE p.stripe_checkout_session_id = $1
+       AND p.player_id = $2::uuid
+     LIMIT 1`,
+    [stripeCheckoutSessionId, playerId]
+  );
+  return rows[0] || null;
+}
+
+async function getRecentErrorLogs({ limit = 25 } = {}) {
+  await ensureRoomTrackingTables();
+  const safeLimit = Math.max(1, Math.min(100, Number(limit) || 25));
+  const { rows } = await pool.query(
+    `SELECT id, room_code, player_id, source, error_code, severity, message, context, occurred_at, resolved_at
+     FROM vervus_data.error_logs
+     ORDER BY occurred_at DESC
+     LIMIT $1`,
+    [safeLimit]
+  );
+  return rows;
+}
+
+async function getRecentRoomHistory({ limit = 50 } = {}) {
+  await ensureRoomTrackingTables();
+  const safeLimit = Math.max(1, Math.min(200, Number(limit) || 50));
+  const { rows } = await pool.query(
+    `SELECT id, room_code, event_type, event_at, actor_player_id, from_status::text AS from_status, to_status::text AS to_status, metadata
+     FROM vervus_data.room_history
+     ORDER BY event_at DESC
+     LIMIT $1`,
+    [safeLimit]
+  );
+  return rows;
+}
+
+async function getRecentStripeWebhookEvents({ limit = 25 } = {}) {
+  await ensureRoomTrackingTables();
+  const safeLimit = Math.max(1, Math.min(100, Number(limit) || 25));
+  const { rows } = await pool.query(
+    `SELECT id, event_type, received_at, processed_at, failed_at, error_message
+     FROM vervus_data.stripe_webhook_events
+     ORDER BY received_at DESC
+     LIMIT $1`,
+    [safeLimit]
+  );
+  return rows;
+}
+
 async function markPurchaseFailedByStripeSession({ stripeCheckoutSessionId }) {
   await pool.query(
     `UPDATE vervus_data.purchases
@@ -412,4 +509,4 @@ async function deletePlayerRecord(playerId) { await pool.query('DELETE FROM verv
 async function updateRoomStatus({ roomCode, status }) { await ensureRoomTrackingTables(); await pool.query(`UPDATE vervus_data.rooms SET status = $2::vervus_data.room_status, started_at = CASE WHEN $2 IN ('preview', 'premium', 'active') THEN COALESCE(started_at, now()) ELSE started_at END, ended_at = CASE WHEN $2 IN ('ended', 'expired') THEN now() ELSE ended_at END WHERE room_code = $1`, [roomCode, status]); }
 async function deleteRoomRecord(roomCode) { await pool.query('DELETE FROM vervus_data.rooms WHERE room_code = $1', [roomCode]); }
 
-module.exports = { pool, testDbConnection, ensureRoomTrackingTables, logRoomHistoryEvent, logErrorEntry, ensurePlayerProfileTables, upsertPlayerProfile, grantPlayerProfileEntitlement, getActivePlayerProfileEntitlement, getActiveEntitledModeKeys, getActiveEntitlementExpiriesByMode, createPlayerProfileSession, getPlayerProfileIdBySessionToken, createEntitlementTransferToken, consumeEntitlementTransferToken, getProductByKey, createPendingPurchase, attachStripeSessionToPurchase, completePurchaseAndGrantEntitlementByStripeSession, markPurchaseFailedByStripeSession, getProductById, createRoomRecord, addPlayerRecord, updatePlayerReady, updatePlayerConnection, deletePlayerRecord, updateRoomStatus, deleteRoomRecord };
+module.exports = { pool, testDbConnection, ensureRoomTrackingTables, logRoomHistoryEvent, logErrorEntry, ensurePlayerProfileTables, upsertPlayerProfile, grantPlayerProfileEntitlement, getActivePlayerProfileEntitlement, getActiveEntitledModeKeys, getActiveEntitlementExpiriesByMode, createPlayerProfileSession, getPlayerProfileIdBySessionToken, createEntitlementTransferToken, consumeEntitlementTransferToken, getProductByKey, createPendingPurchase, attachStripeSessionToPurchase, completePurchaseAndGrantEntitlementByStripeSession, recordStripeWebhookEvent, markStripeWebhookEventProcessed, markStripeWebhookEventFailed, getPurchaseStatusByStripeSession, getRecentErrorLogs, getRecentRoomHistory, getRecentStripeWebhookEvents, markPurchaseFailedByStripeSession, getProductById, createRoomRecord, addPlayerRecord, updatePlayerReady, updatePlayerConnection, deletePlayerRecord, updateRoomStatus, deleteRoomRecord };

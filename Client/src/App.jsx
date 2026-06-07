@@ -38,6 +38,7 @@ const discardBufferedSocketEmits = () => {
 const PENDING_PURCHASE_STORAGE_KEY = "pendingPurchaseCheckout";
 const PURCHASE_RESULT_TO_EMIT_STORAGE_KEY = "purchaseResultToEmit";
 const PENDING_PURCHASE_SOUND_STORAGE_KEY = "pendingPurchaseSoundEffect";
+const PENDING_PURCHASE_SESSION_STORAGE_KEY = "pendingPurchaseCheckoutSessionId";
 const PLAYER_COLORS = ["#ef4444", "#3b82f6", "#22c55e", "#eab308"];
 const initialSearchParams = new URLSearchParams(window.location.search);
 const initialRoomFromQuery = initialSearchParams.get("room")?.trim().toUpperCase() || "";
@@ -419,8 +420,13 @@ function App() {
       alert(message || "Your entitlement was transferred to another device. Entitlements refreshed.");
     };
 
+    const handleEntitlementRefresh = (payload = {}) => {
+      applyProfileEntitlementResponse(payload);
+    };
+
     socket.on("entitlement:purchase:result", handlePurchaseResult);
     socket.on("entitlement:transfer:completed", handleEntitlementTransferCompleted);
+    socket.on("entitlement:refresh", handleEntitlementRefresh);
 
     return () => {
       socket.off("room:state", handleRoomState);
@@ -428,8 +434,9 @@ function App() {
       socket.off("room:disbanded", handleRoomDisbanded);
       socket.off("entitlement:purchase:result", handlePurchaseResult);
       socket.off("entitlement:transfer:completed", handleEntitlementTransferCompleted);
+      socket.off("entitlement:refresh", handleEntitlementRefresh);
     };
-  }, [clearSessionState, playPurchaseSoundWithFallback, refreshProfileEntitlements]);
+  }, [applyProfileEntitlementResponse, clearSessionState, playPurchaseSoundWithFallback, refreshProfileEntitlements]);
 
 
   useEffect(() => {
@@ -468,8 +475,12 @@ function App() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const purchaseResult = params.get("purchase");
+    const purchaseSessionId = params.get("purchaseSessionId")?.trim() || "";
     const normalizedPurchaseResult = purchaseResult === "canceled" ? "cancelled" : purchaseResult;
     const hasPendingPurchase = localStorage.getItem(PENDING_PURCHASE_STORAGE_KEY) === "1";
+    if (purchaseSessionId) {
+      localStorage.setItem(PENDING_PURCHASE_SESSION_STORAGE_KEY, purchaseSessionId);
+    }
     if (normalizedPurchaseResult !== "success" && normalizedPurchaseResult !== "cancelled" && !hasPendingPurchase) return;
 
     const purchaseSucceeded = normalizedPurchaseResult === "success";
@@ -486,6 +497,7 @@ function App() {
 
     if (normalizedPurchaseResult === "success" || normalizedPurchaseResult === "cancelled") {
       params.delete("purchase");
+      params.delete("purchaseSessionId");
       const nextQuery = params.toString();
       const nextUrl = `${window.location.pathname}${nextQuery ? `?${nextQuery}` : ""}${window.location.hash}`;
       window.history.replaceState({}, "", nextUrl);
@@ -531,7 +543,7 @@ function App() {
     const savedRoomId = localStorage.getItem("roomId");
     const savedSessionToken = localStorage.getItem("sessionToken");
 
-    if (!savedRoomId || !savedSessionToken) {
+    if (!savedRoomId || !savedSessionToken || !socket.connected) {
       return;
     }
 
@@ -658,6 +670,47 @@ function App() {
 
     return () => window.clearInterval(interval);
   }, [entitlementRefreshRequestedAtMs, refreshProfileEntitlements]);
+
+  useEffect(() => {
+    const checkoutSessionId = localStorage.getItem(PENDING_PURCHASE_SESSION_STORAGE_KEY);
+    if (!entitlementRefreshRequestedAtMs || !checkoutSessionId) return undefined;
+
+    let cancelled = false;
+    let attemptCount = 0;
+    const pollPurchaseStatus = () => {
+      attemptCount += 1;
+      fetch(`${serverUrl}/api/stripe/purchase-status?sessionId=${encodeURIComponent(checkoutSessionId)}`, {
+        credentials: "include",
+        headers: buildProfileSessionHeaders()
+      })
+        .then(async (response) => {
+          const payload = await response.json();
+          if (!response.ok) throw new Error(payload?.error || "Failed to refresh purchase status");
+          if (cancelled) return;
+          applyProfileEntitlementResponse(payload);
+          if (payload.paymentStatus === "paid" && payload.entitlementGrantedAtMs) {
+            localStorage.removeItem(PENDING_PURCHASE_SESSION_STORAGE_KEY);
+          }
+        })
+        .catch(() => {
+          // The existing entitlement refresh loop remains the fallback while Stripe webhooks catch up.
+        });
+    };
+
+    pollPurchaseStatus();
+    const interval = window.setInterval(() => {
+      if (attemptCount >= 8 || !localStorage.getItem(PENDING_PURCHASE_SESSION_STORAGE_KEY)) {
+        window.clearInterval(interval);
+        return;
+      }
+      pollPurchaseStatus();
+    }, 1500);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, [applyProfileEntitlementResponse, entitlementRefreshRequestedAtMs]);
 
 
   useEffect(() => {
@@ -805,7 +858,7 @@ function App() {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json", ...buildProfileSessionHeaders() },
-        body: JSON.stringify({ productKey })
+        body: JSON.stringify({ productKey, roomId })
       })
         .then(async (response) => {
           const payload = await response.json();
@@ -816,6 +869,9 @@ function App() {
             throw new Error("Stripe checkout URL missing");
           }
           localStorage.setItem(PENDING_PURCHASE_STORAGE_KEY, "1");
+          if (payload.stripeCheckoutSessionId) {
+            localStorage.setItem(PENDING_PURCHASE_SESSION_STORAGE_KEY, payload.stripeCheckoutSessionId);
+          }
           window.location.assign(payload.url);
         })
         .catch((error) => {

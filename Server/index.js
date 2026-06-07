@@ -17,11 +17,19 @@ const {
   createPendingPurchase,
   attachStripeSessionToPurchase,
   completePurchaseAndGrantEntitlementByStripeSession,
+  recordStripeWebhookEvent,
+  markStripeWebhookEventProcessed,
+  markStripeWebhookEventFailed,
+  getPurchaseStatusByStripeSession,
+  getRecentErrorLogs,
+  getRecentRoomHistory,
+  getRecentStripeWebhookEvents,
   markPurchaseFailedByStripeSession,
   ensureRoomTrackingTables,
   logErrorEntry
 } = require("./db");
 const { hydrateGameModesFromDb, hydrateHeatSurgeConfigsFromDb, hydrateModeCorruptionBandsFromDb } = require("./gameModes");
+const { ROOM_STATUSES, transitionRoomStatus } = require("./roomLifecycle");
 const { rooms, getRoomState } = require("./roomStore");
 
 const app = express();
@@ -126,6 +134,96 @@ async function createSessionResponse({ res, profileId, displayName }) {
   };
 }
 
+function getProfileSocketRoom(profileId) {
+  return `profile:${profileId}`;
+}
+
+async function refreshPlayerEntitlementsInActiveRooms(profileId) {
+  const entitlementExpiry = await getActivePlayerProfileEntitlement({ profileId });
+  const entitledModeKeys = await getActiveEntitledModeKeys({ profileId });
+  const entitledModeExpiriesMs = await getActiveEntitlementExpiriesByMode({ profileId });
+  const entitlementExpiresAtMs = entitlementExpiry ? new Date(entitlementExpiry).getTime() : null;
+
+  for (const [roomId, room] of rooms.entries()) {
+    const player = room.players.get(profileId);
+    if (!player) continue;
+
+    player.entitlementExpiresAtMs = entitlementExpiresAtMs;
+    player.entitledModeKeys = entitledModeKeys;
+    player.entitledModeExpiriesMs = entitledModeExpiriesMs;
+
+    if (room.creatorPlayerId === profileId) {
+      const selectedModeId = room.selectedModeId || "standard";
+      room.expiresAtMs = entitledModeExpiriesMs[selectedModeId] || entitlementExpiresAtMs || room.expiresAtMs || null;
+      if (room.hostUnlockingPending) {
+        room.hostUnlockingPending = false;
+        room.unlockingStartedAtMs = null;
+        room.unlockingPreviousHasEntitlement = null;
+        room.unlockingProductName = null;
+      }
+      if (room.game?.isPreview && entitlementExpiresAtMs) {
+        room.game.isPreview = false;
+        room.game.previewEndsAtMs = null;
+        if (room.previewTimer) {
+          clearTimeout(room.previewTimer);
+          room.previewTimer = null;
+        }
+        room.expiresAtMs = entitledModeExpiriesMs[room.game.modeId] || entitlementExpiresAtMs;
+      }
+      if (entitlementExpiresAtMs && [ROOM_STATUSES.PAYMENT_PENDING, ROOM_STATUSES.PREVIEW].includes(room.status)) {
+        transitionRoomStatus(room, roomId, ROOM_STATUSES.PREMIUM, {
+          eventType: "settings_changed",
+          metadata: { reason: "stripe_webhook_entitlement_granted" }
+        });
+      }
+    }
+
+    io.to(roomId).emit("room:state", getRoomState(roomId));
+  }
+
+  io.to(getProfileSocketRoom(profileId)).emit("entitlement:refresh", {
+    entitlementExpiresAtMs,
+    entitledModeKeys,
+    entitledModeExpiriesMs
+  });
+}
+
+function getRuntimeRoomSummary() {
+  const statusCounts = {};
+  let playerCount = 0;
+  let connectedPlayerCount = 0;
+  for (const room of rooms.values()) {
+    const status = room.status || room.phase || "unknown";
+    statusCounts[status] = (statusCounts[status] || 0) + 1;
+    for (const player of room.players.values()) {
+      playerCount += 1;
+      if (player.connected) connectedPlayerCount += 1;
+    }
+  }
+  return {
+    roomCount: rooms.size,
+    playerCount,
+    connectedPlayerCount,
+    statusCounts
+  };
+}
+
+function requireAdmin(req, res, next) {
+  const adminToken = process.env.ADMIN_TOKEN || "";
+  if (!adminToken && process.env.NODE_ENV !== "production") {
+    next();
+    return;
+  }
+
+  const suppliedToken = String(req.headers["x-admin-token"] || "");
+  if (adminToken && suppliedToken === adminToken) {
+    next();
+    return;
+  }
+
+  res.status(adminToken ? 401 : 503).json({ error: adminToken ? "Unauthorized" : "ADMIN_TOKEN is required in production" });
+}
+
 const stripeApiRequest = async (path, body) => {
   const response = await fetch(`https://api.stripe.com${path}`, {
     method: "POST",
@@ -145,10 +243,71 @@ const stripeApiRequest = async (path, body) => {
 };
 
 app.get("/", (req, res) => {
-  res.send("Milestone 1 server running");
+  res.send("Vervus server running");
+});
+
+app.get("/healthz", async (req, res) => {
+  const startedAt = Date.now();
+  try {
+    await testDbConnection();
+    res.status(200).json({
+      ok: true,
+      service: "vervus-server",
+      uptimeSeconds: Math.round(process.uptime()),
+      database: "ok",
+      paymentsConfigured: Boolean(STRIPE_SECRET_KEY && STRIPE_WEBHOOK_SECRET),
+      runtime: getRuntimeRoomSummary(),
+      checkedAtMs: Date.now(),
+      latencyMs: Date.now() - startedAt
+    });
+  } catch (error) {
+    logErrorEntry({ source: "healthz", message: error.message || "Health check failed", stackTrace: error.stack }).catch(() => {});
+    res.status(503).json({ ok: false, database: "error", error: error.message || "Health check failed" });
+  }
+});
+
+app.get("/api/admin/runtime", requireAdmin, async (req, res) => {
+  res.status(200).json({
+    ok: true,
+    uptimeSeconds: Math.round(process.uptime()),
+    memory: process.memoryUsage(),
+    runtime: getRuntimeRoomSummary(),
+    rooms: Array.from(rooms.keys()).map((roomId) => getRoomState(roomId)).filter(Boolean)
+  });
+});
+
+app.get("/api/admin/errors", requireAdmin, async (req, res) => {
+  try {
+    const limit = Number(req.query.limit) || 25;
+    res.status(200).json({ ok: true, errors: await getRecentErrorLogs({ limit }) });
+  } catch (error) {
+    logErrorEntry({ source: "admin:errors", message: error.message || "Failed to read error logs", stackTrace: error.stack }).catch(() => {});
+    res.status(500).json({ error: "Failed to read error logs" });
+  }
+});
+
+app.get("/api/admin/room-history", requireAdmin, async (req, res) => {
+  try {
+    const limit = Number(req.query.limit) || 50;
+    res.status(200).json({ ok: true, history: await getRecentRoomHistory({ limit }) });
+  } catch (error) {
+    logErrorEntry({ source: "admin:room-history", message: error.message || "Failed to read room history", stackTrace: error.stack }).catch(() => {});
+    res.status(500).json({ error: "Failed to read room history" });
+  }
+});
+
+app.get("/api/admin/stripe-webhooks", requireAdmin, async (req, res) => {
+  try {
+    const limit = Number(req.query.limit) || 25;
+    res.status(200).json({ ok: true, webhooks: await getRecentStripeWebhookEvents({ limit }) });
+  } catch (error) {
+    logErrorEntry({ source: "admin:stripe-webhooks", message: error.message || "Failed to read Stripe webhook events", stackTrace: error.stack }).catch(() => {});
+    res.status(500).json({ error: "Failed to read Stripe webhook events" });
+  }
 });
 
 app.post("/api/stripe/webhook", express.raw({ type: "application/json" }), async (req, res) => {
+  let eventId = null;
   try {
     if (!STRIPE_WEBHOOK_SECRET) {
       res.status(500).json({ error: "STRIPE_WEBHOOK_SECRET is not configured" });
@@ -162,16 +321,18 @@ app.post("/api/stripe/webhook", express.raw({ type: "application/json" }), async
     }
 
     const signatureParts = Object.fromEntries(signatureHeader.split(",").map((part) => part.split("=", 2)));
-    const timestamp = signatureParts.t;
+    const timestamp = Number(signatureParts.t);
     const stripeSignature = signatureParts.v1;
     const payload = req.body.toString("utf8");
-    const signedPayload = `${timestamp}.${payload}`;
+    const signedPayload = `${signatureParts.t}.${payload}`;
     const expectedSignature = crypto
       .createHmac("sha256", STRIPE_WEBHOOK_SECRET)
       .update(signedPayload, "utf8")
       .digest("hex");
 
-    const signatureMatches = typeof stripeSignature === "string"
+    const timestampAgeSeconds = Number.isFinite(timestamp) ? Math.abs(Math.floor(Date.now() / 1000) - timestamp) : Infinity;
+    const signatureMatches = timestampAgeSeconds <= 300
+      && typeof stripeSignature === "string"
       && /^[a-f0-9]{64}$/i.test(stripeSignature)
       && crypto.timingSafeEqual(Buffer.from(expectedSignature, "hex"), Buffer.from(stripeSignature, "hex"));
 
@@ -181,18 +342,37 @@ app.post("/api/stripe/webhook", express.raw({ type: "application/json" }), async
     }
 
     const event = JSON.parse(payload);
+    eventId = typeof event.id === "string" ? event.id : null;
+    if (!eventId) {
+      res.status(400).json({ error: "Missing Stripe event id" });
+      return;
+    }
+
+    const shouldProcess = await recordStripeWebhookEvent({ eventId, eventType: event.type || "unknown", payload: event });
+    if (!shouldProcess) {
+      res.status(200).json({ received: true, duplicate: true });
+      return;
+    }
+
     if (event.type === "checkout.session.completed") {
       const session = event.data?.object;
       const stripeCheckoutSessionId = session?.id;
       const stripePaymentIntentId = session?.payment_intent;
-      await completePurchaseAndGrantEntitlementByStripeSession({ stripeCheckoutSessionId, stripePaymentIntentId });
-    } else if (event.type === "checkout.session.expired") {
+      const purchase = await completePurchaseAndGrantEntitlementByStripeSession({ stripeCheckoutSessionId, stripePaymentIntentId });
+      if (purchase?.player_id) {
+        await refreshPlayerEntitlementsInActiveRooms(purchase.player_id);
+      }
+    } else if (["checkout.session.expired", "checkout.session.async_payment_failed"].includes(event.type)) {
       const session = event.data?.object;
       await markPurchaseFailedByStripeSession({ stripeCheckoutSessionId: session?.id });
     }
 
+    await markStripeWebhookEventProcessed({ eventId });
     res.status(200).json({ received: true });
   } catch (error) {
+    if (eventId) {
+      markStripeWebhookEventFailed({ eventId, errorMessage: error.message }).catch(() => {});
+    }
     logErrorEntry({ source: "stripe:webhook", message: error.message || "Failed to process Stripe webhook", stackTrace: error.stack }).catch(() => {});
     res.status(500).json({ error: "Failed to process Stripe webhook" });
   }
@@ -262,8 +442,9 @@ app.post("/api/stripe/checkout-session", async (req, res) => {
     return;
   }
 
-  const { normalizeProductKey } = require("./validation");
+  const { normalizeProductKey, normalizeRoomCode } = require("./validation");
   const productKey = normalizeProductKey(req.body?.productKey);
+  const roomId = normalizeRoomCode(req.body?.roomId);
   const profileId = await getProfileIdFromRequest(req);
   if (!profileId || !productKey) {
     res.status(400).json({ error: "Missing session or productKey" });
@@ -286,22 +467,59 @@ app.post("/api/stripe/checkout-session", async (req, res) => {
 
     const session = await stripeApiRequest("/v1/checkout/sessions", {
       mode: "payment",
-      success_url: `${CLIENT_URL}?purchase=success`,
-      cancel_url: `${CLIENT_URL}?purchase=cancelled`,
+      success_url: `${CLIENT_URL}?purchase=success&purchaseSessionId={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${CLIENT_URL}?purchase=cancelled&purchaseSessionId={CHECKOUT_SESSION_ID}`,
       "line_items[0][price_data][currency]": product.currency_code.toLowerCase(),
       "line_items[0][price_data][unit_amount]": String(product.price_cents),
       "line_items[0][price_data][product_data][name]": product.product_name,
       "line_items[0][quantity]": "1",
       "metadata[profileId]": profileId,
       "metadata[purchaseId]": purchaseId,
-      "metadata[productKey]": product.product_key
+      "metadata[productKey]": product.product_key,
+      "metadata[roomId]": roomId || ""
     });
     await attachStripeSessionToPurchase({ purchaseId, stripeCheckoutSessionId: session.id });
 
-    res.status(200).json({ url: session.url });
+    res.status(200).json({ url: session.url, stripeCheckoutSessionId: session.id, purchaseId });
   } catch (error) {
     logErrorEntry({ source: "stripe:checkout-session", playerId: profileId, message: error.message || "Failed to create checkout session", stackTrace: error.stack, context: { productKey } }).catch(() => {});
     res.status(500).json({ error: error.message || "Failed to create checkout session" });
+  }
+});
+
+app.get("/api/stripe/purchase-status", async (req, res) => {
+  const stripeCheckoutSessionId = String(req.query.sessionId || "").trim();
+  const profileId = await getProfileIdFromRequest(req);
+  if (!profileId || !/^cs_(test|live)_[A-Za-z0-9_]+$/.test(stripeCheckoutSessionId)) {
+    res.status(400).json({ error: "Missing session or invalid checkout session id" });
+    return;
+  }
+
+  try {
+    const purchase = await getPurchaseStatusByStripeSession({ stripeCheckoutSessionId, playerId: profileId });
+    if (!purchase) {
+      res.status(404).json({ error: "Purchase not found" });
+      return;
+    }
+
+    const entitlementExpiry = await getActivePlayerProfileEntitlement({ profileId });
+    const entitledModeKeys = await getActiveEntitledModeKeys({ profileId });
+    const entitledModeExpiriesMs = await getActiveEntitlementExpiriesByMode({ profileId });
+    res.status(200).json({
+      ok: true,
+      paymentStatus: purchase.payment_status,
+      productKey: purchase.product_key,
+      productName: purchase.product_name,
+      paidAtMs: purchase.paid_at ? new Date(purchase.paid_at).getTime() : null,
+      failedAtMs: purchase.failed_at ? new Date(purchase.failed_at).getTime() : null,
+      entitlementGrantedAtMs: purchase.entitlement_granted_at ? new Date(purchase.entitlement_granted_at).getTime() : null,
+      entitlementExpiresAtMs: entitlementExpiry ? new Date(entitlementExpiry).getTime() : null,
+      entitledModeKeys,
+      entitledModeExpiriesMs
+    });
+  } catch (error) {
+    logErrorEntry({ source: "stripe:purchase-status", playerId: profileId, message: error.message || "Failed to read purchase status", stackTrace: error.stack, context: { stripeCheckoutSessionId } }).catch(() => {});
+    res.status(500).json({ error: "Failed to read purchase status" });
   }
 });
 
@@ -312,6 +530,12 @@ const io = new Server(httpServer, {
     origin: ALLOWED_ORIGINS.length > 0 ? ALLOWED_ORIGINS : false,
     methods: ["GET", "POST"],
     credentials: true
+  },
+  pingInterval: Number(process.env.SOCKET_PING_INTERVAL_MS) || 25000,
+  pingTimeout: Number(process.env.SOCKET_PING_TIMEOUT_MS) || 30000,
+  connectionStateRecovery: {
+    maxDisconnectionDuration: Number(process.env.SOCKET_STATE_RECOVERY_MS) || 120000,
+    skipMiddlewares: false
   }
 });
 
@@ -327,8 +551,6 @@ io.use(async (socket, next) => {
     next(error);
   }
 });
-
-const getProfileSocketRoom = (profileId) => `profile:${profileId}`;
 
 registerSocketHandlers(io);
 

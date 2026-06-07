@@ -172,6 +172,23 @@ CREATE INDEX IF NOT EXISTS idx_room_history_room_id_event_at
 CREATE INDEX IF NOT EXISTS idx_room_history_event_type_event_at
   ON vervus_data.room_history(event_type, event_at DESC);
 
+
+CREATE TABLE IF NOT EXISTS vervus_data.stripe_webhook_events (
+  id TEXT PRIMARY KEY,
+  event_type TEXT NOT NULL,
+  received_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  processed_at TIMESTAMPTZ NULL,
+  failed_at TIMESTAMPTZ NULL,
+  error_message TEXT NULL,
+  payload JSONB NOT NULL DEFAULT '{}'::jsonb
+);
+
+CREATE INDEX IF NOT EXISTS idx_stripe_webhook_events_received_at
+  ON vervus_data.stripe_webhook_events(received_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_stripe_webhook_events_event_type_received_at
+  ON vervus_data.stripe_webhook_events(event_type, received_at DESC);
+
 CREATE TABLE IF NOT EXISTS vervus_data.error_logs (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   room_id UUID NULL REFERENCES vervus_data.rooms(id) ON DELETE SET NULL,

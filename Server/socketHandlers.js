@@ -57,9 +57,36 @@ const {
   normalizeUuid,
   isValidRoomCode
 } = require("./validation");
+const { createSocketRateLimitGuard, getClientIp, parsePositiveInt } = require("./rateLimit");
 
 function registerSocketHandlers(io) {
   startRoomCleanupScheduler(io);
+
+  const SOCKET_EVENT_RATE_LIMIT_WINDOW_MS = parsePositiveInt(process.env.SOCKET_EVENT_RATE_LIMIT_WINDOW_MS, 10 * 1000);
+  const SOCKET_EVENT_RATE_LIMIT_MAX = parsePositiveInt(process.env.SOCKET_EVENT_RATE_LIMIT_MAX, 80);
+  const SOCKET_JOIN_RATE_LIMIT_WINDOW_MS = parsePositiveInt(process.env.SOCKET_JOIN_RATE_LIMIT_WINDOW_MS, 60 * 1000);
+  const SOCKET_JOIN_RATE_LIMIT_MAX = parsePositiveInt(process.env.SOCKET_JOIN_RATE_LIMIT_MAX, 12);
+  const SOCKET_ROOM_CODE_RATE_LIMIT_WINDOW_MS = parsePositiveInt(process.env.SOCKET_ROOM_CODE_RATE_LIMIT_WINDOW_MS, 60 * 1000);
+  const SOCKET_ROOM_CODE_RATE_LIMIT_MAX = parsePositiveInt(process.env.SOCKET_ROOM_CODE_RATE_LIMIT_MAX, 20);
+
+  const socketEventLimiter = createSocketRateLimitGuard({
+    windowMs: SOCKET_EVENT_RATE_LIMIT_WINDOW_MS,
+    max: SOCKET_EVENT_RATE_LIMIT_MAX,
+    keyPrefix: "socket:event",
+    keyGenerator: (socket, eventName) => `${getClientIp(socket)}:${socket.data?.profileId || socket.id}:${eventName}`
+  });
+  const socketJoinLimiter = createSocketRateLimitGuard({
+    windowMs: SOCKET_JOIN_RATE_LIMIT_WINDOW_MS,
+    max: SOCKET_JOIN_RATE_LIMIT_MAX,
+    keyPrefix: "socket:join",
+    keyGenerator: (socket) => `${getClientIp(socket)}:${socket.data?.profileId || socket.id}`
+  });
+  const roomCodeProbeLimiter = createSocketRateLimitGuard({
+    windowMs: SOCKET_ROOM_CODE_RATE_LIMIT_WINDOW_MS,
+    max: SOCKET_ROOM_CODE_RATE_LIMIT_MAX,
+    keyPrefix: "socket:room-code",
+    keyGenerator: (socket, roomId) => `${getClientIp(socket)}:${roomId || "invalid"}`
+  });
 
   const normalizeSocketPayload = (payload) => (payload && typeof payload === "object" ? payload : {});
   const normalizeEntitlementTransferToken = (value) => {
@@ -483,6 +510,35 @@ function registerSocketHandlers(io) {
   io.on("connection", (socket) => {
     console.log("Socket connected:", socket.id);
     joinProfileSocketRoom(socket, socket.data.profileId);
+
+    socket.use((packet, next) => {
+      const eventName = typeof packet?.[0] === "string" ? packet[0] : "unknown";
+      const payload = normalizeSocketPayload(packet?.[1]);
+      const eventLimit = socketEventLimiter(socket, eventName);
+      const callback = Array.isArray(packet) && typeof packet[packet.length - 1] === "function" ? packet[packet.length - 1] : null;
+
+      if (!eventLimit.allowed) {
+        const response = { error: "Too many socket events", code: "RATE_LIMITED", retryAfterMs: eventLimit.retryAfterMs };
+        socket.emit("rate_limit", { event: eventName, retryAfterMs: eventLimit.retryAfterMs });
+        callback?.(response);
+        return;
+      }
+
+      if (["room:join", "room:rejoin"].includes(eventName)) {
+        const normalizedRoomId = normalizeRoomCode(payload.roomId);
+        const joinLimit = socketJoinLimiter(socket, eventName);
+        const probeLimit = roomCodeProbeLimiter(socket, isValidRoomCode(normalizedRoomId) ? normalizedRoomId : "invalid");
+        if (!joinLimit.allowed || !probeLimit.allowed) {
+          const retryAfterMs = Math.max(joinLimit.retryAfterMs, probeLimit.retryAfterMs);
+          const response = { error: "Too many room join attempts", code: "RATE_LIMITED", retryAfterMs };
+          socket.emit("rate_limit", { event: eventName, retryAfterMs });
+          callback?.(response);
+          return;
+        }
+      }
+
+      next();
+    });
 
     socket.on("player:register", async (payload = {}, callback) => {
       payload = normalizeSocketPayload(payload);

@@ -37,6 +37,7 @@ const {
 } = require("./gameModes");
 const { ROOM_STATUSES, transitionRoomStatus } = require("./roomLifecycle");
 const { rooms, getRoomState } = require("./roomStore");
+const { createHttpRateLimitMiddleware, createSocketRateLimitGuard, getClientIp, parsePositiveInt } = require("./rateLimit");
 
 const app = express();
 const PROFILE_SESSION_COOKIE_NAME = "vervus_profile_session";
@@ -49,6 +50,15 @@ const ALLOWED_ORIGINS = (process.env.CORS_ORIGINS || CLIENT_URL || "")
   .split(",")
   .map((origin) => origin.trim())
   .filter(Boolean);
+
+const HTTP_RATE_LIMIT_WINDOW_MS = parsePositiveInt(process.env.HTTP_RATE_LIMIT_WINDOW_MS, 60 * 1000);
+const HTTP_RATE_LIMIT_MAX = parsePositiveInt(process.env.HTTP_RATE_LIMIT_MAX, 240);
+const HTTP_STRICT_RATE_LIMIT_WINDOW_MS = parsePositiveInt(process.env.HTTP_STRICT_RATE_LIMIT_WINDOW_MS, 60 * 1000);
+const HTTP_STRICT_RATE_LIMIT_MAX = parsePositiveInt(process.env.HTTP_STRICT_RATE_LIMIT_MAX, 30);
+const STRIPE_WEBHOOK_RATE_LIMIT_WINDOW_MS = parsePositiveInt(process.env.STRIPE_WEBHOOK_RATE_LIMIT_WINDOW_MS, 60 * 1000);
+const STRIPE_WEBHOOK_RATE_LIMIT_MAX = parsePositiveInt(process.env.STRIPE_WEBHOOK_RATE_LIMIT_MAX, 120);
+const SOCKET_CONNECTION_RATE_LIMIT_WINDOW_MS = parsePositiveInt(process.env.SOCKET_CONNECTION_RATE_LIMIT_WINDOW_MS, 60 * 1000);
+const SOCKET_CONNECTION_RATE_LIMIT_MAX = parsePositiveInt(process.env.SOCKET_CONNECTION_RATE_LIMIT_MAX, 30);
 
 function validateStartupEnvironment() {
   const required = ["DATABASE_URL", "CLIENT_URL"];
@@ -78,6 +88,30 @@ app.use(cors({
   methods: ["GET", "POST"],
   credentials: true
 }));
+
+const publicEndpointLimiter = createHttpRateLimitMiddleware({
+  windowMs: HTTP_RATE_LIMIT_WINDOW_MS,
+  max: HTTP_RATE_LIMIT_MAX,
+  keyPrefix: "http:public",
+  keyGenerator: (req) => `${getClientIp(req)}:${req.path}`,
+  message: "Too many requests to this endpoint"
+});
+
+const strictPublicEndpointLimiter = createHttpRateLimitMiddleware({
+  windowMs: HTTP_STRICT_RATE_LIMIT_WINDOW_MS,
+  max: HTTP_STRICT_RATE_LIMIT_MAX,
+  keyPrefix: "http:strict",
+  keyGenerator: (req) => `${getClientIp(req)}:${req.path}`,
+  message: "Too many requests to this endpoint"
+});
+
+const stripeWebhookLimiter = createHttpRateLimitMiddleware({
+  windowMs: STRIPE_WEBHOOK_RATE_LIMIT_WINDOW_MS,
+  max: STRIPE_WEBHOOK_RATE_LIMIT_MAX,
+  keyPrefix: "http:stripe-webhook",
+  keyGenerator: getClientIp,
+  message: "Too many Stripe webhook requests"
+});
 
 
 function parseCookies(cookieHeader = "") {
@@ -248,11 +282,11 @@ const stripeApiRequest = async (path, body) => {
   return data;
 };
 
-app.get("/", (req, res) => {
+app.get("/", publicEndpointLimiter, (req, res) => {
   res.send("Vervus server running");
 });
 
-app.get("/healthz", async (req, res) => {
+app.get("/healthz", publicEndpointLimiter, async (req, res) => {
   const startedAt = Date.now();
   try {
     await testDbConnection();
@@ -312,7 +346,7 @@ app.get("/api/admin/stripe-webhooks", requireAdmin, async (req, res) => {
   }
 });
 
-app.post("/api/stripe/webhook", express.raw({ type: "application/json" }), async (req, res) => {
+app.post("/api/stripe/webhook", stripeWebhookLimiter, express.raw({ type: "application/json" }), async (req, res) => {
   let eventId = null;
   try {
     if (!STRIPE_WEBHOOK_SECRET) {
@@ -386,7 +420,7 @@ app.post("/api/stripe/webhook", express.raw({ type: "application/json" }), async
 
 app.use(express.json({ limit: "32kb" }));
 
-app.get("/api/game-modes", async (req, res) => {
+app.get("/api/game-modes", publicEndpointLimiter, async (req, res) => {
   try {
     const modes = await getGameModesFromDb();
     res.status(200).json({ modes });
@@ -396,7 +430,7 @@ app.get("/api/game-modes", async (req, res) => {
   }
 });
 
-app.post("/api/player-session", async (req, res) => {
+app.post("/api/player-session", strictPublicEndpointLimiter, async (req, res) => {
   const { normalizePlayerName } = require("./validation");
   const displayName = normalizePlayerName(req.body?.name, "Player");
   try {
@@ -410,7 +444,7 @@ app.post("/api/player-session", async (req, res) => {
   }
 });
 
-app.post("/api/entitlement-transfer/claim", async (req, res) => {
+app.post("/api/entitlement-transfer/claim", strictPublicEndpointLimiter, async (req, res) => {
   const { normalizePlayerName } = require("./validation");
   const token = String(req.body?.token || "").trim();
   if (!/^[A-Za-z0-9_-]{32,128}$/.test(token)) {
@@ -452,7 +486,7 @@ app.post("/api/entitlement-transfer/claim", async (req, res) => {
   }
 });
 
-app.post("/api/stripe/checkout-session", async (req, res) => {
+app.post("/api/stripe/checkout-session", strictPublicEndpointLimiter, async (req, res) => {
   if (!STRIPE_SECRET_KEY) {
     res.status(500).json({ error: "STRIPE_SECRET_KEY is not configured" });
     return;
@@ -503,7 +537,7 @@ app.post("/api/stripe/checkout-session", async (req, res) => {
   }
 });
 
-app.get("/api/stripe/purchase-status", async (req, res) => {
+app.get("/api/stripe/purchase-status", strictPublicEndpointLimiter, async (req, res) => {
   const stripeCheckoutSessionId = String(req.query.sessionId || "").trim();
   const profileId = await getProfileIdFromRequest(req);
   if (!profileId || !/^cs_(test|live)_[A-Za-z0-9_]+$/.test(stripeCheckoutSessionId)) {
@@ -553,6 +587,25 @@ const io = new Server(httpServer, {
     maxDisconnectionDuration: Number(process.env.SOCKET_STATE_RECOVERY_MS) || 120000,
     skipMiddlewares: false
   }
+});
+
+
+const socketConnectionLimiter = createSocketRateLimitGuard({
+  windowMs: SOCKET_CONNECTION_RATE_LIMIT_WINDOW_MS,
+  max: SOCKET_CONNECTION_RATE_LIMIT_MAX,
+  keyPrefix: "socket:connection",
+  keyGenerator: (socket) => getClientIp(socket)
+});
+
+io.use((socket, next) => {
+  const limit = socketConnectionLimiter(socket);
+  if (!limit.allowed) {
+    const error = new Error("Too many socket connection attempts");
+    error.data = { code: "RATE_LIMITED", retryAfterMs: limit.retryAfterMs };
+    next(error);
+    return;
+  }
+  next();
 });
 
 io.use(async (socket, next) => {

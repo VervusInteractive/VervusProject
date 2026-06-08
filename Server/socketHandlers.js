@@ -121,7 +121,9 @@ function registerSocketHandlers(io) {
   const isRoomOpenForJoin = (room) => {
     if (!room) return false;
     if ([ROOM_STATUSES.ENDED, ROOM_STATUSES.EXPIRED].includes(room.status)) return false;
-    return room.phase === "lobby" || (room.phase === "play" && room.game?.status === "active");
+
+    const isPlayableRoom = room.phase === "play" && ["active", "gameover"].includes(room.game?.status);
+    return room.phase === "lobby" || isPlayableRoom;
   };
 
   const registerTimer = (room, timerId) => {

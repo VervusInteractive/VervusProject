@@ -240,6 +240,7 @@ async function refreshPlayerEntitlementsInActiveRooms(profileId) {
       }
       if (room.game?.isPreview && entitlementExpiresAtMs) {
         room.game.isPreview = false;
+        room.game.previewComboLimit = null;
         room.game.previewEndsAtMs = null;
         if (room.previewTimer) {
           clearTimeout(room.previewTimer);

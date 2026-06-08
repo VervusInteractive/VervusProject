@@ -86,7 +86,8 @@ function getSafeGameState(room, viewerPlayerId) {
     startedAtMs: game.startedAtMs,
     reconnectCountdownStartedAtMs: game.reconnectCountdownStartedAtMs ?? null,
     isPreview: Boolean(game.isPreview),
-    previewEndsAtMs: game.previewEndsAtMs ?? null
+    previewEndsAtMs: game.previewEndsAtMs ?? null,
+    previewComboLimit: game.previewComboLimit ?? null
   };
 }
 
@@ -112,6 +113,7 @@ function getRoomState(roomId) {
       ? {
         isPreview: Boolean(room.game.isPreview),
         previewEndsAtMs: room.game.previewEndsAtMs ?? null,
+        previewComboLimit: room.game.previewComboLimit ?? null,
         status: room.game.status,
         modeId: room.game.modeId
       }

@@ -23,6 +23,7 @@ function RoomPage({
   canManageReady = false,
   canOpenStore = false,
   isPreviewRoom = false,
+  previewComboLimit = null,
   onOpenStore,
   hostUnlockingPending = false,
   unlockingProductName = null,
@@ -134,7 +135,7 @@ function RoomPage({
           <p className="panel-subtitle"><strong>Room status:</strong> {roomStatusLabel}</p>
           {hostUnlockingPending
             ? <p className="panel-subtitle"><strong>Payment pending:</strong> The host is unlocking {unlockingProductLabel}. Stay here for the premium game and mode teasers.</p>
-            : (isPreviewRoom ? <p className="panel-subtitle"><strong>Preview:</strong> This room is in 1-minute preview mode.</p> : null)}
+            : (isPreviewRoom ? <p className="panel-subtitle"><strong>Preview:</strong> This room ends after combo {previewComboLimit ?? "X"}.</p> : null)}
           <div className="room-code-row">
             <span className="room-code">Code: {roomId}</span>
             <button

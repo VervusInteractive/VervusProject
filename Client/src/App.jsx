@@ -1086,6 +1086,7 @@ function App() {
             canManageReady={!actionsLocked && (connectionState === CONNECTION_STATES.CONNECTED || connectionState === CONNECTION_STATES.DEGRADED) && (roomState?.phase === "lobby" || (isViewingRoomPage && me?.game?.status === "gameover"))}
             canOpenStore={Boolean(me?.isHost)}
             isPreviewRoom={isPreviewRoom}
+            previewComboLimit={roomState?.game?.previewComboLimit ?? null}
             onOpenStore={() => setShowStore(true)}
             hostUnlockingPending={Boolean(roomState?.hostUnlockingPending)}
             unlockingProductName={roomState?.unlockingProductName ?? null}

@@ -17,7 +17,7 @@ Platform: Browser-first, phone-only BYOD social game core
 Players: 2-4 players per room
 Commercial model: Host buys a paid party pack product; other players join for free.
 Launch scope: GLiTCH! as the core experience, with two additional game modes within the same platform,
-free lobby access, and a free 60-second GLiTCH! preview before purchase.
+free lobby access, and a free combo-limited GLiTCH! preview before purchase.
 Appendices: Mode Specs, UX Flows, Visual/UI Direction
 Milestone 1: Kill or Continue
 Goal:
@@ -51,7 +51,7 @@ Scope:
 • Basic reconnect
 • GLiTCH! as the first fully playable core experience
 • Simple lobby + join flow (QR + code)
-• Preview flow (60 sec)
+• Preview flow (ends at configured combo target)
 • Payment integration (Stripe)
 • Entitlement logic for configurable products and bundles: support for at minimum one single-pack product
 and the ability to support multi-pack or bundled products, with server-side entitlement validation and a
@@ -162,7 +162,7 @@ Goal: zero friction and an app-feel in the browser.
 2.02 QR + Join Code
 • Each session must be easily shareable in two ways: QR code for players in the same room and a short join
 code for players at a distance.
-• Flow: host opens the lobby. Without active entitlement, the room can start a 60-second multiplayer-only
+• Flow: host opens the lobby. Without active entitlement, the room can start a combo-limited multiplayer-only
 GLiTCH! preview. With active entitlement, the host can choose an available GLiTCH! mode, after which
 the room is created, the QR code and join code are shown, players join, choose a name, go through the
 ready-check, and then directly start the premium game flow.
@@ -202,7 +202,7 @@ multiple players.
 • The host must be clearly recognizable to all players as the leader of the session. The exact visual
 execution, hierarchy, and component presentation will be established in the design elaboration.
 2.08 Payment Pending State (Group Retention)
-When the host starts the payment flow (e.g. after the 60-sec preview), the room state for the other players
+When the host starts the payment flow (e.g. after the combo-limited preview), the room state for the other players
 must switch to ROOM_PAYMENT_PENDING.
 • The other players may not see a dead screen or empty menu. During the host's payment flow, a clear
 intermediate state must remain visible for the other players. This state must retain engagement, explain
@@ -492,10 +492,10 @@ The product structure must be designed so that additional packs, bundles, or var
 without rebuilding the entitlement architecture.
 6.06 Demo Model
 • Free lobby access: always free to scan, join, choose a name, and experience the room.
-• Free preview: without active entitlement, a room can start a 60-second multiplayer-only preview of
+• Free preview: without active entitlement, a room can start a combo-limited multiplayer-only preview of
 GLiTCH!. The preview is intended as a shared group experience and is not designed as a solo or bot
 mode.
-• After the end of the 60 seconds, the preview ends immediately and a fullscreen overlay appears with a
+• After the room reaches the configured preview combo target, the preview ends immediately and a fullscreen overlay appears with a
 clear CTA to purchase an available party pack product.
 • With active entitlement, the host gets access to the modes included in the purchased product within the
 product's validity period.
@@ -509,7 +509,7 @@ preview usage.
 protection logic can be added in a follow-up phase.
 6.08 Access and server-side entitlement validation
 • Premium access may only be granted server-side on the basis of a valid entitlement.
-• Without active entitlement, access remains limited to the free lobby flow and the 60-second GLiTCH!
+• Without active entitlement, access remains limited to the free lobby flow and the combo-limited GLiTCH!
 preview.
 • With an active entitlement, the host can start premium rooms only for the modes included in the
 purchased product or bundle and let players join without additional payment friction within the active

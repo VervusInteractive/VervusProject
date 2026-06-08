@@ -186,10 +186,40 @@ function registerSocketHandlers(io) {
     logErrorEntry(payload).catch((dbError) => console.error("DB error log failed", dbError));
   };
 
+  const PREVIEW_COMBO_LIMIT = parsePositiveInt(process.env.PREVIEW_COMBO_LIMIT, 10);
+
   const clearPreviewTimer = (room) => {
     if (!room?.previewTimer) return;
     clearTimeout(room.previewTimer);
     room.previewTimer = null;
+  };
+
+  const endPreviewAtComboLimit = (room, roomId) => {
+    if (!rooms.has(roomId) || room.phase !== "play" || room.game?.status !== "active" || !room.game?.isPreview) {
+      return;
+    }
+
+    room.game.status = "gameover";
+    room.game.killScreen = {
+      score: room.game.score,
+      combo: room.game.combo,
+      correctAnswer: "-",
+      causeLabel: "preview ended",
+      wasLastChanceActive: false,
+      decisivePlayers: []
+    };
+    room.game.lastRoundResult = {
+      passed: false,
+      correctAnswer: "-",
+      failingPlayers: [],
+      wasLastChanceActive: false
+    };
+    prepareRoomForGameOverScreen(room, roomId, {
+      causeLabel: "preview ended",
+      isPreview: true,
+      previewComboLimit: room.game.previewComboLimit
+    });
+    emitState(roomId);
   };
 
   const scheduleNextRound = (room, roomId, delayMs = 0, replayRound = null) => {
@@ -328,6 +358,17 @@ function registerSocketHandlers(io) {
       };
       emitState(roomId);
 
+      if (room.game.isPreview && Number.isFinite(room.game.previewComboLimit) && room.game.combo >= room.game.previewComboLimit) {
+        const difficulty = getDifficultyProfile(room.game.modeId, room.game.combo);
+        const previewEndDelayMs = difficulty.roundResultLockMs + difficulty.transitionBeatMs;
+        const previewEndTimer = setTimeout(() => {
+          unregisterTimer(room, previewEndTimer);
+          endPreviewAtComboLimit(room, roomId);
+        }, previewEndDelayMs);
+        registerTimer(room, previewEndTimer);
+        return;
+      }
+
       updateHeatSurgeStateForNextRound(room.game);
       const difficulty = getDifficultyProfile(room.game.modeId, room.game.combo);
       scheduleNextRound(room, roomId, difficulty.roundResultLockMs + difficulty.transitionBeatMs);
@@ -399,42 +440,20 @@ function registerSocketHandlers(io) {
       room.game = createGameState(selectedModeId);
       room.game.status = "loading";
       room.game.isPreview = !hasSelectedModeEntitlement;
-      room.game.previewEndsAtMs = room.game.isPreview ? (Date.now() + 60000) : null;
-      room.expiresAtMs = hasSelectedModeEntitlement ? hostModeExpiryMs : room.game.previewEndsAtMs;
+      room.game.previewComboLimit = room.game.isPreview ? PREVIEW_COMBO_LIMIT : null;
+      room.game.previewEndsAtMs = null;
+      room.expiresAtMs = hasSelectedModeEntitlement ? hostModeExpiryMs : null;
       clearPreviewTimer(room);
       transitionRoomStatus(room, roomId, hasSelectedModeEntitlement ? ROOM_STATUSES.PREMIUM : ROOM_STATUSES.PREVIEW, {
         eventType: "room_started",
-        metadata: { modeId: selectedModeId, isPreview: !hasSelectedModeEntitlement, expiresAtMs: room.expiresAtMs }
+        metadata: {
+          modeId: selectedModeId,
+          isPreview: !hasSelectedModeEntitlement,
+          expiresAtMs: room.expiresAtMs,
+          previewComboLimit: room.game.previewComboLimit
+        }
       });
       clearRoomGameTimers(room);
-      if (room.game.isPreview) {
-        room.previewTimer = setTimeout(() => {
-          unregisterTimer(room, room.previewTimer);
-          room.previewTimer = null;
-          if (!rooms.has(roomId) || room.phase !== "play" || room.game?.status !== "active") return;
-          room.game.status = "gameover";
-          room.game.killScreen = {
-            score: room.game.score,
-            combo: room.game.combo,
-            correctAnswer: "-",
-            causeLabel: "preview ended",
-            wasLastChanceActive: false,
-            decisivePlayers: []
-          };
-          room.game.lastRoundResult = {
-            passed: false,
-            correctAnswer: "-",
-            failingPlayers: [],
-            wasLastChanceActive: false
-          };
-          prepareRoomForGameOverScreen(room, roomId, {
-            causeLabel: "preview ended",
-            isPreview: true
-          });
-          emitState(roomId);
-        }, 60000);
-        registerTimer(room, room.previewTimer);
-      }
     }
   };
 
@@ -774,6 +793,7 @@ function registerSocketHandlers(io) {
           if (room.game?.isPreview) {
             room.game.isPreview = !hasEntitlement;
             if (!room.game.isPreview) {
+              room.game.previewComboLimit = null;
               room.game.previewEndsAtMs = null;
               clearPreviewTimer(room);
             }

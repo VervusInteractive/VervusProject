@@ -343,7 +343,7 @@ GLiTCH! Specs
 • Good onboarding without sacrificing late-game sharpness
 • Deviation variety keeps the game from flattening into a pure yes/no routine
 1.14 Preview mode
-The free 60-second preview uses only standard GLiTCH!. Blitz and Chaos are not available in the preview.
+The free combo-limited preview uses only standard GLiTCH!. Blitz and Chaos are not available in the preview. The preview ends when the room reaches the configured preview combo target, so the ending point can be tuned without changing the core run rules.
 Purpose:
 • introduce new players to the core mechanic in the most understandable and fair form
 • minimize confusion and maximize immediate first-time playability

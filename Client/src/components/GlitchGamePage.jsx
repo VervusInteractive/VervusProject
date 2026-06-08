@@ -827,7 +827,7 @@ function GlitchGamePage({ roomId, playerId, players, myGame, serverNow, onSubmit
         <div>
           <h1 className="panel-title">GLiTCH! · Room {roomId}</h1>
           <p className="panel-subtitle">Do all screens match? Press SYNC. If one differs, press GLiTCH!</p>
-          {isPreviewRoom ? <p className="panel-subtitle"><strong>Preview:</strong> This room is in 1-minute preview mode.</p> : null}
+          {isPreviewRoom ? <p className="panel-subtitle"><strong>Preview:</strong> This room ends after combo {myGame.previewComboLimit ?? "X"}.</p> : null}
         </div>
         <button className="btn btn-secondary" onClick={() => { onUiButtonClick?.(); onExit(); }}>Exit Room</button>
       </div>
@@ -837,7 +837,7 @@ function GlitchGamePage({ roomId, playerId, players, myGame, serverNow, onSubmit
       <div className="glitch-hud">
         <span>Mode: {myGame.modeId}</span>
         <span>Score: {myGame.score}</span>
-        <span>Combo: {myGame.combo}x</span>
+        <span>Combo: {myGame.combo}x{isPreviewRoom && myGame.previewComboLimit ? ` / ${myGame.previewComboLimit}x preview` : ""}</span>
         <span>Round: {currentRound ? (currentRound.timerMs / 1000).toFixed(2) : "-"}s</span>
         <span>{currentRound?.isLastChanceReplay ? "LAST CHANCE" : "LIVE"}</span>
         <span className={isHeatSurgeEnabled ? "heat-surge-pill active" : "heat-surge-pill"}>{isHeatSurgeEnabled ? "HEAT SURGE ACTIVE" : "HEAT SURGE OFF"}</span>

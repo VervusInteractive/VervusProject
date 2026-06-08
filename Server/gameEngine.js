@@ -99,6 +99,9 @@ function createGameState(modeId = "standard") {
     killScreen: null,
     startedAtMs: Date.now(),
     reconnectCountdownStartedAtMs: null,
+    isPreview: false,
+    previewEndsAtMs: null,
+    previewComboLimit: null,
     heatSurge: {
       config: heatSurgeConfig,
       activeRoundsRemaining: 0,

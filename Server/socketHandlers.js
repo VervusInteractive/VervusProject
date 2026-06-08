@@ -121,8 +121,7 @@ function registerSocketHandlers(io) {
   const isRoomOpenForJoin = (room) => {
     if (!room) return false;
     if ([ROOM_STATUSES.ENDED, ROOM_STATUSES.EXPIRED].includes(room.status)) return false;
-    if (room.phase === "play" && room.game?.status === "gameover") return false;
-    return true;
+    return room.phase === "lobby" || (room.phase === "play" && room.game?.status === "active");
   };
 
   const registerTimer = (room, timerId) => {
@@ -209,6 +208,28 @@ function registerSocketHandlers(io) {
     registerTimer(room, timer);
   };
 
+  const returnRoomToLobbyAfterGameOver = (room, roomId, metadata = {}) => {
+    room.phase = "lobby";
+    room.expiresAtMs = null;
+    room.preReconnectStatus = null;
+    if (room.game) {
+      room.game.previewEndsAtMs = null;
+    }
+    clearPreviewTimer(room);
+    clearRoomGameTimers(room);
+    transitionRoomStatus(room, roomId, ROOM_STATUSES.LOBBY, {
+      eventType: "room_ended",
+      metadata: { reason: "game_over", ...metadata }
+    });
+
+    for (const player of room.players.values()) {
+      player.ready = false;
+      player.waitingForNextGame = false;
+      player.currentGameParticipant = false;
+      player.assetsLoaded = false;
+    }
+  };
+
   const endWithGameOver = (room, roomId, round, evaluation, wasLastChanceActive) => {
     const decisivePlayerIds = evaluation.failingPlayers;
     const decisivePlayers = decisivePlayerIds.map((playerId) => {
@@ -222,10 +243,6 @@ function registerSocketHandlers(io) {
     });
 
     room.game.status = "gameover";
-    transitionRoomStatus(room, roomId, ROOM_STATUSES.ENDED, {
-      eventType: "room_ended",
-      metadata: { causeLabel: evaluation.causeLabel, wasLastChanceActive }
-    });
     room.game.killScreen = {
       score: room.game.score,
       combo: room.game.combo,
@@ -241,10 +258,10 @@ function registerSocketHandlers(io) {
       failingPlayers: decisivePlayers.map((player) => player.name),
       wasLastChanceActive
     };
-    for (const p of room.players.values()) {
-      p.ready = false;
-      p.waitingForNextGame = false;
-    }
+    returnRoomToLobbyAfterGameOver(room, roomId, {
+      causeLabel: evaluation.causeLabel,
+      wasLastChanceActive
+    });
 
     emitState(roomId);
   };
@@ -364,11 +381,6 @@ function registerSocketHandlers(io) {
           room.previewTimer = null;
           if (!rooms.has(roomId) || room.phase !== "play" || room.game?.status !== "active") return;
           room.game.status = "gameover";
-          room.expiresAtMs = null;
-          transitionRoomStatus(room, roomId, ROOM_STATUSES.ENDED, {
-            eventType: "room_ended",
-            metadata: { causeLabel: "preview ended", isPreview: true }
-          });
           room.game.killScreen = {
             score: room.game.score,
             combo: room.game.combo,
@@ -383,10 +395,10 @@ function registerSocketHandlers(io) {
             failingPlayers: [],
             wasLastChanceActive: false
           };
-          for (const p of room.players.values()) {
-            p.ready = false;
-            p.waitingForNextGame = false;
-          }
+          returnRoomToLobbyAfterGameOver(room, roomId, {
+            causeLabel: "preview ended",
+            isPreview: true
+          });
           emitState(roomId);
         }, 60000);
         registerTimer(room, room.previewTimer);
@@ -710,7 +722,8 @@ function registerSocketHandlers(io) {
           room.unlockingPreviousHasEntitlement = null;
           room.unlockingProductName = null;
           room.expiresAtMs = hasEntitlement ? player.entitlementExpiresAtMs : null;
-          transitionRoomStatus(room, normalizedRoomId, hasEntitlement ? ROOM_STATUSES.PREMIUM : (room.game?.status === "gameover" ? ROOM_STATUSES.ENDED : ROOM_STATUSES.LOBBY), {
+          const returnStatus = room.phase === "play" && hasEntitlement ? ROOM_STATUSES.PREMIUM : ROOM_STATUSES.LOBBY;
+          transitionRoomStatus(room, normalizedRoomId, returnStatus, {
             eventType: "settings_changed",
             metadata: { reason: "host_returned_from_payment", hasEntitlement }
           });
@@ -1007,7 +1020,7 @@ function registerSocketHandlers(io) {
 
       const purchaseSucceeded = Boolean(success);
       if (!purchaseSucceeded) {
-        const fallbackStatus = room.game?.status === "gameover" ? ROOM_STATUSES.ENDED : (room.game?.isPreview ? ROOM_STATUSES.PREVIEW : ROOM_STATUSES.LOBBY);
+        const fallbackStatus = room.phase === "play" && room.game?.isPreview ? ROOM_STATUSES.PREVIEW : ROOM_STATUSES.LOBBY;
         room.hostUnlockingPending = false;
         room.unlockingStartedAtMs = null;
         room.unlockingPreviousHasEntitlement = null;

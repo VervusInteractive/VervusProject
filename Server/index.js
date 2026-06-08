@@ -59,6 +59,40 @@ const STRIPE_WEBHOOK_RATE_LIMIT_WINDOW_MS = parsePositiveInt(process.env.STRIPE_
 const STRIPE_WEBHOOK_RATE_LIMIT_MAX = parsePositiveInt(process.env.STRIPE_WEBHOOK_RATE_LIMIT_MAX, 120);
 const SOCKET_CONNECTION_RATE_LIMIT_WINDOW_MS = parsePositiveInt(process.env.SOCKET_CONNECTION_RATE_LIMIT_WINDOW_MS, 60 * 1000);
 const SOCKET_CONNECTION_RATE_LIMIT_MAX = parsePositiveInt(process.env.SOCKET_CONNECTION_RATE_LIMIT_MAX, 30);
+const IS_PRODUCTION = process.env.NODE_ENV === "production";
+
+function createSecurityHeadersMiddleware({ allowedOrigins = [] } = {}) {
+  const connectSources = ["'self'", ...allowedOrigins];
+  const cspDirectives = [
+    "default-src 'none'",
+    "base-uri 'none'",
+    "frame-ancestors 'none'",
+    "form-action 'self' https://checkout.stripe.com",
+    `connect-src ${connectSources.join(" ")}`
+  ];
+
+  if (IS_PRODUCTION) {
+    cspDirectives.push("upgrade-insecure-requests");
+  }
+
+  const cspHeader = cspDirectives.join("; ");
+
+  return (req, res, next) => {
+    res.setHeader("Content-Security-Policy", cspHeader);
+    res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
+    res.setHeader("Referrer-Policy", "no-referrer");
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("X-DNS-Prefetch-Control", "off");
+    res.setHeader("X-Frame-Options", "DENY");
+    res.setHeader("X-Permitted-Cross-Domain-Policies", "none");
+
+    if (IS_PRODUCTION) {
+      res.setHeader("Strict-Transport-Security", "max-age=15552000; includeSubDomains");
+    }
+
+    next();
+  };
+}
 
 function validateStartupEnvironment() {
   const required = ["DATABASE_URL", "CLIENT_URL"];
@@ -82,6 +116,9 @@ function validateStartupEnvironment() {
 }
 
 validateStartupEnvironment();
+
+app.disable("x-powered-by");
+app.use(createSecurityHeadersMiddleware({ allowedOrigins: ALLOWED_ORIGINS }));
 
 app.use(cors({
   origin: ALLOWED_ORIGINS.length > 0 ? ALLOWED_ORIGINS : false,

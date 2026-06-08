@@ -22,6 +22,11 @@ const PARTIAL_BREAK_LABELS = {
   smiley: "Broken Smiley",
   star: "Broken Star"
 };
+const MIXED_DEVIATION_DISPLAY_PATTERNS = [
+  "single_deviation",
+  "single_normal",
+  "all_deviation"
+];
 
 function randomItem(list) {
   return list[Math.floor(Math.random() * list.length)];
@@ -30,6 +35,39 @@ function randomItem(list) {
 function pickDifferentIcon(baseIcon) {
   const alternatives = ICONS.filter((icon) => icon !== baseIcon);
   return randomItem(alternatives);
+}
+
+function pickRandomSubset(list, count) {
+  const remaining = [...list];
+  const subset = [];
+
+  while (subset.length < count && remaining.length > 0) {
+    const index = Math.floor(Math.random() * remaining.length);
+    subset.push(remaining[index]);
+    remaining.splice(index, 1);
+  }
+
+  return subset;
+}
+
+function pickMixedDeviationDisplay(playerIds) {
+  if (!Array.isArray(playerIds) || playerIds.length === 0) {
+    return { pattern: "none", deviatorIds: [] };
+  }
+
+  const playerCount = playerIds.length;
+  const pattern = randomItem(MIXED_DEVIATION_DISPLAY_PATTERNS);
+  const deviationCountByPattern = {
+    single_deviation: 1,
+    single_normal: Math.max(1, playerCount - 1),
+    all_deviation: playerCount
+  };
+  const deviationCount = deviationCountByPattern[pattern];
+
+  return {
+    pattern,
+    deviatorIds: pickRandomSubset(playerIds, deviationCount)
+  };
 }
 
 function pickDeviationType(difficulty) {
@@ -93,35 +131,46 @@ function buildRound({ modeId, combo, gameState, playerIds, replayRound = null })
   }
 
   const baseIcon = randomItem(ICONS);
-  const isGlitchRound = Math.random() < difficulty.glitchChance;
-  const deviatorId = isGlitchRound ? randomItem(playerIds) : null;
+  const shouldApplyDeviation = Math.random() < difficulty.glitchChance;
 
+  let isGlitchRound = shouldApplyDeviation;
   let deviationType = "none";
   let deviationLabel = "All screens matched";
   let deviatingStimulus = baseIcon;
+  let deviationDisplayPattern = "none";
+  let deviatorIds = [];
 
-  if (isGlitchRound) {
+  if (shouldApplyDeviation) {
     const selectedDeviationType = pickDeviationType(difficulty);
     if (selectedDeviationType === "shape_swap") {
       deviationType = "shape_swap";
       deviatingStimulus = pickDifferentIcon(baseIcon);
       deviationLabel = "Shape Swap";
+      deviationDisplayPattern = "single_deviation";
+      deviatorIds = playerIds.length > 0 ? [randomItem(playerIds)] : [];
     } else if (selectedDeviationType === "partial_break") {
       deviationType = "partial_break";
       deviatingStimulus = PARTIAL_BREAKS[baseIcon];
       deviationLabel = PARTIAL_BREAK_LABELS[baseIcon] || "Partial Break";
+      ({ pattern: deviationDisplayPattern, deviatorIds } = pickMixedDeviationDisplay(playerIds));
     } else {
       deviationType = "false_twin";
       const twinType = Math.random() < difficulty.readableTwinChance ? "readable" : "doubt";
       deviatingStimulus = FALSE_TWINS[baseIcon][twinType];
       deviationLabel = twinType === "readable" ? "False Twin" : "Evil Twin";
+      ({ pattern: deviationDisplayPattern, deviatorIds } = pickMixedDeviationDisplay(playerIds));
     }
+
+    isGlitchRound = deviatorIds.length > 0 && deviatorIds.length < playerIds.length;
   }
 
+  const deviatorIdSet = new Set(deviatorIds);
   const playerStimuli = {};
   for (const playerId of playerIds) {
-    playerStimuli[playerId] = playerId === deviatorId ? deviatingStimulus : baseIcon;
+    playerStimuli[playerId] = deviatorIdSet.has(playerId) ? deviatingStimulus : baseIcon;
   }
+
+  const deviatorId = isGlitchRound && deviatorIds.length > 0 ? deviatorIds[0] : null;
 
   const baseTimerMs = difficulty.timerMs;
   const timerMs = heatSurge?.isActive
@@ -134,6 +183,8 @@ function buildRound({ modeId, combo, gameState, playerIds, replayRound = null })
     baseIcon,
     isGlitchRound,
     deviatorId,
+    deviatorIds,
+    deviationDisplayPattern,
     deviationType,
     deviationLabel,
     playerStimuli,

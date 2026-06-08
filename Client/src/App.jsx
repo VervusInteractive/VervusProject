@@ -268,6 +268,7 @@ function App() {
   const [purchaseOverlayStatus, setPurchaseOverlayStatus] = useState(null);
   const [isSoloChaosLabOpen, setIsSoloChaosLabOpen] = useState(false);
   const [selectedLobbyModeId, setSelectedLobbyModeId] = useState("standard");
+  const [lobbyModeOptions, setLobbyModeOptions] = useState(LOBBY_MODE_OPTIONS);
   const [entitlementRefreshRequestedAtMs, setEntitlementRefreshRequestedAtMs] = useState(null);
   const [roomId, setRoomId] = useState("");
   const [playerId, setPlayerId] = useState("");
@@ -980,10 +981,29 @@ function App() {
 
   const ownedLobbyModeIds = useMemo(() => {
     const entitlementKeys = new Set(profileEntitledModeKeys || []);
-    return LOBBY_MODE_OPTIONS
+    return lobbyModeOptions
       .filter((mode) => entitlementKeys.has(mode.id))
       .map((mode) => mode.id);
-  }, [profileEntitledModeKeys]);
+  }, [lobbyModeOptions, profileEntitledModeKeys]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    fetch(`${serverUrl}/api/game-modes`, {
+      headers: buildProfileSessionHeaders(),
+      credentials: "include"
+    })
+      .then((response) => response.json())
+      .then((payload) => {
+        if (!isMounted || !Array.isArray(payload?.modes) || payload.modes.length === 0) return;
+        setLobbyModeOptions(payload.modes);
+      })
+      .catch((error) => console.warn("Failed to load game modes", error));
+
+    return () => {
+      isMounted = false;
+    };
+  }, [entitlementRefreshRequestedAtMs]);
 
   useEffect(() => {
     if (ownedLobbyModeIds.length === 0) {
@@ -1097,7 +1117,7 @@ function App() {
           onJoinRoom={joinRoom}
           onUiButtonClick={playClickSound}
           selectedModeId={selectedLobbyModeId}
-          availableModes={LOBBY_MODE_OPTIONS}
+          availableModes={lobbyModeOptions}
           canSelectMode={Boolean(!actionsLocked && profileEntitledModeKeys.length)}
           actionsLocked={actionsLocked}
           profileEntitlementExpiresAtMs={profileEntitlementExpiresAtMs}

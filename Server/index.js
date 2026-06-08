@@ -28,7 +28,13 @@ const {
   ensureRoomTrackingTables,
   logErrorEntry
 } = require("./db");
-const { hydrateGameModesFromDb, hydrateHeatSurgeConfigsFromDb, hydrateModeCorruptionBandsFromDb } = require("./gameModes");
+const {
+  hydrateGameModesFromDb,
+  hydrateHeatSurgeConfigsFromDb,
+  hydrateModeCorruptionBandsFromDb,
+  getGameModesFromDb,
+  getGameModesFallback
+} = require("./gameModes");
 const { ROOM_STATUSES, transitionRoomStatus } = require("./roomLifecycle");
 const { rooms, getRoomState } = require("./roomStore");
 
@@ -379,6 +385,16 @@ app.post("/api/stripe/webhook", express.raw({ type: "application/json" }), async
 });
 
 app.use(express.json({ limit: "32kb" }));
+
+app.get("/api/game-modes", async (req, res) => {
+  try {
+    const modes = await getGameModesFromDb();
+    res.status(200).json({ modes });
+  } catch (error) {
+    logErrorEntry({ source: "game-modes:list", message: error.message || "Failed to load game modes", stackTrace: error.stack }).catch(() => {});
+    res.status(500).json({ error: "Failed to load game modes", modes: getGameModesFallback() });
+  }
+});
 
 app.post("/api/player-session", async (req, res) => {
   const { normalizePlayerName } = require("./validation");

@@ -148,16 +148,24 @@ function getFallbackProfile(mode, comboMin) {
   return profile;
 }
 
+function getDefaultModeTemplate(modeKey = "standard") {
+  return GAME_MODES[modeKey] || {
+    ...GAME_MODES.standard,
+    id: modeKey,
+    title: modeKey
+  };
+}
+
 async function hydrateGameModesFromDb() {
   const modeResult = await pool.query(
     `SELECT id, mode_key, display_name
      FROM vervus_data.game_modes
-     WHERE mode_key = ANY($1::text[])`,
-    [Object.keys(GAME_MODES)]
+     WHERE is_enabled = true
+     ORDER BY display_name ASC`
   );
   if (modeResult.rowCount === 0) return false;
 
-  const modeRows = modeResult.rows.filter((row) => row.mode_key && GAME_MODES[row.mode_key]);
+  const modeRows = modeResult.rows.filter((row) => Boolean(row.mode_key));
   if (modeRows.length === 0) return false;
 
   for (const row of modeRows) {
@@ -167,7 +175,12 @@ async function hydrateGameModesFromDb() {
   const modeIds = modeRows.map((row) => row.id);
   const [configResult, bandsResult] = await Promise.all([
     pool.query(
-      `SELECT mode_id, has_last_chance, result_lock_ms, transition_beat_ms, good_run_round
+      `SELECT mode_id,
+              has_last_chance,
+              result_lock_ms,
+              transition_beat_ms,
+              good_run_round,
+              orientation_lock
        FROM vervus_data.mode_configs
        WHERE mode_id = ANY($1::uuid[])`,
       [modeIds]
@@ -224,7 +237,7 @@ async function hydrateGameModesFromDb() {
   }
 
   for (const modeRow of modeRows) {
-    const mode = GAME_MODES[modeRow.mode_key];
+    const mode = getDefaultModeTemplate(modeRow.mode_key);
     const config = configByModeId.get(modeRow.id);
     const bands = bandsByModeId.get(modeRow.id) || [];
     const curve = bands.length > 0
@@ -253,6 +266,7 @@ async function hydrateGameModesFromDb() {
       roundResultLockMs: config?.result_lock_ms ?? mode.roundResultLockMs,
       transitionBeatMs: config?.transition_beat_ms ?? mode.transitionBeatMs,
       goodRunRound: config?.good_run_round ?? mode.goodRunRound ?? 50,
+      orientationLock: config?.orientation_lock || mode.orientationLock || "both",
       allowPartialBreak: curve.some((band) => clampChance(band.partialBreakChance, 0) > 0),
       curve
     };
@@ -336,9 +350,14 @@ async function hydrateModeCorruptionBandsFromDb() {
 }
 
 async function getGameModesFromDb() {
+  await hydrateGameModesFromDb();
+  await hydrateHeatSurgeConfigsFromDb();
+  await hydrateModeCorruptionBandsFromDb();
+
   const result = await pool.query(`SELECT gm.id, gm.mode_key, gm.display_name, mc.orientation_lock
      FROM vervus_data.game_modes gm
      LEFT JOIN vervus_data.mode_configs mc ON mc.mode_id = gm.id
+     WHERE gm.is_enabled = true
      ORDER BY gm.display_name ASC`);
   for (const row of result.rows) {
     if (row.id && row.mode_key) {
@@ -350,7 +369,7 @@ async function getGameModesFromDb() {
     .map((row) => ({
       id: row.mode_key,
       title: row.display_name || row.mode_key,
-      orientationLock: row.orientation_lock || "both"
+      orientationLock: row.orientation_lock || GAME_MODES[row.mode_key]?.orientationLock || "both"
     }));
 }
 
@@ -364,7 +383,11 @@ function getModeDebugConfig(modeId = "standard") {
 }
 
 function getGameModesFallback() {
-  return Object.values(GAME_MODES).map((mode) => ({ id: mode.id, title: mode.title, orientationLock: "both" }));
+  return Object.values(GAME_MODES).map((mode) => ({
+    id: mode.id,
+    title: mode.title,
+    orientationLock: mode.orientationLock || "both"
+  }));
 }
 
 module.exports = {

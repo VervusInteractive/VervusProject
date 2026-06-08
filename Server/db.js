@@ -20,10 +20,23 @@ async function ensureRoomTrackingTables() {
 async function logRoomHistoryEvent({ roomCode, eventType, actorPlayerId = null, fromStatus = null, toStatus = null, metadata = {} }) {
   await ensureRoomTrackingTables();
   await pool.query(
-    `INSERT INTO vervus_data.room_history (room_id, room_code, event_type, actor_player_id, from_status, to_status, metadata)
-     SELECT r.id, r.room_code, $2, $3::uuid, $4::vervus_data.room_status, $5::vervus_data.room_status, $6::jsonb
-     FROM vervus_data.rooms r
-     WHERE r.room_code = $1`,
+    `WITH target_room AS (
+       SELECT id, room_code
+       FROM vervus_data.rooms
+       WHERE room_code = $1
+     )
+     INSERT INTO vervus_data.room_history (room_id, room_code, event_type, actor_player_id, from_status, to_status, metadata)
+     SELECT r.id,
+            r.room_code,
+            $2,
+            p.id,
+            $4::vervus_data.room_status,
+            $5::vervus_data.room_status,
+            $6::jsonb
+     FROM target_room r
+     LEFT JOIN vervus_data.players p
+       ON p.id = $3::uuid
+      AND p.room_id = r.id`,
     [roomCode, eventType, actorPlayerId, fromStatus, toStatus, JSON.stringify(metadata || {})]
   );
 }

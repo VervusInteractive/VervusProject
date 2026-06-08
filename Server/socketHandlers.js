@@ -121,7 +121,9 @@ function registerSocketHandlers(io) {
   const isRoomOpenForJoin = (room) => {
     if (!room) return false;
     if ([ROOM_STATUSES.ENDED, ROOM_STATUSES.EXPIRED].includes(room.status)) return false;
-    return room.phase === "lobby" || (room.phase === "play" && room.game?.status === "active");
+
+    const isPlayableRoom = room.phase === "play" && ["active", "gameover"].includes(room.game?.status);
+    return room.phase === "lobby" || isPlayableRoom;
   };
 
   const registerTimer = (room, timerId) => {
@@ -208,8 +210,8 @@ function registerSocketHandlers(io) {
     registerTimer(room, timer);
   };
 
-  const returnRoomToLobbyAfterGameOver = (room, roomId, metadata = {}) => {
-    room.phase = "lobby";
+  const prepareRoomForGameOverScreen = (room, roomId, metadata = {}) => {
+    room.phase = "play";
     room.expiresAtMs = null;
     room.preReconnectStatus = null;
     if (room.game) {
@@ -217,15 +219,18 @@ function registerSocketHandlers(io) {
     }
     clearPreviewTimer(room);
     clearRoomGameTimers(room);
-    transitionRoomStatus(room, roomId, ROOM_STATUSES.LOBBY, {
+    touchRoom(room);
+    logRoomHistoryEvent({
+      roomCode: roomId,
       eventType: "room_ended",
+      fromStatus: room.status || ROOM_STATUSES.PREMIUM,
+      toStatus: room.status || ROOM_STATUSES.PREMIUM,
       metadata: { reason: "game_over", ...metadata }
-    });
+    }).catch((error) => console.error("DB room history game over failed", error));
 
     for (const player of room.players.values()) {
       player.ready = false;
       player.waitingForNextGame = false;
-      player.currentGameParticipant = false;
       player.assetsLoaded = false;
     }
   };
@@ -258,7 +263,7 @@ function registerSocketHandlers(io) {
       failingPlayers: decisivePlayers.map((player) => player.name),
       wasLastChanceActive
     };
-    returnRoomToLobbyAfterGameOver(room, roomId, {
+    prepareRoomForGameOverScreen(room, roomId, {
       causeLabel: evaluation.causeLabel,
       wasLastChanceActive
     });
@@ -395,7 +400,7 @@ function registerSocketHandlers(io) {
             failingPlayers: [],
             wasLastChanceActive: false
           };
-          returnRoomToLobbyAfterGameOver(room, roomId, {
+          prepareRoomForGameOverScreen(room, roomId, {
             causeLabel: "preview ended",
             isPreview: true
           });

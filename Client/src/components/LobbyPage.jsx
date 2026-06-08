@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import ModeDebugOverlay from "./ModeDebugOverlay";
 
 function LobbyPage({
   name,
@@ -19,11 +20,13 @@ function LobbyPage({
   entitledModeExpiriesMs = {},
   onSelectedModeChange,
   onCreateEntitlementTransfer,
-  actionsLocked = false
+  actionsLocked = false,
+  modeDebugConfigs = []
 }) {
   const [currentTimeMs, setCurrentTimeMs] = useState(() => Date.now());
   const [transferLink, setTransferLink] = useState(null);
   const [isCreatingTransferLink, setIsCreatingTransferLink] = useState(false);
+  const [showDebug, setShowDebug] = useState(false);
 
   useEffect(() => {
     const interval = window.setInterval(() => setCurrentTimeMs(Date.now()), 30000);
@@ -43,6 +46,15 @@ function LobbyPage({
     ? `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(transferLink.transferUrl)}`
     : null;
   const hasActiveEntitlement = (entitledModeKeys || []).length > 0;
+
+  const selectedMode = useMemo(() => {
+    const debugMode = modeDebugConfigs.find((mode) => mode.id === selectedModeId) || null;
+    const availableMode = availableModes.find((mode) => mode.id === selectedModeId) || null;
+    if (!debugMode) return availableMode;
+    if (!availableMode) return debugMode;
+    return { ...debugMode, orientationLock: availableMode.orientationLock || debugMode.orientationLock || "both" };
+  }, [modeDebugConfigs, availableModes, selectedModeId]);
+  const canShowDebug = modeDebugConfigs.length > 0 && Boolean(selectedMode);
 
   const handleCreateEntitlementTransfer = async () => {
     if (!onCreateEntitlementTransfer || isCreatingTransferLink) return;
@@ -75,6 +87,10 @@ function LobbyPage({
 
   return (
     <section className="panel">
+      {canShowDebug ? (
+        <button type="button" className="btn btn-secondary debug-button" onClick={() => { onUiButtonClick?.(); setShowDebug(true); }}>Debug</button>
+      ) : null}
+      {canShowDebug && showDebug ? <ModeDebugOverlay mode={selectedMode} heatSurgeConfig={selectedMode?.heatSurgeConfig} onClose={() => { onUiButtonClick?.(); setShowDebug(false); }} /> : null}
       <h1 className="panel-title">Vervus Lobby</h1>
       <p className="panel-subtitle">Create a room or join with an invite code.</p>
       <p className="panel-meta"><strong>Ping:</strong> {pingMs === null ? "-" : `${pingMs} ms`}</p>

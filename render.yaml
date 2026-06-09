@@ -1,0 +1,30 @@
+services:
+  - type: web
+    name: vervus-admin-server
+    env: node
+    rootDir: AdminServer
+    plan: free
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /healthz
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: ADMIN_TOKEN
+        generateValue: true
+      - key: CLIENT_ORIGIN
+        value: https://vervus-admin-client.onrender.com
+
+  - type: web
+    name: vervus-admin-client
+    env: static
+    rootDir: AdminClient
+    buildCommand: npm ci && npm run build
+    staticPublishPath: dist
+    envVars:
+      - key: VITE_ADMIN_API_URL
+        value: https://vervus-admin-server.onrender.com
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html

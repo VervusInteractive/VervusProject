@@ -1,0 +1,22 @@
+{
+  "name": "vervus-admin-client",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Basic Vervus admin client for Render static hosting.",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0 --port 5174",
+    "build": "vite build",
+    "preview": "vite preview --host 0.0.0.0 --port 4174"
+  },
+  "dependencies": {
+    "@vitejs/plugin-react": "^6.0.1",
+    "vite": "^8.0.4",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4"
+  },
+  "devDependencies": {},
+  "engines": {
+    "node": ">=20.19.0"
+  }
+}

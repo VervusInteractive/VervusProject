@@ -1,0 +1,25 @@
+{
+  "name": "vervus-admin-server",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Basic admin API server for Vervus deployments on Render.",
+  "main": "index.js",
+  "scripts": {
+    "dev": "nodemon index.js",
+    "start": "node index.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "cors": "^2.8.6",
+    "express": "^5.2.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.14"
+  },
+  "engines": {
+    "node": ">=20.19.0"
+  }
+}

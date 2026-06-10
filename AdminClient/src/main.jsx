@@ -10,22 +10,7 @@ const dashboardSections = [
     label: "Platform overview",
     eyebrow: "Command center",
     title: "Platform overview",
-    description: "A top-level readout for traffic, previews, sales, and revenue across Vervus.",
-    metrics: [
-      { label: "Visitors", value: "24,890", delta: "+12.4%" },
-      { label: "Preview starts", value: "8,742", delta: "+8.1%" },
-      { label: "Sales", value: "1,286", delta: "+5.7%" },
-      { label: "Revenue", value: "$38.6K", delta: "+14.2%" }
-    ],
-    chartTitle: "Platform pulse",
-    chartBars: [62, 74, 58, 83, 91, 78, 88],
-    tableTitle: "Priority signals",
-    tableColumns: ["Signal", "Current", "Status"],
-    rows: [
-      ["Preview conversion", "14.7%", "Healthy"],
-      ["Checkout abandonment", "22.1%", "Watch"],
-      ["Critical errors", "0", "Clear"]
-    ]
+    description: "Live admin connection details and service status for Vervus. Analytics cards and mock data are hidden until real reporting is connected."
   },
   {
     id: "conversion",
@@ -134,10 +119,10 @@ const dashboardSections = [
   },
   {
     id: "mode-config",
-    label: "Mode database config",
+    label: "Game database config",
     eyebrow: "Manage games",
-    title: "Mode database configuration",
-    description: "Create, enable, disable, and tune the database-backed modes served to the game client."
+    title: "Game database configuration",
+    description: "Create, enable, disable, and tune the database-backed game modes served to the game client."
   },
   {
     id: "hosts",
@@ -301,7 +286,7 @@ const dashboardSections = [
   }
 ];
 
-const manageGamesSectionIds = ["game", "modes", "mode-config", "balancing", "previews"];
+const manageGamesSectionIds = ["mode-config"];
 const manageGamesSections = dashboardSections.filter((section) =>
   manageGamesSectionIds.includes(section.id)
 );

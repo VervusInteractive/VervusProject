@@ -337,8 +337,93 @@ function normalizeModeForm(mode = emptyModeForm) {
   };
 }
 
-function prettyJson(value) {
-  return JSON.stringify(value, null, 2);
+const deviationTypeOptions = [
+  { value: "shape_swap", label: "Shape swap" },
+  { value: "false_twin", label: "False twin" },
+  { value: "partial_break", label: "Partial break" }
+];
+
+const falseTwinTypeOptions = [
+  { value: "readable_twin", label: "Readable twin" },
+  { value: "doubt_twin", label: "Doubt twin" }
+];
+
+const visualEffectOptions = [
+  { value: "subtle_flicker_pulse", label: "Subtle flicker pulse" },
+  { value: "small_screen_edge_cracks", label: "Small edge cracks" },
+  { value: "unstable_transition_beat", label: "Unstable transition beat" },
+  { value: "slightly_more_unstable_transition_beat", label: "Slightly unstable transition beat" },
+  { value: "light_color_instability", label: "Light color instability" },
+  { value: "one_or_more_screens_get_light_color_instability", label: "One or more screens get color instability" },
+  { value: "clearer_hue_drift", label: "Clearer hue drift" },
+  { value: "light_chromatic_shift", label: "Light chromatic shift" },
+  { value: "distort_pulse_before_reveal", label: "Distort pulse before reveal" },
+  { value: "interference_pulse_before_reveal", label: "Interference pulse before reveal" },
+  { value: "static_surge_transition", label: "Static surge transition" },
+  { value: "multiple_light_effects", label: "Multiple light effects" },
+  { value: "two_heavier_corruption_layers", label: "Two heavier corruption layers" },
+  { value: "overload_reveal", label: "Overload reveal" },
+  { value: "overload_transition", label: "Overload transition" },
+  { value: "static_interference", label: "Static interference" },
+  { value: "flicker_overlap", label: "Flicker overlap" },
+  { value: "stronger_hue_drift", label: "Stronger hue drift" },
+  { value: "color_flip_before_reveal", label: "Color flip before reveal" },
+  { value: "invert_flash_before_reveal", label: "Invert flash before reveal" },
+  { value: "aggressive_screen_pulse", label: "Aggressive screen pulse" },
+  { value: "unstable_screen_pulse", label: "Unstable screen pulse" },
+  { value: "brighter_transition_pulse", label: "Brighter transition pulse" },
+  { value: "short_distort_pulse_just_before_reveal", label: "Short distort pulse before reveal" },
+  { value: "short_interference_pulse_before_reveal", label: "Short interference pulse before reveal" },
+  { value: "short_static_surge_in_the_transition_beat", label: "Short static surge in transition beat" },
+  { value: "heavier_edge_cracks", label: "Heavier edge cracks" },
+  { value: "multiple_light_effects_may_be_active_together", label: "Multiple light effects active together" },
+  { value: "stronger_reveal_distortion", label: "Stronger reveal distortion" },
+  { value: "dirty_reveal", label: "Dirty reveal" },
+  { value: "two_heavier_corruption_layers_at_once", label: "Two heavier corruption layers at once" },
+  { value: "reveal_and_transition_feel_like_the_run_could_break_at_any_moment", label: "Unstable reveal and transition" },
+  { value: "overload_feeling_should_peak_without_making_core_information_unfairly_unreadable", label: "Readable overload peak" },
+  { value: "stronger_hue_drift_with_static", label: "Stronger hue drift with static" },
+  { value: "maximum_combined_corruption", label: "Maximum combined corruption" }
+];
+
+const audioEffectOptions = [
+  { value: "first_light_scrape_layer", label: "First light scrape layer" },
+  { value: "extra_audio_layer", label: "Extra audio layer" },
+  { value: "audio_fray_or_strain", label: "Audio fray / strain" },
+  { value: "heavier_feedback_impact", label: "Heavier feedback impact" },
+  { value: "audio_fray_or_scrape", label: "Audio fray / scrape" },
+  { value: "light_audio_clipping", label: "Light audio clipping" },
+  { value: "slight_audio_distortion", label: "Slight audio distortion" },
+  { value: "aggressive_audio_distortion", label: "Aggressive audio distortion" },
+  { value: "more_intense_audio_layer", label: "More intense audio layer" },
+  { value: "heavier_bass_pulse", label: "Heavier bass pulse" },
+  { value: "light_tick_acceleration", label: "Light tick acceleration" },
+  { value: "subtle_bass_pulse", label: "Subtle bass pulse" },
+  { value: "high_intensity_audio", label: "High intensity audio" },
+  { value: "aggressive_feedback", label: "Aggressive feedback" },
+  { value: "maximum_feedback_intensity", label: "Maximum feedback intensity" },
+  { value: "near_overload_audio", label: "Near overload audio" }
+];
+
+function cloneModeForm(mode) {
+  return {
+    ...mode,
+    heatSurgeConfig: { ...(mode.heatSurgeConfig || emptyHeatSurgeConfig) },
+    difficultyBands: (mode.difficultyBands || []).map((band) => ({
+      ...band,
+      deviationMix: Array.isArray(band.deviationMix) ? band.deviationMix.map((mix) => ({ ...mix })) : [],
+      falseTwinMix: Array.isArray(band.falseTwinMix) ? band.falseTwinMix.map((mix) => ({ ...mix })) : []
+    })),
+    corruptionBands: (mode.corruptionBands || []).map((band) => ({
+      ...band,
+      visualEffects: Array.isArray(band.visualEffects) ? [...band.visualEffects] : [],
+      audioEffects: Array.isArray(band.audioEffects) ? [...band.audioEffects] : []
+    }))
+  };
+}
+
+function updateListItem(list, index, updater) {
+  return list.map((item, itemIndex) => (itemIndex === index ? updater(item) : item));
 }
 
 const visibleNavigationSectionIds = ["overview", ...manageGamesSectionIds];
@@ -571,23 +656,10 @@ function ModeConfigPanel({ adminKey }) {
   const [configStatus, setConfigStatus] = useState("Loading database-backed game configuration...");
   const [isConfigLoading, setIsConfigLoading] = useState(false);
   const [isEditorOpen, setIsEditorOpen] = useState(false);
-  const [advancedJson, setAdvancedJson] = useState({
-    difficultyBands: "[]",
-    heatSurgeConfig: prettyJson(emptyHeatSurgeConfig),
-    corruptionBands: "[]"
-  });
 
   useEffect(() => {
     loadModes();
   }, []);
-
-  useEffect(() => {
-    setAdvancedJson({
-      difficultyBands: prettyJson(modeForm.difficultyBands),
-      heatSurgeConfig: prettyJson(modeForm.heatSurgeConfig || emptyHeatSurgeConfig),
-      corruptionBands: prettyJson(modeForm.corruptionBands)
-    });
-  }, [modeForm.modeKey]);
 
   async function loadModes() {
     setIsConfigLoading(true);
@@ -622,14 +694,6 @@ function ModeConfigPanel({ adminKey }) {
       return;
     }
 
-    let parsedAdvanced;
-    try {
-      parsedAdvanced = parseAdvancedConfig();
-    } catch (error) {
-      setConfigStatus(error.message);
-      return;
-    }
-
     setIsConfigLoading(true);
     setConfigStatus(`Saving ${modeKey} to the database...`);
 
@@ -640,7 +704,7 @@ function ModeConfigPanel({ adminKey }) {
           "Content-Type": "application/json",
           ...(adminKey ? { "X-Admin-Token": adminKey } : {})
         },
-        body: JSON.stringify({ ...modeForm, ...parsedAdvanced, modeKey })
+        body: JSON.stringify({ ...modeForm, modeKey })
       });
       const payload = await response.json();
       if (!response.ok) {
@@ -650,7 +714,7 @@ function ModeConfigPanel({ adminKey }) {
       const loadedModes = payload.modes || [];
       setModes(loadedModes);
       const savedMode = loadedModes.find((mode) => mode.modeKey === modeKey);
-      selectMode(savedMode || { ...modeForm, ...parsedAdvanced, modeKey }, true);
+      selectMode(savedMode || { ...modeForm, modeKey }, true);
       setConfigStatus(`Saved ${modeKey}. Restart or refresh game workers if they cache mode config.`);
     } catch (error) {
       setConfigStatus(error.message || "Unable to save mode");
@@ -659,28 +723,9 @@ function ModeConfigPanel({ adminKey }) {
     }
   }
 
-  function parseAdvancedConfig() {
-    try {
-      const difficultyBands = JSON.parse(advancedJson.difficultyBands || "[]");
-      const heatSurgeConfig = JSON.parse(advancedJson.heatSurgeConfig || "null");
-      const corruptionBands = JSON.parse(advancedJson.corruptionBands || "[]");
-      if (!Array.isArray(difficultyBands)) throw new Error("difficultyBands must be a JSON array.");
-      if (heatSurgeConfig && typeof heatSurgeConfig !== "object") throw new Error("heatSurgeConfig must be a JSON object or null.");
-      if (!Array.isArray(corruptionBands)) throw new Error("corruptionBands must be a JSON array.");
-      return { difficultyBands, heatSurgeConfig: heatSurgeConfig || emptyHeatSurgeConfig, corruptionBands };
-    } catch (error) {
-      throw new Error(`Advanced config JSON is invalid: ${error.message}`);
-    }
-  }
-
   function selectMode(mode, openEditor = false) {
     const normalized = normalizeModeForm(mode);
-    setModeForm(normalized);
-    setAdvancedJson({
-      difficultyBands: prettyJson(normalized.difficultyBands),
-      heatSurgeConfig: prettyJson(normalized.heatSurgeConfig || emptyHeatSurgeConfig),
-      corruptionBands: prettyJson(normalized.corruptionBands)
-    });
+    setModeForm(cloneModeForm(normalized));
     setIsEditorOpen(openEditor);
   }
 
@@ -693,38 +738,132 @@ function ModeConfigPanel({ adminKey }) {
     setModeForm((current) => ({ ...current, [field]: value }));
   }
 
+  function updateDifficultyBand(index, field, value) {
+    setModeForm((current) => ({
+      ...current,
+      difficultyBands: updateListItem(current.difficultyBands, index, (band) => ({ ...band, [field]: value }))
+    }));
+  }
+
+  function updateDifficultyMix(index, mixName, mixIndex, field, value) {
+    setModeForm((current) => ({
+      ...current,
+      difficultyBands: updateListItem(current.difficultyBands, index, (band) => ({
+        ...band,
+        [mixName]: updateListItem(band[mixName] || [], mixIndex, (mix) => ({ ...mix, [field]: value }))
+      }))
+    }));
+  }
+
+  function addDifficultyMix(index, mixName) {
+    const defaults = mixName === "deviationMix"
+      ? { deviationType: "shape_swap", weightPercent: 0 }
+      : { falseTwinType: "readable_twin", weightPercent: 0 };
+    setModeForm((current) => ({
+      ...current,
+      difficultyBands: updateListItem(current.difficultyBands, index, (band) => ({
+        ...band,
+        [mixName]: [...(band[mixName] || []), defaults]
+      }))
+    }));
+  }
+
+  function removeDifficultyMix(index, mixName, mixIndex) {
+    setModeForm((current) => ({
+      ...current,
+      difficultyBands: updateListItem(current.difficultyBands, index, (band) => ({
+        ...band,
+        [mixName]: (band[mixName] || []).filter((_, itemIndex) => itemIndex !== mixIndex)
+      }))
+    }));
+  }
+
   function addDifficultyBand() {
-    const current = parseAdvancedConfig();
-    const next = [
-      ...current.difficultyBands,
-      {
-        comboMin: 0,
-        decisionTimeMs: 5000,
-        glitchChancePercent: 0,
-        sortOrder: current.difficultyBands.length,
-        deviationMix: [
-          { deviationType: "shape_swap", weightPercent: 100 },
-          { deviationType: "false_twin", weightPercent: 0 },
-          { deviationType: "partial_break", weightPercent: 0 }
-        ],
-        falseTwinMix: [
-          { falseTwinType: "readable_twin", weightPercent: 100 },
-          { falseTwinType: "doubt_twin", weightPercent: 0 }
-        ]
-      }
-    ];
-    setAdvancedJson((currentJson) => ({ ...currentJson, difficultyBands: prettyJson(next) }));
+    setModeForm((current) => ({
+      ...current,
+      difficultyBands: [
+        ...current.difficultyBands,
+        {
+          comboMin: 0,
+          decisionTimeMs: 5000,
+          glitchChancePercent: 0,
+          sortOrder: current.difficultyBands.length,
+          deviationMix: [
+            { deviationType: "shape_swap", weightPercent: 100 },
+            { deviationType: "false_twin", weightPercent: 0 },
+            { deviationType: "partial_break", weightPercent: 0 }
+          ],
+          falseTwinMix: [
+            { falseTwinType: "readable_twin", weightPercent: 100 },
+            { falseTwinType: "doubt_twin", weightPercent: 0 }
+          ]
+        }
+      ]
+    }));
     setIsEditorOpen(true);
   }
 
+  function removeDifficultyBand(index) {
+    setModeForm((current) => ({ ...current, difficultyBands: current.difficultyBands.filter((_, itemIndex) => itemIndex !== index) }));
+  }
+
+  function updateHeatSurgeField(field, value) {
+    setModeForm((current) => ({
+      ...current,
+      heatSurgeConfig: { ...(current.heatSurgeConfig || emptyHeatSurgeConfig), [field]: value }
+    }));
+  }
+
+  function updateCorruptionBand(index, field, value) {
+    setModeForm((current) => ({
+      ...current,
+      corruptionBands: updateListItem(current.corruptionBands, index, (band) => ({ ...band, [field]: value }))
+    }));
+  }
+
+  function updateCorruptionEffect(index, field, effectIndex, value) {
+    setModeForm((current) => ({
+      ...current,
+      corruptionBands: updateListItem(current.corruptionBands, index, (band) => ({
+        ...band,
+        [field]: updateListItem(band[field] || [], effectIndex, () => value)
+      }))
+    }));
+  }
+
+  function addCorruptionEffect(index, field, options) {
+    setModeForm((current) => ({
+      ...current,
+      corruptionBands: updateListItem(current.corruptionBands, index, (band) => ({
+        ...band,
+        [field]: [...(band[field] || []), options[0]?.value || ""]
+      }))
+    }));
+  }
+
+  function removeCorruptionEffect(index, field, effectIndex) {
+    setModeForm((current) => ({
+      ...current,
+      corruptionBands: updateListItem(current.corruptionBands, index, (band) => ({
+        ...band,
+        [field]: (band[field] || []).filter((_, itemIndex) => itemIndex !== effectIndex)
+      }))
+    }));
+  }
+
   function addCorruptionBand() {
-    const current = parseAdvancedConfig();
-    const next = [
-      ...current.corruptionBands,
-      { comboMin: 0, visualEffects: [], audioEffects: [], intensityLevel: 1 }
-    ];
-    setAdvancedJson((currentJson) => ({ ...currentJson, corruptionBands: prettyJson(next) }));
+    setModeForm((current) => ({
+      ...current,
+      corruptionBands: [
+        ...current.corruptionBands,
+        { comboMin: 0, visualEffects: [], audioEffects: [], intensityLevel: 1 }
+      ]
+    }));
     setIsEditorOpen(true);
+  }
+
+  function removeCorruptionBand(index) {
+    setModeForm((current) => ({ ...current, corruptionBands: current.corruptionBands.filter((_, itemIndex) => itemIndex !== index) }));
   }
 
   return (
@@ -817,22 +956,126 @@ function ModeConfigPanel({ adminKey }) {
 
             {isEditorOpen && (
               <div className="advanced-config-grid">
-                <label>
-                  <span>difficulty_bands + deviation_mix + false_twin_mix (JSON)</span>
-                  <textarea value={advancedJson.difficultyBands} onChange={(event) => setAdvancedJson((current) => ({ ...current, difficultyBands: event.target.value }))} rows="14" />
-                </label>
-                <label>
-                  <span>heat_surge_configs (JSON)</span>
-                  <textarea value={advancedJson.heatSurgeConfig} onChange={(event) => setAdvancedJson((current) => ({ ...current, heatSurgeConfig: event.target.value }))} rows="14" />
-                </label>
-                <label>
-                  <span>corruption_bands (JSON)</span>
-                  <textarea value={advancedJson.corruptionBands} onChange={(event) => setAdvancedJson((current) => ({ ...current, corruptionBands: event.target.value }))} rows="10" />
-                </label>
-                <div className="advanced-config-actions">
-                  <button type="button" className="secondary-button" onClick={addDifficultyBand}>+ Difficulty band</button>
-                  <button type="button" className="secondary-button" onClick={addCorruptionBand}>+ Corruption band</button>
-                </div>
+                <section className="config-table-card">
+                  <div className="config-table-heading">
+                    <div>
+                      <h4>Difficulty bands</h4>
+                      <p>Add combo thresholds, tune timing, then choose weighted deviation and false-twin behavior from dropdowns.</p>
+                    </div>
+                    <button type="button" className="secondary-button" onClick={addDifficultyBand}>+ Difficulty band</button>
+                  </div>
+
+                  {modeForm.difficultyBands.length === 0 ? <p className="empty-config-copy">No difficulty bands yet.</p> : null}
+                  {modeForm.difficultyBands.map((band, bandIndex) => (
+                    <article className="config-row-card" key={`difficulty-${bandIndex}`}>
+                      <div className="config-row-header">
+                        <strong>Difficulty band #{bandIndex + 1}</strong>
+                        <button type="button" className="secondary-button compact-button" onClick={() => removeDifficultyBand(bandIndex)}>Remove</button>
+                      </div>
+                      <div className="config-field-grid">
+                        <label><span>Combo min</span><input type="number" min="0" value={band.comboMin ?? 0} onChange={(event) => updateDifficultyBand(bandIndex, "comboMin", event.target.value)} /></label>
+                        <label><span>Decision time ms</span><input type="number" min="0" value={band.decisionTimeMs ?? 0} onChange={(event) => updateDifficultyBand(bandIndex, "decisionTimeMs", event.target.value)} /></label>
+                        <label><span>Glitch chance %</span><input type="number" min="0" max="100" step="0.1" value={band.glitchChancePercent ?? 0} onChange={(event) => updateDifficultyBand(bandIndex, "glitchChancePercent", event.target.value)} /></label>
+                        <label><span>Sort order</span><input type="number" min="0" value={band.sortOrder ?? bandIndex} onChange={(event) => updateDifficultyBand(bandIndex, "sortOrder", event.target.value)} /></label>
+                      </div>
+
+                      <div className="nested-config-grid">
+                        <div className="nested-config-card">
+                          <div className="nested-config-heading"><strong>Deviation mix</strong><button type="button" className="secondary-button compact-button" onClick={() => addDifficultyMix(bandIndex, "deviationMix")}>+ Mix row</button></div>
+                          {(band.deviationMix || []).map((mix, mixIndex) => (
+                            <div className="mix-row" key={`deviation-${bandIndex}-${mixIndex}`}>
+                              <select value={mix.deviationType || "shape_swap"} onChange={(event) => updateDifficultyMix(bandIndex, "deviationMix", mixIndex, "deviationType", event.target.value)}>
+                                {deviationTypeOptions.map((option) => <option value={option.value} key={option.value}>{option.label}</option>)}
+                              </select>
+                              <input type="number" min="0" max="100" step="0.1" value={mix.weightPercent ?? 0} onChange={(event) => updateDifficultyMix(bandIndex, "deviationMix", mixIndex, "weightPercent", event.target.value)} aria-label="Deviation weight percent" />
+                              <button type="button" className="secondary-button compact-button" onClick={() => removeDifficultyMix(bandIndex, "deviationMix", mixIndex)}>Remove</button>
+                            </div>
+                          ))}
+                        </div>
+
+                        <div className="nested-config-card">
+                          <div className="nested-config-heading"><strong>False twin mix</strong><button type="button" className="secondary-button compact-button" onClick={() => addDifficultyMix(bandIndex, "falseTwinMix")}>+ Mix row</button></div>
+                          {(band.falseTwinMix || []).map((mix, mixIndex) => (
+                            <div className="mix-row" key={`false-twin-${bandIndex}-${mixIndex}`}>
+                              <select value={mix.falseTwinType || "readable_twin"} onChange={(event) => updateDifficultyMix(bandIndex, "falseTwinMix", mixIndex, "falseTwinType", event.target.value)}>
+                                {falseTwinTypeOptions.map((option) => <option value={option.value} key={option.value}>{option.label}</option>)}
+                              </select>
+                              <input type="number" min="0" max="100" step="0.1" value={mix.weightPercent ?? 0} onChange={(event) => updateDifficultyMix(bandIndex, "falseTwinMix", mixIndex, "weightPercent", event.target.value)} aria-label="False twin weight percent" />
+                              <button type="button" className="secondary-button compact-button" onClick={() => removeDifficultyMix(bandIndex, "falseTwinMix", mixIndex)}>Remove</button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </article>
+                  ))}
+                </section>
+
+                <section className="config-table-card">
+                  <div className="config-table-heading">
+                    <div>
+                      <h4>Heat Surge</h4>
+                      <p>Use dropdowns and number fields to configure if and when the heat surge modifier activates.</p>
+                    </div>
+                  </div>
+                  <div className="config-field-grid">
+                    <label><span>Status</span><select value={modeForm.heatSurgeConfig?.isEnabled ? "true" : "false"} onChange={(event) => updateHeatSurgeField("isEnabled", event.target.value === "true")}><option value="false">Disabled</option><option value="true">Enabled</option></select></label>
+                    <label><span>Minimum correct rounds</span><input type="number" min="0" value={modeForm.heatSurgeConfig?.minimumCorrectRounds ?? 0} onChange={(event) => updateHeatSurgeField("minimumCorrectRounds", event.target.value)} /></label>
+                    <label><span>Activation chance %</span><input type="number" min="0" max="100" step="0.1" value={modeForm.heatSurgeConfig?.activationChancePercent ?? 0} onChange={(event) => updateHeatSurgeField("activationChancePercent", event.target.value)} /></label>
+                    <label><span>Duration rounds</span><input type="number" min="0" value={modeForm.heatSurgeConfig?.durationRounds ?? 0} onChange={(event) => updateHeatSurgeField("durationRounds", event.target.value)} /></label>
+                    <label><span>Cooldown rounds</span><input type="number" min="0" value={modeForm.heatSurgeConfig?.cooldownRounds ?? 0} onChange={(event) => updateHeatSurgeField("cooldownRounds", event.target.value)} /></label>
+                    <label><span>Timer reduction ms</span><input type="number" min="0" value={modeForm.heatSurgeConfig?.timerReductionMs ?? 0} onChange={(event) => updateHeatSurgeField("timerReductionMs", event.target.value)} /></label>
+                    <label><span>Intensity bonus levels</span><input type="number" min="0" value={modeForm.heatSurgeConfig?.intensityBonusLevels ?? 0} onChange={(event) => updateHeatSurgeField("intensityBonusLevels", event.target.value)} /></label>
+                    <label><span>Transition warning ms</span><input type="number" min="0" value={modeForm.heatSurgeConfig?.transitionWarningMs ?? 0} onChange={(event) => updateHeatSurgeField("transitionWarningMs", event.target.value)} /></label>
+                  </div>
+                </section>
+
+                <section className="config-table-card">
+                  <div className="config-table-heading">
+                    <div>
+                      <h4>Corruption bands</h4>
+                      <p>Add combo thresholds and pick visual/audio effects from dropdown rows for each band.</p>
+                    </div>
+                    <button type="button" className="secondary-button" onClick={addCorruptionBand}>+ Corruption band</button>
+                  </div>
+
+                  {modeForm.corruptionBands.length === 0 ? <p className="empty-config-copy">No corruption bands yet.</p> : null}
+                  {modeForm.corruptionBands.map((band, bandIndex) => (
+                    <article className="config-row-card" key={`corruption-${bandIndex}`}>
+                      <div className="config-row-header">
+                        <strong>Corruption band #{bandIndex + 1}</strong>
+                        <button type="button" className="secondary-button compact-button" onClick={() => removeCorruptionBand(bandIndex)}>Remove</button>
+                      </div>
+                      <div className="config-field-grid">
+                        <label><span>Combo min</span><input type="number" min="0" value={band.comboMin ?? 0} onChange={(event) => updateCorruptionBand(bandIndex, "comboMin", event.target.value)} /></label>
+                        <label><span>Intensity level</span><input type="number" min="1" value={band.intensityLevel ?? 1} onChange={(event) => updateCorruptionBand(bandIndex, "intensityLevel", event.target.value)} /></label>
+                      </div>
+                      <div className="nested-config-grid">
+                        <div className="nested-config-card">
+                          <div className="nested-config-heading"><strong>Visual effects</strong><button type="button" className="secondary-button compact-button" onClick={() => addCorruptionEffect(bandIndex, "visualEffects", visualEffectOptions)}>+ Effect</button></div>
+                          {(band.visualEffects || []).map((effect, effectIndex) => (
+                            <div className="effect-row" key={`visual-${bandIndex}-${effectIndex}`}>
+                              <select value={effect} onChange={(event) => updateCorruptionEffect(bandIndex, "visualEffects", effectIndex, event.target.value)}>
+                                {visualEffectOptions.map((option) => <option value={option.value} key={option.value}>{option.label}</option>)}
+                              </select>
+                              <button type="button" className="secondary-button compact-button" onClick={() => removeCorruptionEffect(bandIndex, "visualEffects", effectIndex)}>Remove</button>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="nested-config-card">
+                          <div className="nested-config-heading"><strong>Audio effects</strong><button type="button" className="secondary-button compact-button" onClick={() => addCorruptionEffect(bandIndex, "audioEffects", audioEffectOptions)}>+ Effect</button></div>
+                          {(band.audioEffects || []).map((effect, effectIndex) => (
+                            <div className="effect-row" key={`audio-${bandIndex}-${effectIndex}`}>
+                              <select value={effect} onChange={(event) => updateCorruptionEffect(bandIndex, "audioEffects", effectIndex, event.target.value)}>
+                                {audioEffectOptions.map((option) => <option value={option.value} key={option.value}>{option.label}</option>)}
+                              </select>
+                              <button type="button" className="secondary-button compact-button" onClick={() => removeCorruptionEffect(bandIndex, "audioEffects", effectIndex)}>Remove</button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </article>
+                  ))}
+                </section>
               </div>
             )}
           </div>

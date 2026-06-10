@@ -729,7 +729,7 @@ function ModeConfigPanel({ adminKey }) {
     const current = parseAdvancedConfig();
     const next = [
       ...current.corruptionBands,
-      { comboMin: 0, visualEffects: [], audioEffects: [], intensityLevel: 1, sortOrder: current.corruptionBands.length }
+      { comboMin: 0, visualEffects: [], audioEffects: [], intensityLevel: 1 }
     ];
     setAdvancedJson((currentJson) => ({ ...currentJson, corruptionBands: prettyJson(next) }));
     setIsEditorOpen(true);

@@ -161,7 +161,6 @@ async function ensureModeConfigTables() {
     visual_effects TEXT[] NOT NULL DEFAULT '{}',
     audio_effects TEXT[] NOT NULL DEFAULT '{}',
     intensity_level INTEGER NOT NULL DEFAULT 1,
-    sort_order INTEGER NOT NULL DEFAULT 0,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
   );`);
@@ -204,10 +203,10 @@ async function listModeConfigurations() {
       pool.query(`SELECT mode_id, is_enabled, minimum_correct_rounds, activation_chance_percent, duration_rounds, cooldown_rounds, timer_reduction_ms, intensity_bonus_levels, transition_warning_ms
          FROM vervus_data.mode_heat_surge_configs
          WHERE mode_id = ANY($1::uuid[])`, [modeIds]),
-      pool.query(`SELECT mode_id, combo_min, visual_effects, audio_effects, intensity_level, sort_order
+      pool.query(`SELECT mode_id, combo_min, visual_effects, audio_effects, intensity_level
          FROM vervus_data.mode_corruption_bands
          WHERE mode_id = ANY($1::uuid[])
-         ORDER BY mode_id ASC, sort_order ASC, combo_min ASC`, [modeIds])
+         ORDER BY mode_id ASC, combo_min ASC`, [modeIds])
     ])
     : [{ rows: [] }, { rows: [] }, { rows: [] }, { rows: [] }, { rows: [] }];
 
@@ -257,8 +256,7 @@ async function listModeConfigurations() {
       comboMin: Number(row.combo_min) || 0,
       visualEffects: normalizeTextArray(row.visual_effects),
       audioEffects: normalizeTextArray(row.audio_effects),
-      intensityLevel: Number(row.intensity_level) || 1,
-      sortOrder: Number(row.sort_order) || 0
+      intensityLevel: Number(row.intensity_level) || 1
     });
     corruptionByModeId.set(row.mode_id, list);
   }
@@ -373,11 +371,11 @@ async function saveModeConfiguration(payload = {}) {
 
     if (Array.isArray(payload.corruptionBands)) {
       await client.query(`DELETE FROM vervus_data.mode_corruption_bands WHERE mode_id = $1::uuid`, [modeId]);
-      for (const [index, band] of normalizeConfigRows(payload.corruptionBands).entries()) {
+      for (const band of normalizeConfigRows(payload.corruptionBands)) {
         await client.query(
-          `INSERT INTO vervus_data.mode_corruption_bands (mode_id, combo_min, visual_effects, audio_effects, intensity_level, sort_order)
-           VALUES ($1::uuid, $2, $3::text[], $4::text[], $5, $6)`,
-          [modeId, normalizeInteger(band.comboMin, 0, { min: 0, max: 100000 }), normalizeTextArray(band.visualEffects), normalizeTextArray(band.audioEffects), normalizeInteger(band.intensityLevel, 1, { min: 1, max: 1000 }), normalizeInteger(band.sortOrder, index, { min: 0, max: 100000 })]
+          `INSERT INTO vervus_data.mode_corruption_bands (mode_id, combo_min, visual_effects, audio_effects, intensity_level)
+           VALUES ($1::uuid, $2, $3::text[], $4::text[], $5)`,
+          [modeId, normalizeInteger(band.comboMin, 0, { min: 0, max: 100000 }), normalizeTextArray(band.visualEffects), normalizeTextArray(band.audioEffects), normalizeInteger(band.intensityLevel, 1, { min: 1, max: 1000 })]
         );
       }
     }

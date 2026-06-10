@@ -25,19 +25,22 @@ input {
   font: inherit;
 }
 
-.admin-shell {
-  display: grid;
-  grid-template-columns: minmax(0, 1.1fr) minmax(18rem, 0.9fr);
-  gap: 1.5rem;
+.admin-shell,
+.dashboard-shell {
   width: min(68rem, calc(100% - 2rem));
   min-height: 100vh;
   margin: 0 auto;
   padding: 4rem 0;
-  align-items: center;
+}
+
+.login-shell {
+  display: grid;
+  place-items: center;
 }
 
 .hero-card,
-.status-card {
+.status-card,
+.metric-card {
   border: 1px solid rgba(148, 163, 184, 0.24);
   border-radius: 1.5rem;
   background: rgba(15, 23, 42, 0.78);
@@ -47,6 +50,10 @@ input {
 
 .hero-card {
   padding: clamp(2rem, 5vw, 4rem);
+}
+
+.login-card {
+  width: min(42rem, 100%);
 }
 
 .status-card {
@@ -85,10 +92,14 @@ h2 {
   font-size: 1.1rem;
 }
 
+.login-form {
+  margin-top: 2rem;
+}
+
 .token-field {
   display: grid;
   gap: 0.5rem;
-  margin: 2rem 0 1rem;
+  margin: 0 0 1rem;
   color: #bfdbfe;
   font-weight: 700;
 }
@@ -123,10 +134,76 @@ button:disabled {
   opacity: 0.7;
 }
 
+.secondary-button {
+  border: 1px solid rgba(147, 197, 253, 0.35);
+  color: #dbeafe;
+  background: rgba(15, 23, 42, 0.75);
+}
+
+.status-line {
+  margin: 1.25rem 0 0;
+  color: #cbd5e1;
+}
+
+.dashboard-shell {
+  display: grid;
+  align-content: start;
+  gap: 1.5rem;
+}
+
+.dashboard-header {
+  display: flex;
+  gap: 1.5rem;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.dashboard-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  justify-content: flex-end;
+}
+
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.metric-card {
+  display: grid;
+  gap: 0.5rem;
+  min-height: 9rem;
+  padding: 1.35rem;
+  overflow-wrap: anywhere;
+}
+
+.metric-card span {
+  color: #93c5fd;
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.metric-card strong {
+  align-self: end;
+  color: #f8fafc;
+  font-size: clamp(1.35rem, 3vw, 2rem);
+  line-height: 1;
+}
+
+.dashboard-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 0.8fr) minmax(18rem, 1.2fr);
+  gap: 1.5rem;
+}
+
 dl {
   display: grid;
   gap: 1rem;
-  margin: 1.5rem 0 0;
+  margin: 0;
 }
 
 dl div {
@@ -148,10 +225,32 @@ dd {
   color: #f8fafc;
 }
 
-@media (max-width: 760px) {
-  .admin-shell {
+@media (max-width: 900px) {
+  .dashboard-panel {
     grid-template-columns: 1fr;
-    align-items: start;
+  }
+
+  .dashboard-header {
+    display: grid;
+  }
+
+  .dashboard-actions {
+    justify-content: flex-start;
+  }
+
+  .dashboard-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 560px) {
+  .admin-shell,
+  .dashboard-shell {
+    width: min(100% - 1rem, 68rem);
     padding: 1rem 0;
+  }
+
+  .dashboard-grid {
+    grid-template-columns: 1fr;
   }
 }

@@ -356,7 +356,14 @@ function prettyJson(value) {
   return JSON.stringify(value, null, 2);
 }
 
+const visibleNavigationSectionIds = ["overview", ...manageGamesSectionIds];
+
 const navigationItems = dashboardSections.reduce((items, section) => {
+  if (!visibleNavigationSectionIds.includes(section.id)) {
+    // Comment out menu buttons outside Platform overview and Manage Games for now.
+    return items;
+  }
+
   if (!manageGamesSectionIds.includes(section.id)) {
     return [...items, { type: "section", section }];
   }

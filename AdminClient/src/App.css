@@ -638,3 +638,90 @@ tr:last-child td {
     grid-template-columns: 1fr;
   }
 }
+
+.mode-panel-actions,
+.advanced-config-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  justify-content: flex-end;
+}
+
+.mode-list-card {
+  display: grid;
+  gap: 0.5rem;
+  border: 1px solid rgba(147, 197, 253, 0.18);
+  border-radius: 1.15rem;
+  padding: 0.55rem;
+  background: rgba(15, 23, 42, 0.34);
+}
+
+.mode-list-card.active {
+  border-color: rgba(56, 189, 248, 0.48);
+  box-shadow: 0 0 0 0.2rem rgba(56, 189, 248, 0.08);
+}
+
+.mode-list-card .mode-list-item {
+  border: 0;
+  padding: 0.65rem;
+  background: transparent;
+}
+
+.mode-list-card .mode-list-item:hover {
+  background: rgba(14, 165, 233, 0.12);
+}
+
+.compact-button {
+  justify-self: start;
+  padding: 0.55rem 0.8rem;
+  font-size: 0.85rem;
+}
+
+.advanced-config-panel {
+  display: grid;
+  grid-column: 1 / -1;
+  gap: 1rem;
+  border: 1px solid rgba(147, 197, 253, 0.18);
+  border-radius: 1.25rem;
+  padding: 1rem;
+  background: rgba(2, 6, 23, 0.22);
+}
+
+.advanced-config-header {
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.advanced-config-header h3,
+.advanced-config-header p {
+  margin: 0;
+}
+
+.advanced-config-header p {
+  color: #cbd5e1;
+}
+
+.advanced-config-grid {
+  display: grid;
+  gap: 1rem;
+}
+
+.mode-config-form textarea {
+  width: 100%;
+  min-height: 11rem;
+  border: 1px solid rgba(147, 197, 253, 0.35);
+  border-radius: 0.9rem;
+  padding: 0.85rem 1rem;
+  color: #eff6ff;
+  background: rgba(15, 23, 42, 0.9);
+  font: 0.88rem/1.5 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  outline: none;
+  resize: vertical;
+}
+
+.mode-config-form textarea:focus {
+  border-color: #60a5fa;
+  box-shadow: 0 0 0 0.25rem rgba(96, 165, 250, 0.18);
+}

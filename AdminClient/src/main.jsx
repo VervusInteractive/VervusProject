@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import "./App.css";
 
@@ -306,6 +306,17 @@ const manageGamesSections = dashboardSections.filter((section) =>
   manageGamesSectionIds.includes(section.id)
 );
 
+const emptyHeatSurgeConfig = {
+  isEnabled: false,
+  minimumCorrectRounds: 0,
+  activationChancePercent: 0,
+  durationRounds: 0,
+  cooldownRounds: 0,
+  timerReductionMs: 0,
+  intensityBonusLevels: 0,
+  transitionWarningMs: 0
+};
+
 const emptyModeForm = {
   modeKey: "",
   displayName: "",
@@ -314,8 +325,16 @@ const emptyModeForm = {
   resultLockMs: 500,
   transitionBeatMs: 300,
   goodRunRound: 50,
-  orientationLock: "both"
+  orientationLock: "both",
+  difficultyBands: [],
+  heatSurgeConfig: emptyHeatSurgeConfig,
+  corruptionBands: []
 };
+
+function normalizeOrientationLock(value = "both") {
+  const normalized = String(value || "both").trim().toLowerCase();
+  return ["portrait", "landscape", "both"].includes(normalized) ? normalized : "both";
+}
 
 function normalizeModeForm(mode = emptyModeForm) {
   return {
@@ -326,8 +345,15 @@ function normalizeModeForm(mode = emptyModeForm) {
     resultLockMs: mode.resultLockMs ?? 500,
     transitionBeatMs: mode.transitionBeatMs ?? 300,
     goodRunRound: mode.goodRunRound ?? 50,
-    orientationLock: mode.orientationLock || "both"
+    orientationLock: normalizeOrientationLock(mode.orientationLock),
+    difficultyBands: Array.isArray(mode.difficultyBands) ? mode.difficultyBands : [],
+    heatSurgeConfig: mode.heatSurgeConfig || emptyHeatSurgeConfig,
+    corruptionBands: Array.isArray(mode.corruptionBands) ? mode.corruptionBands : []
   };
+}
+
+function prettyJson(value) {
+  return JSON.stringify(value, null, 2);
 }
 
 const navigationItems = dashboardSections.reduce((items, section) => {
@@ -550,8 +576,26 @@ function TimelinePanel({ timeline }) {
 function ModeConfigPanel({ adminKey }) {
   const [modes, setModes] = useState([]);
   const [modeForm, setModeForm] = useState(emptyModeForm);
-  const [configStatus, setConfigStatus] = useState("Load modes to edit database-backed game configuration.");
+  const [configStatus, setConfigStatus] = useState("Loading database-backed game configuration...");
   const [isConfigLoading, setIsConfigLoading] = useState(false);
+  const [isEditorOpen, setIsEditorOpen] = useState(false);
+  const [advancedJson, setAdvancedJson] = useState({
+    difficultyBands: "[]",
+    heatSurgeConfig: prettyJson(emptyHeatSurgeConfig),
+    corruptionBands: "[]"
+  });
+
+  useEffect(() => {
+    loadModes();
+  }, []);
+
+  useEffect(() => {
+    setAdvancedJson({
+      difficultyBands: prettyJson(modeForm.difficultyBands),
+      heatSurgeConfig: prettyJson(modeForm.heatSurgeConfig || emptyHeatSurgeConfig),
+      corruptionBands: prettyJson(modeForm.corruptionBands)
+    });
+  }, [modeForm.modeKey]);
 
   async function loadModes() {
     setIsConfigLoading(true);
@@ -566,9 +610,11 @@ function ModeConfigPanel({ adminKey }) {
         throw new Error(payload.error || "Unable to load modes");
       }
 
-      setModes(payload.modes || []);
-      setModeForm(normalizeModeForm(payload.modes?.[0] || emptyModeForm));
-      setConfigStatus(`Loaded ${(payload.modes || []).length} modes from the database.`);
+      const loadedModes = payload.modes || [];
+      setModes(loadedModes);
+      const selectedMode = loadedModes.find((mode) => mode.modeKey === modeForm.modeKey) || loadedModes[0] || emptyModeForm;
+      selectMode(selectedMode, false);
+      setConfigStatus(`Loaded ${loadedModes.length} modes from the database. Click to select; double click or use Edit config to open advanced tables.`);
     } catch (error) {
       setConfigStatus(error.message || "Unable to load modes");
     } finally {
@@ -584,6 +630,14 @@ function ModeConfigPanel({ adminKey }) {
       return;
     }
 
+    let parsedAdvanced;
+    try {
+      parsedAdvanced = parseAdvancedConfig();
+    } catch (error) {
+      setConfigStatus(error.message);
+      return;
+    }
+
     setIsConfigLoading(true);
     setConfigStatus(`Saving ${modeKey} to the database...`);
 
@@ -594,16 +648,17 @@ function ModeConfigPanel({ adminKey }) {
           "Content-Type": "application/json",
           ...(adminKey ? { "X-Admin-Token": adminKey } : {})
         },
-        body: JSON.stringify({ ...modeForm, modeKey })
+        body: JSON.stringify({ ...modeForm, ...parsedAdvanced, modeKey })
       });
       const payload = await response.json();
       if (!response.ok) {
         throw new Error(payload.error || "Unable to save mode");
       }
 
-      setModes(payload.modes || []);
-      const savedMode = (payload.modes || []).find((mode) => mode.modeKey === modeKey);
-      setModeForm(normalizeModeForm(savedMode || { ...modeForm, modeKey }));
+      const loadedModes = payload.modes || [];
+      setModes(loadedModes);
+      const savedMode = loadedModes.find((mode) => mode.modeKey === modeKey);
+      selectMode(savedMode || { ...modeForm, ...parsedAdvanced, modeKey }, true);
       setConfigStatus(`Saved ${modeKey}. Restart or refresh game workers if they cache mode config.`);
     } catch (error) {
       setConfigStatus(error.message || "Unable to save mode");
@@ -612,8 +667,72 @@ function ModeConfigPanel({ adminKey }) {
     }
   }
 
+  function parseAdvancedConfig() {
+    try {
+      const difficultyBands = JSON.parse(advancedJson.difficultyBands || "[]");
+      const heatSurgeConfig = JSON.parse(advancedJson.heatSurgeConfig || "null");
+      const corruptionBands = JSON.parse(advancedJson.corruptionBands || "[]");
+      if (!Array.isArray(difficultyBands)) throw new Error("difficultyBands must be a JSON array.");
+      if (heatSurgeConfig && typeof heatSurgeConfig !== "object") throw new Error("heatSurgeConfig must be a JSON object or null.");
+      if (!Array.isArray(corruptionBands)) throw new Error("corruptionBands must be a JSON array.");
+      return { difficultyBands, heatSurgeConfig: heatSurgeConfig || emptyHeatSurgeConfig, corruptionBands };
+    } catch (error) {
+      throw new Error(`Advanced config JSON is invalid: ${error.message}`);
+    }
+  }
+
+  function selectMode(mode, openEditor = false) {
+    const normalized = normalizeModeForm(mode);
+    setModeForm(normalized);
+    setAdvancedJson({
+      difficultyBands: prettyJson(normalized.difficultyBands),
+      heatSurgeConfig: prettyJson(normalized.heatSurgeConfig || emptyHeatSurgeConfig),
+      corruptionBands: prettyJson(normalized.corruptionBands)
+    });
+    setIsEditorOpen(openEditor);
+  }
+
+  function createNewMode() {
+    selectMode({ ...emptyModeForm, heatSurgeConfig: { ...emptyHeatSurgeConfig } }, true);
+    setConfigStatus("New mode draft ready. Fill out the fields and save to create it.");
+  }
+
   function updateField(field, value) {
     setModeForm((current) => ({ ...current, [field]: value }));
+  }
+
+  function addDifficultyBand() {
+    const current = parseAdvancedConfig();
+    const next = [
+      ...current.difficultyBands,
+      {
+        comboMin: 0,
+        decisionTimeMs: 5000,
+        glitchChancePercent: 0,
+        sortOrder: current.difficultyBands.length,
+        deviationMix: [
+          { deviationType: "shape_swap", weightPercent: 100 },
+          { deviationType: "false_twin", weightPercent: 0 },
+          { deviationType: "partial_break", weightPercent: 0 }
+        ],
+        falseTwinMix: [
+          { falseTwinType: "readable_twin", weightPercent: 100 },
+          { falseTwinType: "doubt_twin", weightPercent: 0 }
+        ]
+      }
+    ];
+    setAdvancedJson((currentJson) => ({ ...currentJson, difficultyBands: prettyJson(next) }));
+    setIsEditorOpen(true);
+  }
+
+  function addCorruptionBand() {
+    const current = parseAdvancedConfig();
+    const next = [
+      ...current.corruptionBands,
+      { comboMin: 0, visualEffects: [], audioEffects: [], intensityLevel: 1, sortOrder: current.corruptionBands.length }
+    ];
+    setAdvancedJson((currentJson) => ({ ...currentJson, corruptionBands: prettyJson(next) }));
+    setIsEditorOpen(true);
   }
 
   return (
@@ -623,9 +742,14 @@ function ModeConfigPanel({ adminKey }) {
           <p className="eyebrow">Database controls</p>
           <h2>Configured modes</h2>
         </div>
-        <button type="button" className="secondary-button" onClick={loadModes} disabled={isConfigLoading}>
-          {isConfigLoading ? "Working..." : "Load modes"}
-        </button>
+        <div className="mode-panel-actions">
+          <button type="button" className="secondary-button" onClick={loadModes} disabled={isConfigLoading}>
+            {isConfigLoading ? "Working..." : "Reload modes"}
+          </button>
+          <button type="button" onClick={createNewMode} disabled={isConfigLoading}>
+            + New mode
+          </button>
+        </div>
       </div>
 
       <div className="mode-config-layout">
@@ -633,19 +757,21 @@ function ModeConfigPanel({ adminKey }) {
           {modes.length === 0 ? (
             <p>No modes loaded yet.</p>
           ) : modes.map((mode) => (
-            <button
-              key={mode.modeKey}
-              type="button"
-              className={mode.modeKey === modeForm.modeKey ? "mode-list-item active" : "mode-list-item"}
-              onClick={() => setModeForm(normalizeModeForm(mode))}
-            >
-              <strong>{mode.displayName}</strong>
-              <span>{mode.modeKey} · {mode.isEnabled ? "Enabled" : "Disabled"}</span>
-            </button>
+            <article className={mode.modeKey === modeForm.modeKey ? "mode-list-card active" : "mode-list-card"} key={mode.modeKey}>
+              <button
+                type="button"
+                className="mode-list-item"
+                onClick={() => selectMode(mode)}
+                onDoubleClick={() => selectMode(mode, true)}
+              >
+                <strong>{mode.displayName}</strong>
+                <span>{mode.modeKey} · {mode.isEnabled ? "Enabled" : "Disabled"} · Orientation: {mode.orientationLock}</span>
+              </button>
+              <button type="button" className="secondary-button compact-button" onClick={() => selectMode(mode, true)}>
+                Edit config
+              </button>
+            </article>
           ))}
-          <button type="button" className="mode-list-item add-mode" onClick={() => setModeForm(emptyModeForm)}>
-            + Add new mode
-          </button>
         </div>
 
         <form className="mode-config-form" onSubmit={saveMode}>
@@ -659,7 +785,7 @@ function ModeConfigPanel({ adminKey }) {
           </label>
           <label>
             <span>Orientation lock</span>
-            <select value={modeForm.orientationLock} onChange={(event) => updateField("orientationLock", event.target.value)}>
+            <select value={modeForm.orientationLock} onChange={(event) => updateField("orientationLock", normalizeOrientationLock(event.target.value))}>
               <option value="both">Both</option>
               <option value="portrait">Portrait</option>
               <option value="landscape">Landscape</option>
@@ -685,6 +811,40 @@ function ModeConfigPanel({ adminKey }) {
             <span>Has last chance</span>
             <input type="checkbox" checked={modeForm.hasLastChance} onChange={(event) => updateField("hasLastChance", event.target.checked)} />
           </label>
+
+          <div className="advanced-config-panel">
+            <div className="advanced-config-header">
+              <div>
+                <h3>Advanced mode tables</h3>
+                <p>Edit difficulty_bands with nested deviation_mix and false_twin_mix, plus heat_surge_configs and corruption_bands.</p>
+              </div>
+              <button type="button" className="secondary-button" onClick={() => setIsEditorOpen((open) => !open)}>
+                {isEditorOpen ? "Hide editor" : "Edit config"}
+              </button>
+            </div>
+
+            {isEditorOpen && (
+              <div className="advanced-config-grid">
+                <label>
+                  <span>difficulty_bands + deviation_mix + false_twin_mix (JSON)</span>
+                  <textarea value={advancedJson.difficultyBands} onChange={(event) => setAdvancedJson((current) => ({ ...current, difficultyBands: event.target.value }))} rows="14" />
+                </label>
+                <label>
+                  <span>heat_surge_configs (JSON)</span>
+                  <textarea value={advancedJson.heatSurgeConfig} onChange={(event) => setAdvancedJson((current) => ({ ...current, heatSurgeConfig: event.target.value }))} rows="14" />
+                </label>
+                <label>
+                  <span>corruption_bands (JSON)</span>
+                  <textarea value={advancedJson.corruptionBands} onChange={(event) => setAdvancedJson((current) => ({ ...current, corruptionBands: event.target.value }))} rows="10" />
+                </label>
+                <div className="advanced-config-actions">
+                  <button type="button" className="secondary-button" onClick={addDifficultyBand}>+ Difficulty band</button>
+                  <button type="button" className="secondary-button" onClick={addCorruptionBand}>+ Corruption band</button>
+                </div>
+              </div>
+            )}
+          </div>
+
           <button type="submit" disabled={isConfigLoading}>{isConfigLoading ? "Saving..." : "Save mode config"}</button>
         </form>
       </div>

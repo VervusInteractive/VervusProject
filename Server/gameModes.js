@@ -112,6 +112,11 @@ function clampChance(value, fallback = 0) {
   return Math.max(0, Math.min(1, numeric));
 }
 
+function normalizeOrientationLock(value = "both") {
+  const normalized = String(value || "both").trim().toLowerCase();
+  return ["portrait", "landscape", "both"].includes(normalized) ? normalized : "both";
+}
+
 function normalizeDeviationMix(deviationMix = {}, fallbackProfile = {}) {
   const fallback = {
     shapeSwapChance: clampChance(fallbackProfile.shapeSwapChance, 1),
@@ -266,7 +271,7 @@ async function hydrateGameModesFromDb() {
       roundResultLockMs: config?.result_lock_ms ?? mode.roundResultLockMs,
       transitionBeatMs: config?.transition_beat_ms ?? mode.transitionBeatMs,
       goodRunRound: config?.good_run_round ?? mode.goodRunRound ?? 50,
-      orientationLock: config?.orientation_lock || mode.orientationLock || "both",
+      orientationLock: normalizeOrientationLock(config?.orientation_lock || mode.orientationLock),
       allowPartialBreak: curve.some((band) => clampChance(band.partialBreakChance, 0) > 0),
       curve
     };
@@ -369,7 +374,7 @@ async function getGameModesFromDb() {
     .map((row) => ({
       id: row.mode_key,
       title: row.display_name || row.mode_key,
-      orientationLock: row.orientation_lock || GAME_MODES[row.mode_key]?.orientationLock || "both"
+      orientationLock: normalizeOrientationLock(row.orientation_lock || GAME_MODES[row.mode_key]?.orientationLock)
     }));
 }
 
@@ -386,7 +391,7 @@ function getGameModesFallback() {
   return Object.values(GAME_MODES).map((mode) => ({
     id: mode.id,
     title: mode.title,
-    orientationLock: mode.orientationLock || "both"
+    orientationLock: normalizeOrientationLock(mode.orientationLock)
   }));
 }
 

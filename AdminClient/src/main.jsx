@@ -294,6 +294,22 @@ const dashboardSections = [
   }
 ];
 
+const manageGamesSectionIds = ["game", "modes", "balancing", "previews"];
+const manageGamesSections = dashboardSections.filter((section) =>
+  manageGamesSectionIds.includes(section.id)
+);
+const navigationItems = dashboardSections.reduce((items, section) => {
+  if (!manageGamesSectionIds.includes(section.id)) {
+    return [...items, { type: "section", section }];
+  }
+
+  if (section.id === manageGamesSectionIds[0]) {
+    return [...items, { type: "manage-games" }];
+  }
+
+  return items;
+}, []);
+
 function LoginPage({ adminKey, status, isLoading, onAdminKeyChange, onSubmit }) {
   return (
     <main className="admin-shell login-shell">
@@ -329,6 +345,28 @@ function LoginPage({ adminKey, status, isLoading, onAdminKeyChange, onSubmit }) 
 }
 
 function SectionNavigation({ activeSectionId, onSectionChange }) {
+  const [isManageGamesOpen, setIsManageGamesOpen] = useState(
+    manageGamesSectionIds.includes(activeSectionId)
+  );
+  const isManageGamesActive = manageGamesSectionIds.includes(activeSectionId);
+
+  function handleManageGamesClick() {
+    const shouldOpen = !isManageGamesOpen;
+    setIsManageGamesOpen(shouldOpen);
+
+    if (shouldOpen && !isManageGamesActive) {
+      onSectionChange(manageGamesSections[0].id);
+    }
+  }
+
+  function handleSectionChange(sectionId) {
+    onSectionChange(sectionId);
+
+    if (!manageGamesSectionIds.includes(sectionId)) {
+      setIsManageGamesOpen(false);
+    }
+  }
+
   return (
     <aside className="dashboard-sidebar" aria-label="Admin dashboard sections">
       <div className="sidebar-brand">
@@ -340,16 +378,50 @@ function SectionNavigation({ activeSectionId, onSectionChange }) {
       </div>
 
       <nav className="section-nav">
-        {dashboardSections.map((section) => (
-          <button
-            key={section.id}
-            type="button"
-            className={section.id === activeSectionId ? "nav-item active" : "nav-item"}
-            onClick={() => onSectionChange(section.id)}
-          >
-            {section.label}
-          </button>
-        ))}
+        {navigationItems.map((item) => {
+          if (item.type === "manage-games") {
+            return (
+              <div className="nav-menu-group" key="manage-games">
+                <button
+                  type="button"
+                  className={isManageGamesActive ? "nav-item menu-toggle active" : "nav-item menu-toggle"}
+                  aria-expanded={isManageGamesOpen}
+                  aria-controls="manage-games-menu"
+                  onClick={handleManageGamesClick}
+                >
+                  <span>Manage Games</span>
+                  <span aria-hidden="true">{isManageGamesOpen ? "−" : "+"}</span>
+                </button>
+
+                {isManageGamesOpen && (
+                  <div className="submenu-nav" id="manage-games-menu">
+                    {manageGamesSections.map((section) => (
+                      <button
+                        key={section.id}
+                        type="button"
+                        className={section.id === activeSectionId ? "submenu-item active" : "submenu-item"}
+                        onClick={() => onSectionChange(section.id)}
+                      >
+                        {section.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          }
+
+          return (
+            <button
+              key={item.section.id}
+              type="button"
+              className={item.section.id === activeSectionId ? "nav-item active" : "nav-item"}
+              onClick={() => handleSectionChange(item.section.id)}
+            >
+              {item.section.label}
+            </button>
+          );
+        })}
       </nav>
     </aside>
   );

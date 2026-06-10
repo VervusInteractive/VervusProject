@@ -133,6 +133,13 @@ const dashboardSections = [
     ]
   },
   {
+    id: "mode-config",
+    label: "Mode database config",
+    eyebrow: "Manage games",
+    title: "Mode database configuration",
+    description: "Create, enable, disable, and tune the database-backed modes served to the game client."
+  },
+  {
     id: "hosts",
     label: "Host analytics",
     eyebrow: "Hosts",
@@ -294,10 +301,35 @@ const dashboardSections = [
   }
 ];
 
-const manageGamesSectionIds = ["game", "modes", "balancing", "previews"];
+const manageGamesSectionIds = ["game", "modes", "mode-config", "balancing", "previews"];
 const manageGamesSections = dashboardSections.filter((section) =>
   manageGamesSectionIds.includes(section.id)
 );
+
+const emptyModeForm = {
+  modeKey: "",
+  displayName: "",
+  isEnabled: true,
+  hasLastChance: true,
+  resultLockMs: 500,
+  transitionBeatMs: 300,
+  goodRunRound: 50,
+  orientationLock: "both"
+};
+
+function normalizeModeForm(mode = emptyModeForm) {
+  return {
+    modeKey: mode.modeKey || "",
+    displayName: mode.displayName || "",
+    isEnabled: mode.isEnabled ?? true,
+    hasLastChance: mode.hasLastChance ?? true,
+    resultLockMs: mode.resultLockMs ?? 500,
+    transitionBeatMs: mode.transitionBeatMs ?? 300,
+    goodRunRound: mode.goodRunRound ?? 50,
+    orientationLock: mode.orientationLock || "both"
+  };
+}
+
 const navigationItems = dashboardSections.reduce((items, section) => {
   if (!manageGamesSectionIds.includes(section.id)) {
     return [...items, { type: "section", section }];
@@ -514,6 +546,154 @@ function TimelinePanel({ timeline }) {
   );
 }
 
+
+function ModeConfigPanel({ adminKey }) {
+  const [modes, setModes] = useState([]);
+  const [modeForm, setModeForm] = useState(emptyModeForm);
+  const [configStatus, setConfigStatus] = useState("Load modes to edit database-backed game configuration.");
+  const [isConfigLoading, setIsConfigLoading] = useState(false);
+
+  async function loadModes() {
+    setIsConfigLoading(true);
+    setConfigStatus("Loading modes from database...");
+
+    try {
+      const response = await fetch(`${adminApiUrl}/api/admin/game-modes`, {
+        headers: adminKey ? { "X-Admin-Token": adminKey } : {}
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload.error || "Unable to load modes");
+      }
+
+      setModes(payload.modes || []);
+      setModeForm(normalizeModeForm(payload.modes?.[0] || emptyModeForm));
+      setConfigStatus(`Loaded ${(payload.modes || []).length} modes from the database.`);
+    } catch (error) {
+      setConfigStatus(error.message || "Unable to load modes");
+    } finally {
+      setIsConfigLoading(false);
+    }
+  }
+
+  async function saveMode(event) {
+    event.preventDefault();
+    const modeKey = modeForm.modeKey.trim().toLowerCase();
+    if (!modeKey) {
+      setConfigStatus("Mode key is required before saving.");
+      return;
+    }
+
+    setIsConfigLoading(true);
+    setConfigStatus(`Saving ${modeKey} to the database...`);
+
+    try {
+      const response = await fetch(`${adminApiUrl}/api/admin/game-modes/${encodeURIComponent(modeKey)}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          ...(adminKey ? { "X-Admin-Token": adminKey } : {})
+        },
+        body: JSON.stringify({ ...modeForm, modeKey })
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload.error || "Unable to save mode");
+      }
+
+      setModes(payload.modes || []);
+      const savedMode = (payload.modes || []).find((mode) => mode.modeKey === modeKey);
+      setModeForm(normalizeModeForm(savedMode || { ...modeForm, modeKey }));
+      setConfigStatus(`Saved ${modeKey}. Restart or refresh game workers if they cache mode config.`);
+    } catch (error) {
+      setConfigStatus(error.message || "Unable to save mode");
+    } finally {
+      setIsConfigLoading(false);
+    }
+  }
+
+  function updateField(field, value) {
+    setModeForm((current) => ({ ...current, [field]: value }));
+  }
+
+  return (
+    <section className="mode-config-panel">
+      <div className="panel-heading">
+        <div>
+          <p className="eyebrow">Database controls</p>
+          <h2>Configured modes</h2>
+        </div>
+        <button type="button" className="secondary-button" onClick={loadModes} disabled={isConfigLoading}>
+          {isConfigLoading ? "Working..." : "Load modes"}
+        </button>
+      </div>
+
+      <div className="mode-config-layout">
+        <div className="mode-list" aria-label="Database modes">
+          {modes.length === 0 ? (
+            <p>No modes loaded yet.</p>
+          ) : modes.map((mode) => (
+            <button
+              key={mode.modeKey}
+              type="button"
+              className={mode.modeKey === modeForm.modeKey ? "mode-list-item active" : "mode-list-item"}
+              onClick={() => setModeForm(normalizeModeForm(mode))}
+            >
+              <strong>{mode.displayName}</strong>
+              <span>{mode.modeKey} · {mode.isEnabled ? "Enabled" : "Disabled"}</span>
+            </button>
+          ))}
+          <button type="button" className="mode-list-item add-mode" onClick={() => setModeForm(emptyModeForm)}>
+            + Add new mode
+          </button>
+        </div>
+
+        <form className="mode-config-form" onSubmit={saveMode}>
+          <label>
+            <span>Mode key</span>
+            <input value={modeForm.modeKey} onChange={(event) => updateField("modeKey", event.target.value)} placeholder="standard" />
+          </label>
+          <label>
+            <span>Display name</span>
+            <input value={modeForm.displayName} onChange={(event) => updateField("displayName", event.target.value)} placeholder="GLiTCH!" />
+          </label>
+          <label>
+            <span>Orientation lock</span>
+            <select value={modeForm.orientationLock} onChange={(event) => updateField("orientationLock", event.target.value)}>
+              <option value="both">Both</option>
+              <option value="portrait">Portrait</option>
+              <option value="landscape">Landscape</option>
+            </select>
+          </label>
+          <label>
+            <span>Result lock ms</span>
+            <input type="number" min="0" value={modeForm.resultLockMs} onChange={(event) => updateField("resultLockMs", event.target.value)} />
+          </label>
+          <label>
+            <span>Transition beat ms</span>
+            <input type="number" min="0" value={modeForm.transitionBeatMs} onChange={(event) => updateField("transitionBeatMs", event.target.value)} />
+          </label>
+          <label>
+            <span>Good run round</span>
+            <input type="number" min="1" value={modeForm.goodRunRound} onChange={(event) => updateField("goodRunRound", event.target.value)} />
+          </label>
+          <label className="checkbox-field">
+            <span>Enabled for players</span>
+            <input type="checkbox" checked={modeForm.isEnabled} onChange={(event) => updateField("isEnabled", event.target.checked)} />
+          </label>
+          <label className="checkbox-field">
+            <span>Has last chance</span>
+            <input type="checkbox" checked={modeForm.hasLastChance} onChange={(event) => updateField("hasLastChance", event.target.checked)} />
+          </label>
+          <button type="submit" disabled={isConfigLoading}>{isConfigLoading ? "Saving..." : "Save mode config"}</button>
+        </form>
+      </div>
+
+      <p className="mode-config-status" aria-live="polite">{configStatus}</p>
+    </section>
+  );
+}
+
 function DataTable({ title, columns = [], rows = [] }) {
   if (!columns.length || !rows.length) {
     return null;
@@ -552,7 +732,7 @@ function DataTable({ title, columns = [], rows = [] }) {
   );
 }
 
-function DashboardPage({ overview, status, isLoading, onRefresh, onSignOut }) {
+function DashboardPage({ adminKey, overview, status, isLoading, onRefresh, onSignOut }) {
   const [activeSectionId, setActiveSectionId] = useState(dashboardSections[0].id);
   const activeSection = useMemo(
     () => dashboardSections.find((section) => section.id === activeSectionId) || dashboardSections[0],
@@ -591,6 +771,7 @@ function DashboardPage({ overview, status, isLoading, onRefresh, onSignOut }) {
         <FunnelPanel funnel={activeSection.funnel} />
         <PlaceholderChart title={activeSection.chartTitle} bars={activeSection.chartBars} />
         <TimelinePanel timeline={activeSection.timeline} />
+        {activeSection.id === "mode-config" && <ModeConfigPanel adminKey={adminKey} />}
         <DataTable
           title={activeSection.tableTitle}
           columns={activeSection.tableColumns}
@@ -651,6 +832,7 @@ function App() {
   if (isAuthenticated) {
     return (
       <DashboardPage
+        adminKey={adminKey}
         overview={overview}
         status={status}
         isLoading={isLoading}

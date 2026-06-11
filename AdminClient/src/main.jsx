@@ -149,36 +149,14 @@ const dashboardSections = [
     label: "Live rooms",
     eyebrow: "Operations",
     title: "Live rooms overview",
-    description: "A real-time placeholder for active rooms, player counts, mode, status, and ping.",
-    tableTitle: "Active rooms",
-    tableColumns: ["Room code", "Players", "Mode", "Status", "Ping"],
-    rows: [
-      ["VX9K", "8/12", "Chaos", "In game", "42ms"],
-      ["PL7Q", "4/10", "Blitz", "Lobby", "31ms"],
-      ["MN2R", "11/12", "Standard", "Starting", "58ms"],
-      ["QA5T", "2/8", "Chaos", "Waiting", "36ms"]
-    ]
+    description: "Monitor active rooms, player counts, mode, lifecycle status, and average player ping."
   },
   {
     id: "room-history",
     label: "Room history",
     eyebrow: "Operations",
     title: "Room history viewer",
-    description: "Audit joins, leaves, starts, ends, and host changes for completed or active rooms.",
-    timeline: [
-      "20:14 — Room VX9K started in Chaos mode",
-      "20:12 — Host changed from Riley to Morgan",
-      "20:10 — Player Nova joined VX9K",
-      "20:04 — Room VX9K created"
-    ],
-    tableTitle: "Recent room events",
-    tableColumns: ["Time", "Room", "Event"],
-    rows: [
-      ["20:14", "VX9K", "Game started"],
-      ["20:12", "VX9K", "Host changed"],
-      ["20:10", "VX9K", "Player joined"],
-      ["20:03", "PL7Q", "Player left"]
-    ]
+    description: "Audit joins, leaves, starts, ends, and host changes for completed or active rooms."
   },
   {
     id: "errors",
@@ -426,7 +404,7 @@ function updateListItem(list, index, updater) {
   return list.map((item, itemIndex) => (itemIndex === index ? updater(item) : item));
 }
 
-const visibleNavigationSectionIds = ["overview", ...manageGamesSectionIds];
+const visibleNavigationSectionIds = ["overview", ...manageGamesSectionIds, "live-rooms", "room-history"];
 
 const navigationItems = visibleNavigationSectionIds.reduce((items, sectionId) => {
   const section = dashboardSections.find((dashboardSection) => dashboardSection.id === sectionId);
@@ -666,6 +644,235 @@ function formatDuration(milliseconds) {
   const seconds = totalSeconds % 60;
   if (minutes <= 0) return `${seconds}s`;
   return `${minutes}m ${String(seconds).padStart(2, "0")}s`;
+}
+
+function formatDateTime(value) {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "-";
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit"
+  }).format(date);
+}
+
+function humanizeKey(value) {
+  const text = String(value || "unknown").replace(/[_-]+/g, " ").trim();
+  if (!text) return "Unknown";
+  return text.replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function formatPlayers(players = {}) {
+  const current = Number(players.current) || 0;
+  const connected = Number(players.connected) || 0;
+  const max = Number(players.max) || 0;
+  return max ? `${connected}/${current}/${max}` : `${connected}/${current}`;
+}
+
+function formatPing(pingMs) {
+  const normalized = Number(pingMs);
+  return Number.isFinite(normalized) ? `${Math.round(normalized)}ms` : "-";
+}
+
+function summarizeMetadata(metadata = {}) {
+  if (!metadata || typeof metadata !== "object") return "-";
+  const importantEntries = Object.entries(metadata)
+    .filter(([, value]) => value !== null && value !== undefined && value !== "")
+    .slice(0, 3);
+  if (!importantEntries.length) return "-";
+  return importantEntries
+    .map(([key, value]) => `${humanizeKey(key)}: ${typeof value === "object" ? JSON.stringify(value) : value}`)
+    .join(", ");
+}
+
+function EmptyPanel({ title, message }) {
+  return (
+    <section className="table-panel empty-panel">
+      <h2>{title}</h2>
+      <p>{message}</p>
+    </section>
+  );
+}
+
+function LiveRoomsPanel({ adminKey }) {
+  const [liveRooms, setLiveRooms] = useState(null);
+  const [status, setStatus] = useState("Loading live rooms...");
+  const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    loadLiveRooms();
+    const refreshTimer = window.setInterval(loadLiveRooms, 10000);
+    return () => window.clearInterval(refreshTimer);
+  }, []);
+
+  async function loadLiveRooms() {
+    setIsLoading(true);
+
+    try {
+      const response = await fetch(`${adminApiUrl}/api/admin/live-rooms`, {
+        headers: adminKey ? { "X-Admin-Token": adminKey } : {}
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload.error || "Unable to load live rooms");
+      }
+      setLiveRooms(payload);
+      setStatus(`Showing ${payload.summary?.roomCount || 0} live rooms from ${payload.source || "admin API"}.`);
+    } catch (error) {
+      setLiveRooms(null);
+      setStatus(error.message || "Unable to load live rooms");
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  const summary = liveRooms?.summary || { roomCount: 0, playerCount: 0, connectedPlayerCount: 0, statusCounts: {} };
+  const statusSummary = Object.entries(summary.statusCounts || {})
+    .map(([key, value]) => `${humanizeKey(key)} ${value}`)
+    .join(", ") || "No active statuses";
+  const metrics = [
+    { label: "Live rooms", value: formatNumber(summary.roomCount), delta: liveRooms?.source || "runtime" },
+    { label: "Players", value: formatNumber(summary.playerCount), delta: `${formatNumber(summary.connectedPlayerCount)} connected` },
+    { label: "Statuses", value: formatNumber(Object.keys(summary.statusCounts || {}).length), delta: statusSummary },
+    { label: "Last refresh", value: formatDateTime(liveRooms?.generatedAt), delta: isLoading ? "Refreshing" : "Auto every 10s" }
+  ];
+  const roomRows = (liveRooms?.rooms || []).map((room) => [
+    room.roomCode,
+    formatPlayers(room.players),
+    humanizeKey(room.mode),
+    humanizeKey(room.status),
+    formatPing(room.pingMs)
+  ]);
+
+  return (
+    <>
+      <section className="dashboard-panel">
+        <div className="panel-heading-row">
+          <div>
+            <p className="eyebrow">Live operations</p>
+            <h2>Active room monitor</h2>
+            <p>{status}</p>
+          </div>
+          <div className="dashboard-actions inline-actions">
+            <button type="button" onClick={loadLiveRooms} disabled={isLoading}>
+              {isLoading ? "Refreshing..." : "Refresh rooms"}
+            </button>
+          </div>
+        </div>
+      </section>
+      <MetricGrid metrics={metrics} />
+      {roomRows.length ? (
+        <DataTable
+          title="Active rooms"
+          columns={["Room code", "Players", "Mode", "Status", "Ping"]}
+          rows={roomRows}
+        />
+      ) : (
+        <EmptyPanel title="Active rooms" message="No active rooms are currently visible to the admin API." />
+      )}
+    </>
+  );
+}
+
+function RoomHistoryPanel({ adminKey }) {
+  const [history, setHistory] = useState([]);
+  const [status, setStatus] = useState("Loading room history...");
+  const [isLoading, setIsLoading] = useState(false);
+  const [roomCode, setRoomCode] = useState("");
+  const [eventType, setEventType] = useState("");
+  const [limit, setLimit] = useState(50);
+
+  useEffect(() => {
+    loadHistory();
+  }, []);
+
+  async function loadHistory() {
+    setIsLoading(true);
+    const params = new URLSearchParams({ limit: String(limit) });
+    if (roomCode.trim()) params.set("roomCode", roomCode.trim().toUpperCase());
+    if (eventType) params.set("eventType", eventType);
+
+    try {
+      const response = await fetch(`${adminApiUrl}/api/admin/room-history?${params.toString()}`, {
+        headers: adminKey ? { "X-Admin-Token": adminKey } : {}
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload.error || "Unable to load room history");
+      }
+      setHistory(payload.history || []);
+      setStatus(`Loaded ${(payload.history || []).length} room history events.`);
+    } catch (error) {
+      setHistory([]);
+      setStatus(error.message || "Unable to load room history");
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  const historyRows = history.map((event) => [
+    formatDateTime(event.eventAt),
+    event.roomCode || "-",
+    humanizeKey(event.eventType),
+    event.actorDisplayName || event.actorPlayerId || "-",
+    event.fromStatus || "-",
+    event.toStatus || "-",
+    summarizeMetadata(event.metadata)
+  ]);
+
+  return (
+    <>
+      <section className="dashboard-panel">
+        <div className="panel-heading-row">
+          <div>
+            <p className="eyebrow">Audit trail</p>
+            <h2>Room event filters</h2>
+            <p>{status}</p>
+          </div>
+          <div className="dashboard-actions inline-actions room-history-filters">
+            <label className="token-field compact-field">
+              <span>Room code</span>
+              <input value={roomCode} onChange={(event) => setRoomCode(event.target.value)} placeholder="ABC123" />
+            </label>
+            <label className="token-field compact-field">
+              <span>Event</span>
+              <select value={eventType} onChange={(event) => setEventType(event.target.value)}>
+                <option value="">All events</option>
+                <option value="room_joined">Joins</option>
+                <option value="room_left">Leaves</option>
+                <option value="room_started">Starts</option>
+                <option value="room_ended">Ends</option>
+                <option value="host_changed">Host changes</option>
+              </select>
+            </label>
+            <label className="token-field compact-field">
+              <span>Limit</span>
+              <select value={limit} onChange={(event) => setLimit(Number(event.target.value))}>
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+                <option value={200}>200</option>
+              </select>
+            </label>
+            <button type="button" onClick={loadHistory} disabled={isLoading}>
+              {isLoading ? "Loading..." : "Apply filters"}
+            </button>
+          </div>
+        </div>
+      </section>
+      {historyRows.length ? (
+        <DataTable
+          title="Recent room events"
+          columns={["Time", "Room", "Event", "Actor", "From", "To", "Metadata"]}
+          rows={historyRows}
+        />
+      ) : (
+        <EmptyPanel title="Recent room events" message="No room history events match the current filters." />
+      )}
+    </>
+  );
 }
 
 function GameAnalyticsPanel({ adminKey }) {
@@ -1276,6 +1483,10 @@ function DashboardPage({ adminKey, overview, status, isLoading, onRefresh, onSig
 
         {activeSection.id === "game" ? (
           <GameAnalyticsPanel adminKey={adminKey} />
+        ) : activeSection.id === "live-rooms" ? (
+          <LiveRoomsPanel adminKey={adminKey} />
+        ) : activeSection.id === "room-history" ? (
+          <RoomHistoryPanel adminKey={adminKey} />
         ) : (
           <>
             <MetricGrid metrics={activeSection.metrics} />

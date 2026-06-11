@@ -815,6 +815,19 @@ tr:last-child td {
   margin: 0;
 }
 
+.empty-panel p {
+  margin: 0;
+  color: #cbd5e1;
+}
+
+.room-history-filters {
+  align-items: end;
+}
+
+.room-history-filters .compact-field {
+  min-width: 8rem;
+}
+
 select {
   width: 100%;
   border: 1px solid rgba(147, 197, 253, 0.35);

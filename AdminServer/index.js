@@ -8,6 +8,8 @@ const ADMIN_TOKEN = process.env.ADMIN_TOKEN || "";
 const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN || "";
 const NODE_ENV = process.env.NODE_ENV || "development";
 const DATABASE_URL = process.env.DATABASE_URL || "";
+const GAME_SERVER_ADMIN_URL = process.env.GAME_SERVER_ADMIN_URL || "";
+const GAME_SERVER_ADMIN_TOKEN = process.env.GAME_SERVER_ADMIN_TOKEN || ADMIN_TOKEN;
 
 const pool = DATABASE_URL
   ? new Pool({
@@ -42,6 +44,228 @@ function assertDatabaseConfigured() {
     error.statusCode = 503;
     throw error;
   }
+}
+
+function normalizeLimit(value, fallback = 50, max = 200) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return fallback;
+  return Math.max(1, Math.min(max, Math.round(numeric)));
+}
+
+function normalizeOptionalText(value, maxLength = 100) {
+  const normalized = String(value || "").trim();
+  return normalized ? normalized.slice(0, maxLength) : "";
+}
+
+async function tableExists(schemaName, tableName) {
+  assertDatabaseConfigured();
+  const { rows } = await pool.query("SELECT to_regclass($1) AS table_name", [`${schemaName}.${tableName}`]);
+  return Boolean(rows[0]?.table_name);
+}
+
+function getConnectedPlayerCount(players = []) {
+  return players.filter((player) => player?.connected).length;
+}
+
+function getAveragePingMs(players = []) {
+  const pings = players
+    .map((player) => Number(player?.pingMs))
+    .filter((pingMs) => Number.isFinite(pingMs) && pingMs >= 0);
+  if (!pings.length) return null;
+  return Math.round(pings.reduce((sum, pingMs) => sum + pingMs, 0) / pings.length);
+}
+
+function normalizeRuntimeRoom(room = {}) {
+  const players = Array.isArray(room.players) ? room.players : [];
+  return {
+    roomCode: room.roomId || room.roomCode || "",
+    players: {
+      current: Number(room.currentPlayerCount) || players.length || 0,
+      connected: getConnectedPlayerCount(players),
+      max: Number(room.maxPlayers) || 0
+    },
+    mode: room.game?.modeId || room.selectedModeId || "standard",
+    status: room.game?.status || room.status || room.phase || "unknown",
+    pingMs: getAveragePingMs(players),
+    phase: room.phase || null,
+    hostPlayerId: players.find((player) => player?.isHost)?.playerId || null,
+    updatedAt: new Date().toISOString()
+  };
+}
+
+async function fetchGameServerAdmin(path) {
+  if (!GAME_SERVER_ADMIN_URL) return null;
+
+  const response = await fetch(`${GAME_SERVER_ADMIN_URL.replace(/\/+$/, "")}${path}`, {
+    headers: GAME_SERVER_ADMIN_TOKEN ? { "X-Admin-Token": GAME_SERVER_ADMIN_TOKEN } : {}
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const error = new Error(payload.error || `Game server admin request failed with ${response.status}`);
+    error.statusCode = response.status;
+    throw error;
+  }
+  return payload;
+}
+
+async function getLiveRoomsFromGameServer() {
+  const payload = await fetchGameServerAdmin("/api/admin/runtime");
+  if (!payload) return null;
+
+  return {
+    source: "runtime",
+    generatedAt: new Date().toISOString(),
+    summary: {
+      roomCount: Number(payload.runtime?.roomCount) || 0,
+      playerCount: Number(payload.runtime?.playerCount) || 0,
+      connectedPlayerCount: Number(payload.runtime?.connectedPlayerCount) || 0,
+      statusCounts: payload.runtime?.statusCounts || {}
+    },
+    rooms: (Array.isArray(payload.rooms) ? payload.rooms : []).map(normalizeRuntimeRoom)
+  };
+}
+
+async function getLiveRoomsFromDatabase() {
+  assertDatabaseConfigured();
+  const [hasRooms, hasPlayers] = await Promise.all([
+    tableExists("vervus_data", "rooms"),
+    tableExists("vervus_data", "players")
+  ]);
+
+  if (!hasRooms) {
+    return {
+      source: "database",
+      generatedAt: new Date().toISOString(),
+      summary: { roomCount: 0, playerCount: 0, connectedPlayerCount: 0, statusCounts: {} },
+      rooms: []
+    };
+  }
+
+  const playerJoin = hasPlayers
+    ? `LEFT JOIN (
+         SELECT room_id,
+                COUNT(*)::int AS player_count,
+                COUNT(*) FILTER (WHERE connection_status::text IN ('connected', 'degraded'))::int AS connected_player_count
+         FROM vervus_data.players
+         WHERE left_at IS NULL
+         GROUP BY room_id
+       ) p ON p.room_id = r.id`
+    : `LEFT JOIN (SELECT NULL::uuid AS room_id, 0::int AS player_count, 0::int AS connected_player_count) p ON false`;
+
+  const { rows } = await pool.query(
+    `SELECT r.room_code,
+            r.status::text AS status,
+            COALESCE(r.max_players, 0)::int AS max_players,
+            COALESCE(p.player_count, 0)::int AS player_count,
+            COALESCE(p.connected_player_count, 0)::int AS connected_player_count,
+            COALESCE(r.started_at, r.created_at, now()) AS updated_at
+     FROM vervus_data.rooms r
+     ${playerJoin}
+     WHERE r.ended_at IS NULL
+       AND r.status::text NOT IN ('ended', 'expired')
+     ORDER BY updated_at DESC`
+  );
+
+  const statusCounts = rows.reduce((counts, row) => {
+    counts[row.status] = (counts[row.status] || 0) + 1;
+    return counts;
+  }, {});
+
+  return {
+    source: "database",
+    generatedAt: new Date().toISOString(),
+    summary: {
+      roomCount: rows.length,
+      playerCount: rows.reduce((sum, row) => sum + (Number(row.player_count) || 0), 0),
+      connectedPlayerCount: rows.reduce((sum, row) => sum + (Number(row.connected_player_count) || 0), 0),
+      statusCounts
+    },
+    rooms: rows.map((row) => ({
+      roomCode: row.room_code,
+      players: {
+        current: Number(row.player_count) || 0,
+        connected: Number(row.connected_player_count) || 0,
+        max: Number(row.max_players) || 0
+      },
+      mode: "unknown",
+      status: row.status,
+      pingMs: null,
+      phase: null,
+      hostPlayerId: null,
+      updatedAt: row.updated_at
+    }))
+  };
+}
+
+async function getLiveRooms() {
+  try {
+    const runtimeRooms = await getLiveRoomsFromGameServer();
+    if (runtimeRooms) return runtimeRooms;
+  } catch (error) {
+    console.warn("Game server live room fetch failed", error.message);
+  }
+
+  return getLiveRoomsFromDatabase();
+}
+
+async function getRoomHistory({ limit = 50, roomCode = "", eventType = "" } = {}) {
+  assertDatabaseConfigured();
+  const hasHistory = await tableExists("vervus_data", "room_history");
+  if (!hasHistory) {
+    return { generatedAt: new Date().toISOString(), history: [] };
+  }
+
+  const safeLimit = normalizeLimit(limit, 50, 200);
+  const normalizedRoomCode = normalizeOptionalText(roomCode, 32).toUpperCase();
+  const normalizedEventType = normalizeOptionalText(eventType, 64);
+  const params = [];
+  const filters = [];
+
+  if (normalizedRoomCode) {
+    params.push(normalizedRoomCode);
+    filters.push(`rh.room_code = $${params.length}`);
+  }
+
+  if (normalizedEventType) {
+    params.push(normalizedEventType);
+    filters.push(`rh.event_type = $${params.length}`);
+  }
+
+  params.push(safeLimit);
+  const whereSql = filters.length ? `WHERE ${filters.join(" AND ")}` : "";
+
+  const { rows } = await pool.query(
+    `SELECT rh.id,
+            rh.room_code,
+            rh.event_type,
+            rh.event_at,
+            rh.actor_player_id,
+            p.display_name AS actor_display_name,
+            rh.from_status::text AS from_status,
+            rh.to_status::text AS to_status,
+            rh.metadata
+     FROM vervus_data.room_history rh
+     LEFT JOIN vervus_data.players p ON p.id = rh.actor_player_id
+     ${whereSql}
+     ORDER BY rh.event_at DESC
+     LIMIT $${params.length}`,
+    params
+  );
+
+  return {
+    generatedAt: new Date().toISOString(),
+    history: rows.map((row) => ({
+      id: row.id,
+      roomCode: row.room_code,
+      eventType: row.event_type,
+      eventAt: row.event_at,
+      actorPlayerId: row.actor_player_id,
+      actorDisplayName: row.actor_display_name,
+      fromStatus: row.from_status,
+      toStatus: row.to_status,
+      metadata: row.metadata || {}
+    }))
+  };
 }
 
 function normalizeBoolean(value) {
@@ -524,6 +748,28 @@ app.get("/api/admin/game-analytics", requireAdmin, async (req, res, next) => {
   try {
     const analytics = await getGameAnalytics({ days: req.query.days });
     res.json(analytics);
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get("/api/admin/live-rooms", requireAdmin, async (req, res, next) => {
+  try {
+    const liveRooms = await getLiveRooms();
+    res.json(liveRooms);
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get("/api/admin/room-history", requireAdmin, async (req, res, next) => {
+  try {
+    const history = await getRoomHistory({
+      limit: req.query.limit,
+      roomCode: req.query.roomCode,
+      eventType: req.query.eventType
+    });
+    res.json(history);
   } catch (error) {
     next(error);
   }

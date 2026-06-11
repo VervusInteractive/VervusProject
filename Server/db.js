@@ -24,19 +24,37 @@ async function logRoomHistoryEvent({ roomCode, eventType, actorPlayerId = null, 
        SELECT id, room_code
        FROM vervus_data.rooms
        WHERE room_code = $1
+       FOR KEY SHARE
+     ), history_row AS (
+       SELECT r.id AS room_id,
+              r.room_code,
+              $2 AS event_type,
+              p.id AS actor_player_id,
+              $4::vervus_data.room_status AS from_status,
+              $5::vervus_data.room_status AS to_status,
+              $6::jsonb AS metadata
+       FROM target_room r
+       LEFT JOIN LATERAL (
+         SELECT id
+         FROM vervus_data.players
+         WHERE id = $3::uuid
+           AND room_id = r.id
+         FOR KEY SHARE
+       ) p ON true
+       UNION ALL
+       SELECT NULL::uuid,
+              $1,
+              $2,
+              NULL::uuid,
+              $4::vervus_data.room_status,
+              $5::vervus_data.room_status,
+              $6::jsonb
+       WHERE $2 = 'room_deleted'
+         AND NOT EXISTS (SELECT 1 FROM target_room)
      )
      INSERT INTO vervus_data.room_history (room_id, room_code, event_type, actor_player_id, from_status, to_status, metadata)
-     SELECT r.id,
-            r.room_code,
-            $2,
-            p.id,
-            $4::vervus_data.room_status,
-            $5::vervus_data.room_status,
-            $6::jsonb
-     FROM target_room r
-     LEFT JOIN vervus_data.players p
-       ON p.id = $3::uuid
-      AND p.room_id = r.id`,
+     SELECT room_id, room_code, event_type, actor_player_id, from_status, to_status, metadata
+     FROM history_row`,
     [roomCode, eventType, actorPlayerId, fromStatus, toStatus, JSON.stringify(metadata || {})]
   );
 }

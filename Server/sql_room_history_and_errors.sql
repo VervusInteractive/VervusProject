@@ -142,7 +142,7 @@ $$;
 
 CREATE TABLE IF NOT EXISTS vervus_data.room_history (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  room_id UUID NOT NULL REFERENCES vervus_data.rooms(id) ON DELETE CASCADE,
+  room_id UUID NULL REFERENCES vervus_data.rooms(id) ON DELETE SET NULL,
   room_code TEXT NOT NULL,
   event_type TEXT NOT NULL,
   event_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -171,6 +171,51 @@ CREATE INDEX IF NOT EXISTS idx_room_history_room_id_event_at
 
 CREATE INDEX IF NOT EXISTS idx_room_history_event_type_event_at
   ON vervus_data.room_history(event_type, event_at DESC);
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.tables
+    WHERE table_schema = 'vervus_data'
+      AND table_name = 'room_history'
+  ) THEN
+    IF EXISTS (
+      SELECT 1
+      FROM pg_attribute a
+      JOIN pg_class c ON c.oid = a.attrelid
+      JOIN pg_namespace n ON n.oid = c.relnamespace
+      WHERE n.nspname = 'vervus_data'
+        AND c.relname = 'room_history'
+        AND a.attname = 'room_id'
+        AND a.attnotnull
+    ) THEN
+      ALTER TABLE vervus_data.room_history
+        ALTER COLUMN room_id DROP NOT NULL;
+    END IF;
+
+    IF NOT EXISTS (
+      SELECT 1
+      FROM pg_constraint con
+      JOIN pg_class c ON c.oid = con.conrelid
+      JOIN pg_namespace n ON n.oid = c.relnamespace
+      WHERE n.nspname = 'vervus_data'
+        AND c.relname = 'room_history'
+        AND con.conname = 'room_history_room_id_fkey'
+        AND con.confdeltype = 'n'
+    ) THEN
+      ALTER TABLE vervus_data.room_history
+        DROP CONSTRAINT IF EXISTS room_history_room_id_fkey;
+
+      ALTER TABLE vervus_data.room_history
+        ADD CONSTRAINT room_history_room_id_fkey
+        FOREIGN KEY (room_id)
+        REFERENCES vervus_data.rooms(id)
+        ON DELETE SET NULL;
+    END IF;
+  END IF;
+END
+$$;
 
 
 

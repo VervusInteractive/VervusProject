@@ -479,6 +479,74 @@ async function getRecentRoomHistory({ limit = 50 } = {}) {
   return rows;
 }
 
+
+async function ensureGameAnalyticsTables() {
+  await ensureRoomTrackingTables();
+  await pool.query(`CREATE TABLE IF NOT EXISTS vervus_data.game_sessions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    room_id UUID NULL REFERENCES vervus_data.rooms(id) ON DELETE SET NULL,
+    room_code TEXT NOT NULL,
+    mode_key TEXT NOT NULL DEFAULT 'standard',
+    is_preview BOOLEAN NOT NULL DEFAULT false,
+    started_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    ended_at TIMESTAMPTZ NULL,
+    duration_ms INTEGER NULL,
+    final_combo INTEGER NOT NULL DEFAULT 0,
+    highest_combo INTEGER NOT NULL DEFAULT 0,
+    player_count INTEGER NOT NULL DEFAULT 0,
+    end_reason TEXT NULL,
+    metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  );`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_game_sessions_started_at ON vervus_data.game_sessions(started_at DESC);`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_game_sessions_mode_started_at ON vervus_data.game_sessions(mode_key, started_at DESC);`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_game_sessions_room_code_started_at ON vervus_data.game_sessions(room_code, started_at DESC);`);
+}
+
+async function recordGameSessionStart({ roomCode, modeKey = 'standard', isPreview = false, playerCount = 0, metadata = {} }) {
+  await ensureGameAnalyticsTables();
+  const { rows } = await pool.query(
+    `INSERT INTO vervus_data.game_sessions (room_id, room_code, mode_key, is_preview, player_count, metadata)
+     SELECT r.id, r.room_code, $2, $3, $4, $5::jsonb
+     FROM vervus_data.rooms r
+     WHERE r.room_code = $1
+     RETURNING id, started_at`,
+    [roomCode, modeKey, Boolean(isPreview), Math.max(0, Number(playerCount) || 0), JSON.stringify(metadata || {})]
+  );
+  if (rows[0]) return rows[0];
+
+  const fallback = await pool.query(
+    `INSERT INTO vervus_data.game_sessions (room_code, mode_key, is_preview, player_count, metadata)
+     VALUES ($1, $2, $3, $4, $5::jsonb)
+     RETURNING id, started_at`,
+    [roomCode, modeKey, Boolean(isPreview), Math.max(0, Number(playerCount) || 0), JSON.stringify(metadata || {})]
+  );
+  return fallback.rows[0] || null;
+}
+
+async function recordGameSessionEnd({ sessionId, roomCode, finalCombo = 0, highestCombo = 0, endReason = 'game_over', metadata = {} }) {
+  await ensureGameAnalyticsTables();
+  const safeFinalCombo = Math.max(0, Number(finalCombo) || 0);
+  const safeHighestCombo = Math.max(safeFinalCombo, Number(highestCombo) || 0);
+  const values = [sessionId || null, roomCode || null, safeFinalCombo, safeHighestCombo, endReason || 'game_over', JSON.stringify(metadata || {})];
+  const { rows } = await pool.query(
+    `UPDATE vervus_data.game_sessions
+     SET ended_at = COALESCE(ended_at, now()),
+         duration_ms = GREATEST(0, FLOOR(EXTRACT(EPOCH FROM (COALESCE(ended_at, now()) - started_at)) * 1000)::integer),
+         final_combo = $3,
+         highest_combo = $4,
+         end_reason = $5,
+         metadata = metadata || $6::jsonb,
+         updated_at = now()
+     WHERE ($1::uuid IS NOT NULL AND id = $1::uuid)
+        OR ($1::uuid IS NULL AND $2::text IS NOT NULL AND room_code = $2 AND ended_at IS NULL)
+     RETURNING id`,
+    values
+  );
+  return rows[0] || null;
+}
+
 async function getRecentStripeWebhookEvents({ limit = 25 } = {}) {
   await ensureRoomTrackingTables();
   const safeLimit = Math.max(1, Math.min(100, Number(limit) || 25));
@@ -522,4 +590,4 @@ async function deletePlayerRecord(playerId) { await pool.query('DELETE FROM verv
 async function updateRoomStatus({ roomCode, status }) { await ensureRoomTrackingTables(); await pool.query(`UPDATE vervus_data.rooms SET status = $2::vervus_data.room_status, started_at = CASE WHEN $2 IN ('preview', 'premium', 'active') THEN COALESCE(started_at, now()) ELSE started_at END, ended_at = CASE WHEN $2 IN ('ended', 'expired') THEN now() ELSE ended_at END WHERE room_code = $1`, [roomCode, status]); }
 async function deleteRoomRecord(roomCode) { await pool.query('DELETE FROM vervus_data.rooms WHERE room_code = $1', [roomCode]); }
 
-module.exports = { pool, testDbConnection, ensureRoomTrackingTables, logRoomHistoryEvent, logErrorEntry, ensurePlayerProfileTables, upsertPlayerProfile, grantPlayerProfileEntitlement, getActivePlayerProfileEntitlement, getActiveEntitledModeKeys, getActiveEntitlementExpiriesByMode, createPlayerProfileSession, getPlayerProfileIdBySessionToken, createEntitlementTransferToken, consumeEntitlementTransferToken, getProductByKey, createPendingPurchase, attachStripeSessionToPurchase, completePurchaseAndGrantEntitlementByStripeSession, recordStripeWebhookEvent, markStripeWebhookEventProcessed, markStripeWebhookEventFailed, getPurchaseStatusByStripeSession, getRecentErrorLogs, getRecentRoomHistory, getRecentStripeWebhookEvents, markPurchaseFailedByStripeSession, getProductById, createRoomRecord, addPlayerRecord, updatePlayerReady, updatePlayerConnection, deletePlayerRecord, updateRoomStatus, deleteRoomRecord };
+module.exports = { pool, testDbConnection, ensureRoomTrackingTables, logRoomHistoryEvent, logErrorEntry, ensurePlayerProfileTables, ensureGameAnalyticsTables, recordGameSessionStart, recordGameSessionEnd, upsertPlayerProfile, grantPlayerProfileEntitlement, getActivePlayerProfileEntitlement, getActiveEntitledModeKeys, getActiveEntitlementExpiriesByMode, createPlayerProfileSession, getPlayerProfileIdBySessionToken, createEntitlementTransferToken, consumeEntitlementTransferToken, getProductByKey, createPendingPurchase, attachStripeSessionToPurchase, completePurchaseAndGrantEntitlementByStripeSession, recordStripeWebhookEvent, markStripeWebhookEventProcessed, markStripeWebhookEventFailed, getPurchaseStatusByStripeSession, getRecentErrorLogs, getRecentRoomHistory, getRecentStripeWebhookEvents, markPurchaseFailedByStripeSession, getProductById, createRoomRecord, addPlayerRecord, updatePlayerReady, updatePlayerConnection, deletePlayerRecord, updateRoomStatus, deleteRoomRecord };

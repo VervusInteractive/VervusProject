@@ -797,3 +797,35 @@ tr:last-child td {
     grid-template-columns: 1fr;
   }
 }
+
+.panel-heading-row {
+  display: flex;
+  grid-column: 1 / -1;
+  gap: 1rem;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.inline-actions {
+  align-items: end;
+}
+
+.compact-field {
+  min-width: 9rem;
+  margin: 0;
+}
+
+select {
+  width: 100%;
+  border: 1px solid rgba(147, 197, 253, 0.35);
+  border-radius: 0.9rem;
+  padding: 0.85rem 1rem;
+  color: #eff6ff;
+  background: rgba(15, 23, 42, 0.9);
+  outline: none;
+}
+
+select:focus {
+  border-color: #60a5fa;
+  box-shadow: 0 0 0 0.25rem rgba(96, 165, 250, 0.18);
+}

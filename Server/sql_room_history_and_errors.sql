@@ -173,6 +173,34 @@ CREATE INDEX IF NOT EXISTS idx_room_history_event_type_event_at
   ON vervus_data.room_history(event_type, event_at DESC);
 
 
+
+CREATE TABLE IF NOT EXISTS vervus_data.game_sessions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  room_id UUID NULL REFERENCES vervus_data.rooms(id) ON DELETE SET NULL,
+  room_code TEXT NOT NULL,
+  mode_key TEXT NOT NULL DEFAULT 'standard',
+  is_preview BOOLEAN NOT NULL DEFAULT false,
+  started_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  ended_at TIMESTAMPTZ NULL,
+  duration_ms INTEGER NULL,
+  final_combo INTEGER NOT NULL DEFAULT 0,
+  highest_combo INTEGER NOT NULL DEFAULT 0,
+  player_count INTEGER NOT NULL DEFAULT 0,
+  end_reason TEXT NULL,
+  metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_game_sessions_started_at
+  ON vervus_data.game_sessions(started_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_game_sessions_mode_started_at
+  ON vervus_data.game_sessions(mode_key, started_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_game_sessions_room_code_started_at
+  ON vervus_data.game_sessions(room_code, started_at DESC);
+
 CREATE TABLE IF NOT EXISTS vervus_data.stripe_webhook_events (
   id TEXT PRIMARY KEY,
   event_type TEXT NOT NULL,

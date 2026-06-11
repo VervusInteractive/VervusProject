@@ -25,6 +25,8 @@ const {
   createEntitlementTransferToken,
   consumeEntitlementTransferToken,
   getProductByKey,
+  recordGameSessionStart,
+  recordGameSessionEnd,
   logRoomHistoryEvent,
   logErrorEntry
 } = require("./db");
@@ -277,6 +279,22 @@ function registerSocketHandlers(io) {
     clearPreviewTimer(room);
     clearRoomGameTimers(room);
     touchRoom(room);
+    if (room.game && !room.game.analyticsEnded) {
+      room.game.analyticsEnded = true;
+      recordGameSessionEnd({
+        sessionId: room.game.analyticsSessionId,
+        roomCode: roomId,
+        finalCombo: room.game.combo,
+        highestCombo: room.game.highestCombo ?? room.game.combo,
+        endReason: metadata.causeLabel || metadata.reason || "game_over",
+        metadata: {
+          ...metadata,
+          score: room.game.score,
+          modeId: room.game.modeId,
+          isPreview: room.game.isPreview
+        }
+      }).catch((error) => console.error("DB game session end failed", error));
+    }
     logRoomHistoryEvent({
       roomCode: roomId,
       eventType: "room_ended",
@@ -349,6 +367,7 @@ function registerSocketHandlers(io) {
 
     if (evaluation.passed) {
       room.game.combo += 1;
+      room.game.highestCombo = Math.max(room.game.highestCombo || 0, room.game.combo);
       room.game.score += 1;
       room.game.lastRoundResult = {
         passed: true,
@@ -470,7 +489,22 @@ function registerSocketHandlers(io) {
 
     room.game.status = "active";
     room.game.startedAtMs = Date.now();
+    room.game.highestCombo = Math.max(room.game.highestCombo || 0, room.game.combo || 0);
     room.game.reconnectCountdownStartedAtMs = null;
+    recordGameSessionStart({
+      roomCode: roomId,
+      modeKey: room.game.modeId,
+      isPreview: room.game.isPreview,
+      playerCount: participants.length,
+      metadata: {
+        previewComboLimit: room.game.previewComboLimit,
+        expiresAtMs: room.expiresAtMs
+      }
+    }).then((session) => {
+      if (session?.id && room.game) {
+        room.game.analyticsSessionId = session.id;
+      }
+    }).catch((error) => console.error("DB game session start failed", error));
     scheduleNextRound(room, roomId, 3000);
     emitState(roomId);
   };

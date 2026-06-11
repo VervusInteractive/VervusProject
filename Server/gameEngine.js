@@ -91,6 +91,7 @@ function createGameState(modeId = "standard") {
     modeId: normalizedModeId,
     status: "active",
     combo: 0,
+    highestCombo: 0,
     score: 0,
     roundNumber: 0,
     usedLastChance: false,

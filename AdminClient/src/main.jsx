@@ -286,7 +286,7 @@ const dashboardSections = [
   }
 ];
 
-const manageGamesSectionIds = ["mode-config"];
+const manageGamesSectionIds = ["game", "mode-config"];
 const manageGamesSections = dashboardSections.filter((section) =>
   manageGamesSectionIds.includes(section.id)
 );
@@ -426,7 +426,7 @@ function updateListItem(list, index, updater) {
   return list.map((item, itemIndex) => (itemIndex === index ? updater(item) : item));
 }
 
-const visibleNavigationSectionIds = ["overview", ...manageGamesSectionIds, "game"];
+const visibleNavigationSectionIds = ["overview", ...manageGamesSectionIds];
 
 const navigationItems = visibleNavigationSectionIds.reduce((items, sectionId) => {
   const section = dashboardSections.find((dashboardSection) => dashboardSection.id === sectionId);

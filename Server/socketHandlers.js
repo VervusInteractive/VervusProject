@@ -28,7 +28,8 @@ const {
   recordGameSessionStart,
   recordGameSessionEnd,
   logRoomHistoryEvent,
-  logErrorEntry
+  logErrorEntry,
+  updateRoomStatus
 } = require("./db");
 const {
   ROOM_STATUSES,
@@ -299,7 +300,7 @@ function registerSocketHandlers(io) {
       roomCode: roomId,
       eventType: "room_ended",
       fromStatus: room.status || ROOM_STATUSES.PREMIUM,
-      toStatus: room.status || ROOM_STATUSES.PREMIUM,
+      toStatus: ROOM_STATUSES.ENDED,
       metadata: { reason: "game_over", ...metadata }
     }).catch((error) => console.error("DB room history game over failed", error));
 
@@ -689,7 +690,7 @@ function registerSocketHandlers(io) {
 
         const normalizedSelectedModeId = normalizeModeId(selectedModeId);
         room.selectedModeId = (normalizedSelectedModeId && entitledModeKeys.includes(normalizedSelectedModeId)) ? normalizedSelectedModeId : "standard";
-        await createRoomRecord({ roomCode: roomId });
+        await createRoomRecord({ roomCode: roomId, selectedModeId: room.selectedModeId });
         await addPlayerRecord({ roomCode: roomId, playerId, displayName, isHost: true, slot: 1 });
         await logRoomHistoryEvent({ roomCode: roomId, eventType: "room_created", actorPlayerId: playerId, toStatus: "lobby", metadata: { selectedModeId: room.selectedModeId } });
         await logRoomHistoryEvent({ roomCode: roomId, eventType: "room_joined", actorPlayerId: playerId, toStatus: "lobby", metadata: { isHost: true } });
@@ -1011,7 +1012,21 @@ function registerSocketHandlers(io) {
       const allowedModeIds = new Set((room.availableModes || []).map((mode) => mode.id));
       if (!allowedModeIds.has(normalizedModeId)) return callback?.({ error: "Invalid mode" });
 
+      const previousModeId = room.selectedModeId || "standard";
       room.selectedModeId = normalizedModeId;
+      updateRoomStatus({
+        roomCode: roomId,
+        status: room.status || ROOM_STATUSES.LOBBY,
+        metadata: { selectedModeId: normalizedModeId }
+      }).catch((error) => console.error("DB room mode update failed", error));
+      logRoomHistoryEvent({
+        roomCode: roomId,
+        eventType: "settings_changed",
+        actorPlayerId: playerId,
+        fromStatus: room.status || ROOM_STATUSES.LOBBY,
+        toStatus: room.status || ROOM_STATUSES.LOBBY,
+        metadata: { setting: "mode", previousModeId, selectedModeId: normalizedModeId }
+      }).catch((error) => console.error("DB room history mode change failed", error));
       emitState(roomId);
       callback?.({ ok: true });
     });

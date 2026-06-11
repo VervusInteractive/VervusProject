@@ -1,7 +1,15 @@
 -- Tables for room lifecycle history and runtime error tracking.
 -- Target DB: PostgreSQL (schema: vervus_data)
 
+CREATE SCHEMA IF NOT EXISTS vervus_data;
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
+CREATE TABLE IF NOT EXISTS vervus_data.player_profiles (
+  id UUID PRIMARY KEY,
+  display_name TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  last_seen_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
 
 -- Connection-state architecture values used by vervus_data.players.connection_status.
 -- Render databases may have this column as VARCHAR instead of an enum; only enum
@@ -46,6 +54,21 @@ BEGIN
       ADD COLUMN IF NOT EXISTS connection_state_changed_at TIMESTAMPTZ NULL,
       ADD COLUMN IF NOT EXISTS reconnecting_started_at TIMESTAMPTZ NULL,
       ADD COLUMN IF NOT EXISTS disconnected_at TIMESTAMPTZ NULL;
+  END IF;
+END
+$$;
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM pg_class c
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE n.nspname = 'vervus_data'
+      AND c.relname = 'rooms'
+  ) THEN
+    ALTER TABLE vervus_data.rooms
+      ADD COLUMN IF NOT EXISTS metadata JSONB NOT NULL DEFAULT '{}'::jsonb;
   END IF;
 END
 $$;

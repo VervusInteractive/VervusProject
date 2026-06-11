@@ -664,6 +664,46 @@ function humanizeKey(value) {
   return text.replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
+const roomStatusLabels = {
+  waiting_for_players: "Waiting for players",
+  waiting_to_start: "Waiting to start",
+  players_readying: "Players readying",
+  starting: "Starting",
+  in_game: "In game",
+  game_over: "Game over",
+  payment_pending: "Payment pending",
+  reconnecting: "Reconnecting",
+  ended: "Ended",
+  expired: "Expired",
+  lobby: "Waiting to start",
+  preview: "In game",
+  premium: "In game",
+  active: "In game",
+  loading: "Starting",
+  paused: "Reconnecting",
+  gameover: "Game over"
+};
+
+const roomEventLabels = {
+  room_created: "Room created",
+  room_joined: "Joined",
+  room_left: "Left",
+  room_started: "Started",
+  room_ended: "Ended",
+  room_expired: "Expired",
+  room_deleted: "Deleted",
+  host_changed: "Host changed",
+  settings_changed: "Settings changed"
+};
+
+function formatStatusLabel(value) {
+  return roomStatusLabels[String(value || "").toLowerCase()] || humanizeKey(value);
+}
+
+function formatEventLabel(value) {
+  return roomEventLabels[String(value || "").toLowerCase()] || humanizeKey(value);
+}
+
 function formatPlayers(players = {}) {
   const current = Number(players.current) || 0;
   const connected = Number(players.connected) || 0;
@@ -679,6 +719,7 @@ function formatPing(pingMs) {
 function summarizeMetadata(metadata = {}) {
   if (!metadata || typeof metadata !== "object") return "-";
   const importantEntries = Object.entries(metadata)
+    .filter(([key]) => key !== "actorDisplayName")
     .filter(([, value]) => value !== null && value !== undefined && value !== "")
     .slice(0, 3);
   if (!importantEntries.length) return "-";
@@ -741,8 +782,8 @@ function LiveRoomsPanel({ adminKey }) {
   const roomRows = (liveRooms?.rooms || []).map((room) => [
     room.roomCode,
     formatPlayers(room.players),
-    humanizeKey(room.mode),
-    humanizeKey(room.status),
+    humanizeKey(room.modeLabel || room.mode),
+    formatStatusLabel(room.status),
     formatPing(room.pingMs)
   ]);
 
@@ -815,10 +856,10 @@ function RoomHistoryPanel({ adminKey }) {
   const historyRows = history.map((event) => [
     formatDateTime(event.eventAt),
     event.roomCode || "-",
-    humanizeKey(event.eventType),
-    event.actorDisplayName || event.actorPlayerId || "-",
-    event.fromStatus || "-",
-    event.toStatus || "-",
+    formatEventLabel(event.eventType),
+    event.actorDisplayName || event.metadata?.actorDisplayName || event.actorPlayerId || "-",
+    event.fromStatus ? formatStatusLabel(event.fromStatus) : "-",
+    event.toStatus ? formatStatusLabel(event.toStatus) : "-",
     summarizeMetadata(event.metadata)
   ]);
 

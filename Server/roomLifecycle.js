@@ -62,7 +62,7 @@ function getRoomStatus(room) {
 }
 
 function persistRoomStatus(roomId, toStatus, fromStatus, eventType, metadata = {}) {
-  updateRoomStatus({ roomCode: roomId, status: toStatus }).catch((error) => console.error(`DB room ${toStatus} update failed`, error));
+  updateRoomStatus({ roomCode: roomId, status: toStatus, metadata }).catch((error) => console.error(`DB room ${toStatus} update failed`, error));
   logRoomHistoryEvent({ roomCode: roomId, eventType, fromStatus, toStatus, metadata }).catch((error) => console.error(`DB room history ${eventType} failed`, error));
 }
 

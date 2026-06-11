@@ -32,15 +32,24 @@ async function logRoomHistoryEvent({ roomCode, eventType, actorPlayerId = null, 
               p.id AS actor_player_id,
               $4::vervus_data.room_status AS from_status,
               $5::vervus_data.room_status AS to_status,
-              $6::jsonb AS metadata
+              CASE
+                WHEN COALESCE(p.display_name, ap.display_name) IS NULL THEN $6::jsonb
+                ELSE $6::jsonb || jsonb_build_object('actorDisplayName', COALESCE(p.display_name, ap.display_name))
+              END AS metadata
        FROM target_room r
        LEFT JOIN LATERAL (
-         SELECT id
+         SELECT id, display_name
          FROM vervus_data.players
          WHERE id = $3::uuid
            AND room_id = r.id
          FOR KEY SHARE
        ) p ON true
+       LEFT JOIN LATERAL (
+         SELECT display_name
+         FROM vervus_data.player_profiles
+         WHERE id = $3::uuid
+         LIMIT 1
+       ) ap ON true
        UNION ALL
        SELECT NULL::uuid,
               $1,
@@ -600,12 +609,12 @@ async function getProductById(productId) {
 }
 
 // existing functions
-async function createRoomRecord({ roomCode, status = 'lobby', maxPlayers = 4 }) { await ensureRoomTrackingTables(); await pool.query(`INSERT INTO vervus_data.rooms (room_code, status, max_players) VALUES ($1, $2::vervus_data.room_status, $3) ON CONFLICT (room_code) DO UPDATE SET status = EXCLUDED.status`, [roomCode, status, maxPlayers]); }
+async function createRoomRecord({ roomCode, status = 'lobby', maxPlayers = 4, selectedModeId = null }) { await ensureRoomTrackingTables(); await pool.query(`INSERT INTO vervus_data.rooms (room_code, status, max_players, metadata) VALUES ($1, $2::vervus_data.room_status, $3, jsonb_strip_nulls(jsonb_build_object('selectedModeId', $4::text))) ON CONFLICT (room_code) DO UPDATE SET status = EXCLUDED.status, metadata = COALESCE(vervus_data.rooms.metadata, '{}'::jsonb) || EXCLUDED.metadata`, [roomCode, status, maxPlayers, selectedModeId]); }
 async function addPlayerRecord({ roomCode, playerId, displayName, isHost = false, slot }) { await pool.query(`INSERT INTO vervus_data.players (id, room_id, display_name, is_host, connection_status, is_ready, last_seen_at, player_slot) SELECT $2::uuid, r.id, $3, $4, 'connected', false, now(), $5 FROM vervus_data.rooms r WHERE r.room_code = $1 ON CONFLICT (id) DO UPDATE SET display_name = EXCLUDED.display_name, connection_status = 'connected', last_seen_at = now(), left_at = null`, [roomCode, playerId, displayName, isHost, slot]); if (isHost) await pool.query(`UPDATE vervus_data.rooms SET host_player_id = $2::uuid WHERE room_code = $1`, [roomCode, playerId]); }
 async function updatePlayerReady({ playerId, isReady }) { await pool.query('UPDATE vervus_data.players SET is_ready = $2, last_seen_at = now() WHERE id = $1::uuid', [playerId, isReady]); }
 async function updatePlayerConnection({ playerId, status, stateChangedAtMs = Date.now(), reconnectingStartedAtMs = null, disconnectedAtMs = null }) { await ensureRoomTrackingTables(); const isDisconnected = !['connected', 'degraded'].includes(status); await pool.query(`UPDATE vervus_data.players SET connection_status = $2, last_seen_at = now(), left_at = CASE WHEN $3 THEN now() ELSE null END, connection_state_changed_at = to_timestamp($4::double precision / 1000), reconnecting_started_at = CASE WHEN $5::bigint IS NULL THEN null ELSE to_timestamp($5::double precision / 1000) END, disconnected_at = CASE WHEN $6::bigint IS NULL THEN null ELSE to_timestamp($6::double precision / 1000) END WHERE id = $1::uuid`, [playerId, status, isDisconnected, stateChangedAtMs, reconnectingStartedAtMs, disconnectedAtMs]); }
 async function deletePlayerRecord(playerId) { await pool.query('DELETE FROM vervus_data.players WHERE id = $1::uuid', [playerId]); }
-async function updateRoomStatus({ roomCode, status }) { await ensureRoomTrackingTables(); await pool.query(`UPDATE vervus_data.rooms SET status = $2::vervus_data.room_status, started_at = CASE WHEN $2 IN ('preview', 'premium', 'active') THEN COALESCE(started_at, now()) ELSE started_at END, ended_at = CASE WHEN $2 IN ('ended', 'expired') THEN now() ELSE ended_at END WHERE room_code = $1`, [roomCode, status]); }
+async function updateRoomStatus({ roomCode, status, metadata = {} }) { await ensureRoomTrackingTables(); await pool.query(`UPDATE vervus_data.rooms SET status = $2::vervus_data.room_status, started_at = CASE WHEN $2 IN ('preview', 'premium', 'active') THEN COALESCE(started_at, now()) ELSE started_at END, ended_at = CASE WHEN $2 IN ('ended', 'expired') THEN now() ELSE ended_at END, metadata = COALESCE(metadata, '{}'::jsonb) || $3::jsonb WHERE room_code = $1`, [roomCode, status, JSON.stringify(metadata || {})]); }
 async function deleteRoomRecord(roomCode) { await pool.query('DELETE FROM vervus_data.rooms WHERE room_code = $1', [roomCode]); }
 
 module.exports = { pool, testDbConnection, ensureRoomTrackingTables, logRoomHistoryEvent, logErrorEntry, ensurePlayerProfileTables, ensureGameAnalyticsTables, recordGameSessionStart, recordGameSessionEnd, upsertPlayerProfile, grantPlayerProfileEntitlement, getActivePlayerProfileEntitlement, getActiveEntitledModeKeys, getActiveEntitlementExpiriesByMode, createPlayerProfileSession, getPlayerProfileIdBySessionToken, createEntitlementTransferToken, consumeEntitlementTransferToken, getProductByKey, createPendingPurchase, attachStripeSessionToPurchase, completePurchaseAndGrantEntitlementByStripeSession, recordStripeWebhookEvent, markStripeWebhookEventProcessed, markStripeWebhookEventFailed, getPurchaseStatusByStripeSession, getRecentErrorLogs, getRecentRoomHistory, getRecentStripeWebhookEvents, markPurchaseFailedByStripeSession, getProductById, createRoomRecord, addPlayerRecord, updatePlayerReady, updatePlayerConnection, deletePlayerRecord, updateRoomStatus, deleteRoomRecord };

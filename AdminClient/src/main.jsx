@@ -752,15 +752,11 @@ function GameAnalyticsPanel({ adminKey }) {
       <MetricGrid metrics={metrics} />
       <DataTable
         title="Game performance by game"
-        eyebrow="Live database table"
-        badge="Live data"
         columns={["Game", "Sessions", "Avg. combo", "Highest combo", "Avg. duration"]}
         rows={gameRows}
       />
       <DataTable
         title="Recent game sessions"
-        eyebrow="Live database table"
-        badge="Live data"
         columns={["Room", "Game", "Type", "Duration", "Highest combo", "End reason"]}
         rows={recentRows}
       />
@@ -1207,7 +1203,7 @@ function ModeConfigPanel({ adminKey }) {
   );
 }
 
-function DataTable({ title, columns = [], rows = [], eyebrow = "Placeholder table", badge = "Mock data" }) {
+function DataTable({ title, columns = [], rows = [] }) {
   if (!columns.length || !rows.length) {
     return null;
   }
@@ -1216,10 +1212,8 @@ function DataTable({ title, columns = [], rows = [], eyebrow = "Placeholder tabl
     <section className="table-panel">
       <div className="panel-heading">
         <div>
-          {eyebrow && <p className="eyebrow">{eyebrow}</p>}
           <h2>{title}</h2>
         </div>
-        {badge && <span>{badge}</span>}
       </div>
       <div className="table-wrap">
         <table>

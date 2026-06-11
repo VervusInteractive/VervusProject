@@ -426,11 +426,12 @@ function updateListItem(list, index, updater) {
   return list.map((item, itemIndex) => (itemIndex === index ? updater(item) : item));
 }
 
-const visibleNavigationSectionIds = ["overview", "game", ...manageGamesSectionIds];
+const visibleNavigationSectionIds = ["overview", ...manageGamesSectionIds, "game"];
 
-const navigationItems = dashboardSections.reduce((items, section) => {
-  if (!visibleNavigationSectionIds.includes(section.id)) {
-    // Comment out menu buttons outside Platform overview and Manage Games for now.
+const navigationItems = visibleNavigationSectionIds.reduce((items, sectionId) => {
+  const section = dashboardSections.find((dashboardSection) => dashboardSection.id === sectionId);
+
+  if (!section) {
     return items;
   }
 

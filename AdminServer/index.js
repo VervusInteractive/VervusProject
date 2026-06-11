@@ -444,7 +444,7 @@ async function getGameAnalytics({ days = 30 } = {}) {
                        COALESCE(MAX(gs.highest_combo), 0)::int AS highest_combo,
                        COALESCE(AVG(gs.duration_ms) FILTER (WHERE gs.ended_at IS NOT NULL AND gs.duration_ms IS NOT NULL), 0)::float AS avg_duration_ms
                 FROM vervus_data.game_sessions gs
-                LEFT JOIN vervus_data.game_modes gm ON gm.mode_key = gs.mode_key
+                LEFT JOIN vervus_data.game_modes gm ON gm.mode_key::text = gs.mode_key
                 WHERE gs.started_at >= now() - ($1::int * interval '1 day')
                 GROUP BY gs.mode_key, gm.display_name
                 ORDER BY sessions DESC, game_name ASC`, params),

@@ -153,14 +153,14 @@ const dashboardSections = [
   },
   {
     id: "live-rooms",
-    label: "Live rooms",
+    label: "Live Rooms",
     eyebrow: "Operations",
     title: "Live rooms overview",
     description: "Monitor active rooms, player counts, mode, lifecycle status, and average player ping."
   },
   {
     id: "room-history",
-    label: "Room history",
+    label: "Room History",
     eyebrow: "Operations",
     title: "Room history viewer",
     description: "Audit joins, leaves, starts, ends, and host changes for completed or active rooms."
@@ -271,9 +271,17 @@ const dashboardSections = [
   }
 ];
 
-const manageGamesSectionIds = ["game", "mode-config", "products"];
+const manageGamesSectionIds = ["game", "mode-config"];
 const manageGamesSections = dashboardSections.filter((section) =>
   manageGamesSectionIds.includes(section.id)
+);
+const manageRoomsSectionIds = ["live-rooms", "room-history"];
+const manageRoomsSections = dashboardSections.filter((section) =>
+  manageRoomsSectionIds.includes(section.id)
+);
+const manageProductsSectionIds = ["products"];
+const manageProductsSections = dashboardSections.filter((section) =>
+  manageProductsSectionIds.includes(section.id)
 );
 
 const emptyHeatSurgeConfig = {
@@ -452,25 +460,41 @@ function updateListItem(list, index, updater) {
   return list.map((item, itemIndex) => (itemIndex === index ? updater(item) : item));
 }
 
-const visibleNavigationSectionIds = ["overview", ...manageGamesSectionIds, "live-rooms", "room-history"];
-
-const navigationItems = visibleNavigationSectionIds.reduce((items, sectionId) => {
-  const section = dashboardSections.find((dashboardSection) => dashboardSection.id === sectionId);
-
-  if (!section) {
-    return items;
+const navigationGroups = [
+  {
+    id: "manage-games",
+    label: "Manage Games",
+    menuId: "manage-games-menu",
+    sectionIds: manageGamesSectionIds,
+    sections: manageGamesSections
+  },
+  {
+    id: "manage-rooms",
+    label: "Manage Rooms",
+    menuId: "manage-rooms-menu",
+    sectionIds: manageRoomsSectionIds,
+    sections: manageRoomsSections
+  },
+  {
+    id: "manage-products",
+    label: "Manage Products",
+    menuId: "manage-products-menu",
+    sectionIds: manageProductsSectionIds,
+    sections: manageProductsSections
   }
+];
 
-  if (!manageGamesSectionIds.includes(section.id)) {
-    return [...items, { type: "section", section }];
-  }
+const visibleNavigationSectionIds = ["overview"];
 
-  if (section.id === manageGamesSectionIds[0]) {
-    return [...items, { type: "manage-games" }];
-  }
-
-  return items;
-}, []);
+const navigationItems = [
+  ...visibleNavigationSectionIds
+    .map((sectionId) => dashboardSections.find((dashboardSection) => dashboardSection.id === sectionId))
+    .filter(Boolean)
+    .map((section) => ({ type: "section", section })),
+  ...navigationGroups
+    .filter((group) => group.sections.length > 0)
+    .map((group) => ({ type: "group", group }))
+];
 
 function LoginPage({ adminKey, status, isLoading, onAdminKeyChange, onSubmit }) {
   return (
@@ -507,26 +531,30 @@ function LoginPage({ adminKey, status, isLoading, onAdminKeyChange, onSubmit }) 
 }
 
 function SectionNavigation({ activeSectionId, onSectionChange }) {
-  const [isManageGamesOpen, setIsManageGamesOpen] = useState(
-    manageGamesSectionIds.includes(activeSectionId)
+  const [openNavigationGroups, setOpenNavigationGroups] = useState(() =>
+    Object.fromEntries(
+      navigationGroups.map((group) => [group.id, group.sectionIds.includes(activeSectionId)])
+    )
   );
-  const isManageGamesActive = manageGamesSectionIds.includes(activeSectionId);
 
-  function handleManageGamesClick() {
-    const shouldOpen = !isManageGamesOpen;
-    setIsManageGamesOpen(shouldOpen);
+  function handleNavigationGroupClick(group) {
+    const shouldOpen = !openNavigationGroups[group.id];
 
-    if (shouldOpen && !isManageGamesActive) {
-      onSectionChange(manageGamesSections[0].id);
+    setOpenNavigationGroups((currentGroups) => ({
+      ...currentGroups,
+      [group.id]: shouldOpen
+    }));
+
+    if (shouldOpen && !group.sectionIds.includes(activeSectionId) && group.sections[0]) {
+      onSectionChange(group.sections[0].id);
     }
   }
 
   function handleSectionChange(sectionId) {
     onSectionChange(sectionId);
-
-    if (!manageGamesSectionIds.includes(sectionId)) {
-      setIsManageGamesOpen(false);
-    }
+    setOpenNavigationGroups(
+      Object.fromEntries(navigationGroups.map((group) => [group.id, group.sectionIds.includes(sectionId)]))
+    );
   }
 
   return (
@@ -541,23 +569,26 @@ function SectionNavigation({ activeSectionId, onSectionChange }) {
 
       <nav className="section-nav">
         {navigationItems.map((item) => {
-          if (item.type === "manage-games") {
+          if (item.type === "group") {
+            const isGroupOpen = openNavigationGroups[item.group.id];
+            const isGroupActive = item.group.sectionIds.includes(activeSectionId);
+
             return (
-              <div className="nav-menu-group" key="manage-games">
+              <div className="nav-menu-group" key={item.group.id}>
                 <button
                   type="button"
-                  className={isManageGamesActive ? "nav-item menu-toggle active" : "nav-item menu-toggle"}
-                  aria-expanded={isManageGamesOpen}
-                  aria-controls="manage-games-menu"
-                  onClick={handleManageGamesClick}
+                  className={isGroupActive ? "nav-item menu-toggle active" : "nav-item menu-toggle"}
+                  aria-expanded={isGroupOpen}
+                  aria-controls={item.group.menuId}
+                  onClick={() => handleNavigationGroupClick(item.group)}
                 >
-                  <span>Manage Games</span>
-                  <span aria-hidden="true">{isManageGamesOpen ? "−" : "+"}</span>
+                  <span>{item.group.label}</span>
+                  <span aria-hidden="true">{isGroupOpen ? "−" : "+"}</span>
                 </button>
 
-                {isManageGamesOpen && (
-                  <div className="submenu-nav" id="manage-games-menu">
-                    {manageGamesSections.map((section) => (
+                {isGroupOpen && (
+                  <div className="submenu-nav" id={item.group.menuId}>
+                    {item.group.sections.map((section) => (
                       <button
                         key={section.id}
                         type="button"

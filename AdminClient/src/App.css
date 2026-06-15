@@ -789,9 +789,27 @@ tr:last-child td {
   grid-template-columns: minmax(0, 1fr) auto;
 }
 
+.product-mode-panel {
+  align-content: start;
+}
+
+.product-mode-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.product-mode-option {
+  border: 1px solid rgba(147, 197, 253, 0.18);
+  border-radius: 0.9rem;
+  padding: 0.8rem 0.9rem;
+  background: rgba(15, 23, 42, 0.48);
+}
+
 @media (max-width: 900px) {
   .config-field-grid,
   .nested-config-grid,
+  .product-mode-grid,
   .mix-row,
   .effect-row {
     grid-template-columns: 1fr;

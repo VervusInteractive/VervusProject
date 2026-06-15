@@ -14,6 +14,8 @@ services:
         generateValue: true
       - key: CLIENT_ORIGIN
         value: https://vervus-admin-client.onrender.com
+      - key: GAME_SERVER_ADMIN_URL
+        value: https://vervus-server.onrender.com
 
   - type: web
     name: vervus-admin-client

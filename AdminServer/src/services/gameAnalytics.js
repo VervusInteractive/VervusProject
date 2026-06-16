@@ -1,11 +1,11 @@
 const { pool, assertDatabaseConfigured } = require("../db");
+const { ensureRoomCoreTables } = require("./adminSchema");
 const { ensureModeConfigTables } = require("./modeConfigurations");
 const { normalizeAnalyticsWindowDays } = require("../utils/normalizers");
 
 async function ensureGameAnalyticsTables() {
   assertDatabaseConfigured();
-  await pool.query(`CREATE SCHEMA IF NOT EXISTS vervus_data;`);
-  await pool.query(`CREATE EXTENSION IF NOT EXISTS pgcrypto;`);
+  await ensureRoomCoreTables();
   await pool.query(`CREATE TABLE IF NOT EXISTS vervus_data.game_sessions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     room_id UUID NULL REFERENCES vervus_data.rooms(id) ON DELETE SET NULL,

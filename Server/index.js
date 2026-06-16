@@ -25,8 +25,10 @@ const {
   getRecentRoomHistory,
   getRecentStripeWebhookEvents,
   markPurchaseFailedByStripeSession,
+  ensureAnalyticsEventTables,
   ensureRoomTrackingTables,
-  logErrorEntry
+  logErrorEntry,
+  recordAnalyticsEvent
 } = require("./db");
 const {
   hydrateGameModesFromDb,
@@ -438,6 +440,12 @@ app.post("/api/stripe/webhook", stripeWebhookLimiter, express.raw({ type: "appli
       const stripePaymentIntentId = session?.payment_intent;
       const purchase = await completePurchaseAndGrantEntitlementByStripeSession({ stripeCheckoutSessionId, stripePaymentIntentId });
       if (purchase?.player_id) {
+        recordAnalyticsEvent({
+          eventName: "purchase_completed",
+          profileId: purchase.player_id,
+          productKey: purchase.product_key,
+          metadata: { stripeCheckoutSessionId, stripePaymentIntentId }
+        }).catch(() => {});
         await refreshPlayerEntitlementsInActiveRooms(purchase.player_id);
       }
     } else if (["checkout.session.expired", "checkout.session.async_payment_failed"].includes(event.type)) {
@@ -457,6 +465,34 @@ app.post("/api/stripe/webhook", stripeWebhookLimiter, express.raw({ type: "appli
 });
 
 app.use(express.json({ limit: "32kb" }));
+
+app.post("/api/analytics/event", publicEndpointLimiter, async (req, res) => {
+  const allowedEvents = new Set(["page_view", "host_click", "store_open"]);
+  const eventName = String(req.body?.eventName || "").trim().toLowerCase();
+  if (!allowedEvents.has(eventName)) {
+    res.status(400).json({ error: "Unsupported analytics event" });
+    return;
+  }
+
+  try {
+    const profileId = await getProfileIdFromRequest(req);
+    await recordAnalyticsEvent({
+      eventName,
+      profileId,
+      roomCode: req.body?.roomCode,
+      productKey: req.body?.productKey,
+      modeKey: req.body?.modeKey,
+      source: req.body?.source,
+      referrer: req.body?.referrer,
+      sessionId: req.body?.sessionId,
+      metadata: req.body?.metadata && typeof req.body.metadata === "object" ? req.body.metadata : {}
+    });
+    res.status(204).end();
+  } catch (error) {
+    logErrorEntry({ source: "analytics:event", message: error.message || "Failed to record analytics event", stackTrace: error.stack }).catch(() => {});
+    res.status(500).json({ error: "Failed to record analytics event" });
+  }
+});
 
 app.get("/api/game-modes", publicEndpointLimiter, async (req, res) => {
   try {
@@ -567,6 +603,13 @@ app.post("/api/stripe/checkout-session", strictPublicEndpointLimiter, async (req
       "metadata[roomId]": roomId || ""
     });
     await attachStripeSessionToPurchase({ purchaseId, stripeCheckoutSessionId: session.id });
+    recordAnalyticsEvent({
+      eventName: "checkout_started",
+      profileId,
+      roomCode: roomId,
+      productKey: product.product_key,
+      metadata: { purchaseId, stripeCheckoutSessionId: session.id }
+    }).catch(() => {});
 
     res.status(200).json({ url: session.url, stripeCheckoutSessionId: session.id, purchaseId });
   } catch (error) {
@@ -667,6 +710,7 @@ testDbConnection()
   .then(async () => {
     console.log("PostgreSQL connected");
     await ensureRoomTrackingTables();
+    await ensureAnalyticsEventTables();
 
     try {
       const loaded = await hydrateGameModesFromDb();

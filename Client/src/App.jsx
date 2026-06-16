@@ -16,10 +16,67 @@ if (!serverUrl) {
   throw new Error("VITE_SERVER_URL is required");
 }
 const PROFILE_SESSION_STORAGE_KEY = "profileSessionToken";
+const ANALYTICS_VISITOR_STORAGE_KEY = "analyticsVisitorId";
 const getStoredProfileSessionToken = () => localStorage.getItem(PROFILE_SESSION_STORAGE_KEY) || "";
 const buildProfileSessionHeaders = () => {
   const token = getStoredProfileSessionToken();
   return token ? { Authorization: `Bearer ${token}` } : {};
+};
+const getAnalyticsVisitorId = () => {
+  const existing = localStorage.getItem(ANALYTICS_VISITOR_STORAGE_KEY);
+  if (existing) return existing;
+  const nextId = typeof crypto !== "undefined" && crypto.randomUUID
+    ? crypto.randomUUID()
+    : `visitor-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  localStorage.setItem(ANALYTICS_VISITOR_STORAGE_KEY, nextId);
+  return nextId;
+};
+const getTrafficAttribution = () => {
+  const params = new URLSearchParams(window.location.search);
+  const utmSource = params.get("utm_source") || "";
+  const referrer = document.referrer || "";
+  let referrerHost = "";
+  try {
+    referrerHost = referrer ? new URL(referrer).hostname.replace(/^www\./, "") : "";
+  } catch {
+    referrerHost = "";
+  }
+  return {
+    source: utmSource || referrerHost || "Direct",
+    referrer,
+    utm: {
+      source: utmSource || null,
+      medium: params.get("utm_medium") || null,
+      campaign: params.get("utm_campaign") || null,
+      term: params.get("utm_term") || null,
+      content: params.get("utm_content") || null
+    }
+  };
+};
+const trackAnalyticsEvent = (eventName, payload = {}) => {
+  const attribution = getTrafficAttribution();
+  fetch(`${serverUrl}/api/analytics/event`, {
+    method: "POST",
+    credentials: "include",
+    keepalive: true,
+    headers: { "Content-Type": "application/json", ...buildProfileSessionHeaders() },
+    body: JSON.stringify({
+      eventName,
+      sessionId: getAnalyticsVisitorId(),
+      source: attribution.source,
+      referrer: attribution.referrer,
+      roomCode: payload.roomCode || null,
+      productKey: payload.productKey || null,
+      modeKey: payload.modeKey || null,
+      metadata: {
+        path: window.location.pathname,
+        search: window.location.search,
+        title: document.title,
+        utm: attribution.utm,
+        ...(payload.metadata || {})
+      }
+    })
+  }).catch(() => {});
 };
 const socket = io(serverUrl, {
   autoConnect: false,
@@ -296,6 +353,7 @@ function App() {
     pingMs
   }), [isSocketConnected, isSocketReconnecting, pingMs]);
   const hasPlayedReturnPurchaseSoundRef = useRef(false);
+  const hasTrackedPageViewRef = useRef(false);
   const suppressNextPurchaseResultRef = useRef(null);
   const timeSyncSequenceRef = useRef(0);
   const timeSyncSamplesRef = useRef([]);
@@ -432,6 +490,12 @@ function App() {
       isMounted = false;
     };
   }, [applyProfileEntitlementResponse, name]);
+
+  useEffect(() => {
+    if (!profileId || hasTrackedPageViewRef.current) return;
+    hasTrackedPageViewRef.current = true;
+    trackAnalyticsEvent("page_view", { metadata: { profileId } });
+  }, [profileId]);
 
   useEffect(() => {
     const handleRoomState = (state) => setRoomState(state);
@@ -834,6 +898,10 @@ function App() {
   }, [serverOffsetMs]);
 
   const createRoom = () => {
+    trackAnalyticsEvent("host_click", {
+      modeKey: selectedLobbyModeId,
+      metadata: { selectedModeId: selectedLobbyModeId }
+    });
     emitIfConnected("room:create", { name, selectedModeId: selectedLobbyModeId }, (response) => {
       if (response?.error) {
         alert(response.error);
@@ -979,6 +1047,14 @@ function App() {
     setIsViewingRoomPage(true);
   };
 
+  const openStore = useCallback((placement = "unknown") => {
+    trackAnalyticsEvent("store_open", {
+      roomCode: roomId,
+      metadata: { placement }
+    });
+    setShowStore(true);
+  }, [roomId]);
+
   const ownedLobbyModeIds = useMemo(() => {
     const entitlementKeys = new Set(profileEntitledModeKeys || []);
     return lobbyModeOptions
@@ -1087,7 +1163,7 @@ function App() {
             canOpenStore={Boolean(me?.isHost)}
             isPreviewRoom={isPreviewRoom}
             previewComboLimit={roomState?.game?.previewComboLimit ?? null}
-            onOpenStore={() => setShowStore(true)}
+            onOpenStore={() => openStore("room")}
             hostUnlockingPending={Boolean(roomState?.hostUnlockingPending)}
             unlockingProductName={roomState?.unlockingProductName ?? null}
             selectedModeId={roomState?.selectedModeId ?? "standard"}
@@ -1107,7 +1183,7 @@ function App() {
         />
       ) : (
         <LobbyPage
-          onOpenStore={() => setShowStore(true)}
+          onOpenStore={() => openStore("lobby")}
           name={name}
           roomIdInput={roomIdInput}
           pingMs={pingMs}

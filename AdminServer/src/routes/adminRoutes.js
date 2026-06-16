@@ -1,6 +1,7 @@
 const express = require("express");
 const { config } = require("../config");
 const { requireAdmin } = require("../middleware/requireAdmin");
+const { getAdminAnalyticsSection } = require("../services/adminAnalytics");
 const { getGameAnalytics } = require("../services/gameAnalytics");
 const { getLiveRooms, getRoomHistory } = require("../services/liveRooms");
 const { listModeConfigurations, saveModeConfiguration } = require("../services/modeConfigurations");
@@ -24,6 +25,15 @@ router.get("/overview", requireAdmin, (req, res) => {
 router.get("/game-analytics", requireAdmin, async (req, res, next) => {
   try {
     const analytics = await getGameAnalytics({ days: req.query.days });
+    res.json(analytics);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get("/analytics/:sectionId", requireAdmin, async (req, res, next) => {
+  try {
+    const analytics = await getAdminAnalyticsSection(req.params.sectionId, req.query);
     res.json(analytics);
   } catch (error) {
     next(error);

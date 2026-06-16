@@ -57,7 +57,7 @@ const dashboardSections = [
     eyebrow: "Gameplay",
     title: "Mode analytics",
     description:
-      "Usage and performance breakdown for Standard, Blitz, and Chaos modes once mode-level events are captured.",
+      "Usage and performance breakdown for Standard, Blitz, and Chaos modes from recorded game sessions.",
     metrics: [
       { label: "Standard usage", value: "Track", delta: "Sessions by mode" },
       { label: "Blitz usage", value: "Track", delta: "Sessions by mode" },
@@ -94,7 +94,7 @@ const dashboardSections = [
     eyebrow: "Hosts",
     title: "Host analytics",
     description:
-      "Understand hosting activity, purchase behavior, repeat hosts, and games hosted by linking host identifiers across rooms and payments.",
+      "Understand hosting activity, purchase behavior, repeat hosts, and games hosted by linking room creators to purchases.",
     metrics: [
       { label: "Games hosted", value: "Track", delta: "Rooms created per host" },
       { label: "Host purchases", value: "Stripe", delta: "Purchases linked to host identity" },
@@ -152,7 +152,7 @@ const dashboardSections = [
     eyebrow: "Gameplay",
     title: "Gameplay balancing metrics",
     description:
-      "Tune Heat Surge, Corruption, Partial Break, death reasons, and combo difficulty from session telemetry.",
+      "Tune Heat Surge, Corruption, Partial Break, death reasons, and combo difficulty from session and round telemetry.",
     metrics: [
       { label: "Heat Surge", value: "Track", delta: "Occurrence rate per session" },
       { label: "Corruption", value: "Track", delta: "Occurrence rate per session" },
@@ -196,7 +196,7 @@ const dashboardSections = [
     eyebrow: "Retention",
     title: "Retention analytics",
     description:
-      "Track repeat purchases and returning hosts after host identity and purchase events are linked.",
+      "Track repeat purchases and returning hosts from purchase history and room creation events.",
     metrics: [
       { label: "Repeat purchases", value: "Stripe", delta: "Customer or host-linked purchases" },
       { label: "Returning hosts", value: "Track", delta: "Host ID seen across rooms" },
@@ -218,7 +218,7 @@ const dashboardSections = [
     eyebrow: "Acquisition",
     title: "Traffic source analytics",
     description:
-      "Use PostHog or UTM reporting for TikTok, YouTube, Facebook, direct traffic, previews, and purchases.",
+      "Track TikTok, YouTube, Facebook, direct traffic, host clicks, checkout starts, and purchases from analytics events.",
     metrics: [
       { label: "TikTok", value: "PostHog", delta: "utm_source and referrer" },
       { label: "YouTube", value: "PostHog", delta: "utm_source and referrer" },

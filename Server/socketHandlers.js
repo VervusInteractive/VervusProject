@@ -25,6 +25,7 @@ const {
   createEntitlementTransferToken,
   consumeEntitlementTransferToken,
   getProductByKey,
+  recordAnalyticsEvent,
   recordGameSessionStart,
   recordGameSessionEnd,
   logRoomHistoryEvent,
@@ -253,6 +254,21 @@ function registerSocketHandlers(io) {
         playerIds: activePlayers.map((player) => player.playerId),
         replayRound
       });
+      recordAnalyticsEvent({
+        eventName: "round_started",
+        profileId: room.creatorPlayerId,
+        roomCode: roomId,
+        modeKey: room.game.modeId,
+        metadata: {
+          roundNumber: round.roundNumber,
+          isPreview: room.game.isPreview,
+          isReplay: Boolean(replayRound),
+          heatSurgeActive: Boolean(round.heatSurgeActive),
+          deviationType: round.deviationType,
+          isGlitchRound: Boolean(round.isGlitchRound),
+          corruptionIntensityLevel: round.corruptionEffects?.intensityLevel || 0
+        }
+      }).catch((error) => console.error("DB round analytics event failed", error));
 
       room.game.currentRound = round;
       room.game.roundNumber += 1;
@@ -295,6 +311,19 @@ function registerSocketHandlers(io) {
           isPreview: room.game.isPreview
         }
       }).catch((error) => console.error("DB game session end failed", error));
+      recordAnalyticsEvent({
+        eventName: room.game.isPreview ? "preview_completed" : "game_completed",
+        profileId: room.creatorPlayerId,
+        roomCode: roomId,
+        modeKey: room.game.modeId,
+        metadata: {
+          ...metadata,
+          score: room.game.score,
+          finalCombo: room.game.combo,
+          highestCombo: room.game.highestCombo ?? room.game.combo,
+          isPreview: room.game.isPreview
+        }
+      }).catch((error) => console.error("DB completion analytics event failed", error));
     }
     logRoomHistoryEvent({
       roomCode: roomId,
@@ -506,6 +535,17 @@ function registerSocketHandlers(io) {
         room.game.analyticsSessionId = session.id;
       }
     }).catch((error) => console.error("DB game session start failed", error));
+    recordAnalyticsEvent({
+      eventName: room.game.isPreview ? "preview_started" : "game_started",
+      profileId: room.creatorPlayerId,
+      roomCode: roomId,
+      modeKey: room.game.modeId,
+      metadata: {
+        playerCount: participants.length,
+        previewComboLimit: room.game.previewComboLimit,
+        expiresAtMs: room.expiresAtMs
+      }
+    }).catch((error) => console.error("DB start analytics event failed", error));
     scheduleNextRound(room, roomId, 3000);
     emitState(roomId);
   };

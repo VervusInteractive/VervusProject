@@ -531,6 +531,66 @@ async function ensureGameAnalyticsTables() {
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_game_sessions_room_code_started_at ON vervus_data.game_sessions(room_code, started_at DESC);`);
 }
 
+async function ensureAnalyticsEventTables() {
+  await ensureRoomTrackingTables();
+  await pool.query(`CREATE TABLE IF NOT EXISTS vervus_data.analytics_events (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    event_name TEXT NOT NULL,
+    event_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    profile_id UUID NULL,
+    room_code TEXT NULL,
+    product_key TEXT NULL,
+    mode_key TEXT NULL,
+    source TEXT NULL,
+    referrer TEXT NULL,
+    session_id TEXT NULL,
+    metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  );`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_analytics_events_event_at ON vervus_data.analytics_events(event_at DESC);`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_analytics_events_name_event_at ON vervus_data.analytics_events(event_name, event_at DESC);`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_analytics_events_profile_event_at ON vervus_data.analytics_events(profile_id, event_at DESC);`);
+}
+
+function normalizeAnalyticsText(value, maxLength = 120) {
+  const normalized = String(value || "").trim();
+  return normalized ? normalized.slice(0, maxLength) : null;
+}
+
+async function recordAnalyticsEvent({
+  eventName,
+  profileId = null,
+  roomCode = null,
+  productKey = null,
+  modeKey = null,
+  source = null,
+  referrer = null,
+  sessionId = null,
+  metadata = {}
+}) {
+  const normalizedEventName = normalizeAnalyticsText(eventName, 80);
+  if (!normalizedEventName) return null;
+
+  await ensureAnalyticsEventTables();
+  const { rows } = await pool.query(
+    `INSERT INTO vervus_data.analytics_events (event_name, profile_id, room_code, product_key, mode_key, source, referrer, session_id, metadata)
+     VALUES ($1, $2::uuid, $3, $4, $5, $6, $7, $8, $9::jsonb)
+     RETURNING id`,
+    [
+      normalizedEventName,
+      profileId || null,
+      normalizeAnalyticsText(roomCode, 32),
+      normalizeAnalyticsText(productKey, 80),
+      normalizeAnalyticsText(modeKey, 64),
+      normalizeAnalyticsText(source, 120),
+      normalizeAnalyticsText(referrer, 500),
+      normalizeAnalyticsText(sessionId, 140),
+      JSON.stringify(metadata || {})
+    ]
+  );
+  return rows[0] || null;
+}
+
 async function recordGameSessionStart({ roomCode, modeKey = 'standard', isPreview = false, playerCount = 0, metadata = {} }) {
   await ensureGameAnalyticsTables();
   const { rows } = await pool.query(
@@ -617,4 +677,4 @@ async function deletePlayerRecord(playerId) { await pool.query('DELETE FROM verv
 async function updateRoomStatus({ roomCode, status, metadata = {} }) { await ensureRoomTrackingTables(); await pool.query(`UPDATE vervus_data.rooms SET status = $2::vervus_data.room_status, started_at = CASE WHEN $2 IN ('preview', 'premium', 'active') THEN COALESCE(started_at, now()) ELSE started_at END, ended_at = CASE WHEN $2 IN ('ended', 'expired') THEN now() ELSE ended_at END, metadata = COALESCE(metadata, '{}'::jsonb) || $3::jsonb WHERE room_code = $1`, [roomCode, status, JSON.stringify(metadata || {})]); }
 async function deleteRoomRecord(roomCode) { await pool.query('DELETE FROM vervus_data.rooms WHERE room_code = $1', [roomCode]); }
 
-module.exports = { pool, testDbConnection, ensureRoomTrackingTables, logRoomHistoryEvent, logErrorEntry, ensurePlayerProfileTables, ensureGameAnalyticsTables, recordGameSessionStart, recordGameSessionEnd, upsertPlayerProfile, grantPlayerProfileEntitlement, getActivePlayerProfileEntitlement, getActiveEntitledModeKeys, getActiveEntitlementExpiriesByMode, createPlayerProfileSession, getPlayerProfileIdBySessionToken, createEntitlementTransferToken, consumeEntitlementTransferToken, getProductByKey, createPendingPurchase, attachStripeSessionToPurchase, completePurchaseAndGrantEntitlementByStripeSession, recordStripeWebhookEvent, markStripeWebhookEventProcessed, markStripeWebhookEventFailed, getPurchaseStatusByStripeSession, getRecentErrorLogs, getRecentRoomHistory, getRecentStripeWebhookEvents, markPurchaseFailedByStripeSession, getProductById, createRoomRecord, addPlayerRecord, updatePlayerReady, updatePlayerConnection, deletePlayerRecord, updateRoomStatus, deleteRoomRecord };
+module.exports = { pool, testDbConnection, ensureRoomTrackingTables, logRoomHistoryEvent, logErrorEntry, ensurePlayerProfileTables, ensureGameAnalyticsTables, ensureAnalyticsEventTables, recordAnalyticsEvent, recordGameSessionStart, recordGameSessionEnd, upsertPlayerProfile, grantPlayerProfileEntitlement, getActivePlayerProfileEntitlement, getActiveEntitledModeKeys, getActiveEntitlementExpiriesByMode, createPlayerProfileSession, getPlayerProfileIdBySessionToken, createEntitlementTransferToken, consumeEntitlementTransferToken, getProductByKey, createPendingPurchase, attachStripeSessionToPurchase, completePurchaseAndGrantEntitlementByStripeSession, recordStripeWebhookEvent, markStripeWebhookEventProcessed, markStripeWebhookEventFailed, getPurchaseStatusByStripeSession, getRecentErrorLogs, getRecentRoomHistory, getRecentStripeWebhookEvents, markPurchaseFailedByStripeSession, getProductById, createRoomRecord, addPlayerRecord, updatePlayerReady, updatePlayerConnection, deletePlayerRecord, updateRoomStatus, deleteRoomRecord };

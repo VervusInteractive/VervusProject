@@ -2,12 +2,25 @@ import { useMemo, useState } from "react";
 import { adminApiUrl } from "../config";
 import { dashboardSections } from "../data/dashboardSections";
 import { SectionNavigation } from "./Navigation";
+import { AdminAnalyticsPanel } from "./AdminAnalyticsPanel";
 import { DataTable, FunnelPanel, MetricGrid, PlaceholderChart, TimelinePanel } from "./DashboardWidgets";
 import { GameAnalyticsPanel } from "./GameAnalyticsPanel";
 import { LiveRoomsPanel } from "./LiveRoomsPanel";
 import { ModeConfigPanel } from "./ModeConfigPanel";
 import { ProductsPanel } from "./ProductsPanel";
 import { RoomHistoryPanel } from "./RoomHistoryPanel";
+
+const apiBackedAnalyticsSections = new Set([
+  "overview",
+  "sales",
+  "modes",
+  "hosts",
+  "errors",
+  "balancing",
+  "previews",
+  "retention",
+  "traffic"
+]);
 
 function DashboardPage({ adminKey, overview, status, isLoading, onRefresh, onSignOut }) {
   const [activeSectionId, setActiveSectionId] = useState(dashboardSections[0].id);
@@ -44,7 +57,9 @@ function DashboardPage({ adminKey, overview, status, isLoading, onRefresh, onSig
           <span>Checked: {overview?.checkedAt || "Not checked"}</span>
         </section>
 
-        {activeSection.id === "game" ? (
+        {apiBackedAnalyticsSections.has(activeSection.id) ? (
+          <AdminAnalyticsPanel adminKey={adminKey} sectionId={activeSection.id} />
+        ) : activeSection.id === "game" ? (
           <GameAnalyticsPanel adminKey={adminKey} />
         ) : activeSection.id === "live-rooms" ? (
           <LiveRoomsPanel adminKey={adminKey} />

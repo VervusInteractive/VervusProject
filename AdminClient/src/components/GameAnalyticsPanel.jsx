@@ -56,7 +56,7 @@ function GameAnalyticsPanel({ adminKey }) {
     session.isPreview ? "Preview" : "Premium",
     session.endedAt ? formatDuration(session.durationMs) : "In progress",
     `${formatNumber(session.highestCombo)}x`,
-    session.endReason || "—"
+    session.endReason || "-"
   ]);
 
   return (

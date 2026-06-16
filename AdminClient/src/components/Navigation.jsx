@@ -1,31 +1,37 @@
 import { useState } from "react";
 import { dashboardSections } from "../data/dashboardSections";
 
-const manageGamesSectionIds = ["game", "mode-config"];
-const manageRoomsSectionIds = ["live-rooms", "room-history"];
-const manageProductsSectionIds = ["products"];
+const analyticsSectionIds = ["sales", "game", "modes", "balancing", "previews", "hosts", "retention", "traffic"];
+const operationsSectionIds = ["live-rooms", "room-history", "errors"];
+const configurationSectionIds = ["mode-config", "products"];
+
+function getSectionsByIds(sectionIds) {
+  return sectionIds
+    .map((sectionId) => dashboardSections.find((section) => section.id === sectionId))
+    .filter(Boolean);
+}
 
 const navigationGroups = [
   {
-    id: "manage-games",
-    label: "Manage Games",
-    menuId: "manage-games-menu",
-    sectionIds: manageGamesSectionIds,
-    sections: dashboardSections.filter((section) => manageGamesSectionIds.includes(section.id))
+    id: "analytics",
+    label: "Analytics",
+    menuId: "analytics-menu",
+    sectionIds: analyticsSectionIds,
+    sections: getSectionsByIds(analyticsSectionIds)
   },
   {
-    id: "manage-rooms",
-    label: "Manage Rooms",
-    menuId: "manage-rooms-menu",
-    sectionIds: manageRoomsSectionIds,
-    sections: dashboardSections.filter((section) => manageRoomsSectionIds.includes(section.id))
+    id: "operations",
+    label: "Live ops and logs",
+    menuId: "operations-menu",
+    sectionIds: operationsSectionIds,
+    sections: getSectionsByIds(operationsSectionIds)
   },
   {
-    id: "manage-products",
-    label: "Manage Products",
-    menuId: "manage-products-menu",
-    sectionIds: manageProductsSectionIds,
-    sections: dashboardSections.filter((section) => manageProductsSectionIds.includes(section.id))
+    id: "configuration",
+    label: "Configuration",
+    menuId: "configuration-menu",
+    sectionIds: configurationSectionIds,
+    sections: getSectionsByIds(configurationSectionIds)
   }
 ];
 

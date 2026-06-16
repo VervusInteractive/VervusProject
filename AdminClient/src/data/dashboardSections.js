@@ -4,49 +4,21 @@ const dashboardSections = [
     label: "Platform overview",
     eyebrow: "Command center",
     title: "Platform overview",
-    description: "Live admin connection details and service status for Vervus. Analytics cards and mock data are hidden until real reporting is connected."
-  },
-  {
-    id: "conversion",
-    label: "Conversion funnel",
-    eyebrow: "Growth",
-    title: "Conversion funnel",
-    description: "Track the complete journey from visitor to host click, preview, checkout, and purchase.",
-    funnel: [
-      { label: "Visitors", value: "24,890", percent: 100 },
-      { label: "Host game clicks", value: "15,410", percent: 62 },
-      { label: "Preview", value: "8,742", percent: 35 },
-      { label: "Checkout", value: "2,340", percent: 9 },
-      { label: "Purchase", value: "1,286", percent: 5 }
-    ],
-    tableTitle: "Funnel notes",
-    tableColumns: ["Stage", "Drop-off", "Action"],
-    rows: [
-      ["Host click → Preview", "43%", "Improve CTA clarity"],
-      ["Preview → Checkout", "73%", "Add social proof"],
-      ["Checkout → Purchase", "45%", "Review payment friction"]
-    ]
-  },
-  {
-    id: "website",
-    label: "Website analytics",
-    eyebrow: "Website",
-    title: "Website analytics",
-    description: "Monitor visitor behavior, scroll depth, and host-game engagement across marketing pages.",
+    description:
+      "Practical admin visibility across the services that should own the data first: PostHog for traffic, Stripe for commerce, Render for logs, and the game database for rooms and gameplay.",
     metrics: [
-      { label: "Visitors", value: "24,890", delta: "+12.4%" },
-      { label: "Avg. scroll depth", value: "68%", delta: "+4.0%" },
-      { label: "Host game clicks", value: "15,410", delta: "+9.8%" },
-      { label: "Bounce rate", value: "31%", delta: "-2.6%" }
+      { label: "Visitors", value: "PostHog", delta: "Traffic source and session events" },
+      { label: "Previews", value: "Game DB", delta: "preview_started and preview_completed" },
+      { label: "Sales", value: "Stripe", delta: "Checkout and payment events" },
+      { label: "Revenue", value: "Stripe", delta: "Dashboard first, webhook mirror later" }
     ],
-    chartTitle: "Engagement by page section",
-    chartBars: [95, 82, 74, 65, 47, 38],
-    tableTitle: "Top pages",
-    tableColumns: ["Page", "Visitors", "Host clicks"],
+    tableTitle: "Recommended data sources",
+    tableColumns: ["Area", "Primary source", "Admin panel role"],
     rows: [
-      ["Homepage", "18,240", "11,904"],
-      ["How it works", "4,318", "2,012"],
-      ["Pricing", "2,332", "1,494"]
+      ["Website traffic", "PostHog", "Embed or summarize only the high-value funnel events"],
+      ["Sales and revenue", "Stripe", "Use Stripe as source of truth; mirror essentials into admin later"],
+      ["Game sessions", "Game database", "Use existing game analytics endpoint and extend event capture"],
+      ["Logs and incidents", "Render logs", "Link operational issues back to room, payment, or reconnect events"]
     ]
   },
   {
@@ -54,19 +26,21 @@ const dashboardSections = [
     label: "Sales dashboard",
     eyebrow: "Commerce",
     title: "Sales dashboard",
-    description: "Placeholder sales operations view for transactions, revenue, and product performance.",
+    description:
+      "Track sales, revenue, products sold, checkout issues, and product performance with Stripe as the first source of truth.",
     metrics: [
-      { label: "Sales", value: "1,286", delta: "+5.7%" },
-      { label: "Revenue", value: "$38.6K", delta: "+14.2%" },
-      { label: "Products sold", value: "1,478", delta: "+6.9%" },
-      { label: "Avg. order", value: "$30.02", delta: "+3.2%" }
+      { label: "Sales", value: "Stripe", delta: "Completed checkout sessions" },
+      { label: "Revenue", value: "Stripe", delta: "Gross, net, refunds, and fees" },
+      { label: "Products sold", value: "Stripe", delta: "Line item and price reports" },
+      { label: "Payment issues", value: "Stripe", delta: "Failed payment and dispute visibility" }
     ],
-    tableTitle: "Products sold",
-    tableColumns: ["Product", "Units", "Revenue"],
+    tableTitle: "Commerce visibility plan",
+    tableColumns: ["Need", "Fastest source", "Admin panel support"],
     rows: [
-      ["Party Pack", "724", "$21.7K"],
-      ["Streamer Pack", "418", "$12.5K"],
-      ["Event Pack", "336", "$4.4K"]
+      ["Sales and revenue totals", "Stripe Dashboard", "Keep accessible; add summary cards when webhook data exists"],
+      ["Products sold", "Stripe line items", "Map price IDs to admin products"],
+      ["Checkout started", "Stripe Checkout + game event", "Capture checkout_started before redirect"],
+      ["Purchase completed", "Stripe webhook", "Store purchase_completed with room and host identifiers"]
     ]
   },
   {
@@ -74,41 +48,29 @@ const dashboardSections = [
     label: "Game analytics",
     eyebrow: "Gameplay",
     title: "Game analytics",
-    description: "Sessions, combo performance, and duration metrics for each game experience.",
-    metrics: [
-      { label: "Sessions", value: "6,204", delta: "+11.0%" },
-      { label: "Avg. combo", value: "7.4x", delta: "+0.8x" },
-      { label: "Highest combo", value: "42x", delta: "Record" },
-      { label: "Avg. duration", value: "11m 24s", delta: "+36s" }
-    ],
-    tableTitle: "Game performance",
-    tableColumns: ["Game", "Sessions", "Avg. duration"],
-    rows: [
-      ["Glitch Grid", "2,184", "12m 05s"],
-      ["Signal Rush", "1,846", "10m 42s"],
-      ["Corruption Core", "1,324", "13m 18s"]
-    ]
+    description:
+      "Sessions, combo performance, and duration metrics from the database-backed game analytics endpoint."
   },
   {
     id: "modes",
     label: "Mode analytics",
     eyebrow: "Gameplay",
     title: "Mode analytics",
-    description: "Usage and performance breakdown for Standard, Blitz, and Chaos game modes.",
+    description:
+      "Usage and performance breakdown for Standard, Blitz, and Chaos modes once mode-level events are captured.",
     metrics: [
-      { label: "Standard usage", value: "51%", delta: "+2.1%" },
-      { label: "Blitz usage", value: "29%", delta: "+4.8%" },
-      { label: "Chaos usage", value: "20%", delta: "-1.6%" },
-      { label: "Best retention", value: "Chaos", delta: "38% return" }
+      { label: "Standard usage", value: "Track", delta: "Sessions by mode" },
+      { label: "Blitz usage", value: "Track", delta: "Sessions by mode" },
+      { label: "Chaos usage", value: "Track", delta: "Sessions by mode" },
+      { label: "Performance", value: "Compare", delta: "Combo, duration, and completion" }
     ],
-    chartTitle: "Mode performance score",
-    chartBars: [76, 68, 84],
-    tableTitle: "Mode comparison",
-    tableColumns: ["Mode", "Sessions", "Win rate"],
+    tableTitle: "Mode analytics events",
+    tableColumns: ["Metric", "Event or field", "Source"],
     rows: [
-      ["Standard", "3,164", "46%"],
-      ["Blitz", "1,799", "39%"],
-      ["Chaos", "1,241", "32%"]
+      ["Mode usage", "game_session.started mode_key", "Game database"],
+      ["Mode performance", "duration_ms, final_combo, highest_combo", "Game database"],
+      ["Preview versus paid mode use", "is_preview", "Game database"],
+      ["Mode retention", "host_id plus repeat sessions", "Host analytics"]
     ]
   },
   {
@@ -120,41 +82,44 @@ const dashboardSections = [
   },
   {
     id: "products",
-    label: "Products & prices",
+    label: "Products and prices",
     eyebrow: "Commerce",
     title: "Products and prices",
-    description: "View and edit purchasable products, prices, entitlement duration, sale status, and which game modes each product unlocks."
+    description:
+      "View and edit purchasable products, prices, entitlement duration, sale status, and which game modes each product unlocks."
   },
   {
     id: "hosts",
     label: "Host analytics",
     eyebrow: "Hosts",
     title: "Host analytics",
-    description: "Understand hosting activity, purchase behavior, and repeat-host retention.",
+    description:
+      "Understand hosting activity, purchase behavior, repeat hosts, and games hosted by linking host identifiers across rooms and payments.",
     metrics: [
-      { label: "Games hosted", value: "3,982", delta: "+7.3%" },
-      { label: "Host purchases", value: "846", delta: "+6.5%" },
-      { label: "Repeat hosts", value: "39%", delta: "+3.4%" },
-      { label: "Avg. rooms / host", value: "2.8", delta: "+0.2" }
+      { label: "Games hosted", value: "Track", delta: "Rooms created per host" },
+      { label: "Host purchases", value: "Stripe", delta: "Purchases linked to host identity" },
+      { label: "Repeat hosts", value: "Track", delta: "Returning host ID or email" },
+      { label: "Rooms per host", value: "Track", delta: "Room creation history" }
     ],
-    tableTitle: "Host segments",
-    tableColumns: ["Segment", "Hosts", "Purchase rate"],
+    tableTitle: "Host analytics requirements",
+    tableColumns: ["Need", "Identifier", "Source"],
     rows: [
-      ["First-time", "2,914", "18%"],
-      ["Returning", "1,068", "41%"],
-      ["Power hosts", "184", "67%"]
+      ["Games hosted", "host_id or normalized email", "Room creation events"],
+      ["Purchases", "stripe_customer_id plus host_id", "Stripe webhook mirror"],
+      ["Repeat hosts", "stable host_id", "Rooms and sessions"],
+      ["Support lookup", "room_code plus host_id", "Live rooms and room history"]
     ]
   },
   {
     id: "live-rooms",
-    label: "Live Rooms",
+    label: "Live rooms",
     eyebrow: "Operations",
     title: "Live rooms overview",
     description: "Monitor active rooms, player counts, mode, lifecycle status, and average player ping."
   },
   {
     id: "room-history",
-    label: "Room History",
+    label: "Room history",
     eyebrow: "Operations",
     title: "Room history viewer",
     description: "Audit joins, leaves, starts, ends, and host changes for completed or active rooms."
@@ -164,19 +129,21 @@ const dashboardSections = [
     label: "Error logs",
     eyebrow: "Reliability",
     title: "Error log viewer",
-    description: "Placeholder log console for warnings, errors, and critical platform issues.",
+    description:
+      "Track warnings, errors, critical issues, room failures, payment issues, and reconnect problems without rebuilding Render or Stripe logging.",
     metrics: [
-      { label: "Warnings", value: "14", delta: "Last 24h" },
-      { label: "Errors", value: "3", delta: "Last 24h" },
-      { label: "Critical", value: "0", delta: "Clear" },
-      { label: "MTTR", value: "8m", delta: "Target met" }
+      { label: "Room errors", value: "Render", delta: "Server logs with room_code context" },
+      { label: "Payment issues", value: "Stripe", delta: "Failed payments and checkout errors" },
+      { label: "Reconnect issues", value: "Game DB", delta: "Room history and connection events" },
+      { label: "Critical issues", value: "Alerts", delta: "Render alerts or external monitor" }
     ],
-    tableTitle: "Latest logs",
-    tableColumns: ["Severity", "Source", "Message"],
+    tableTitle: "Operational log sources",
+    tableColumns: ["Issue type", "Fastest source", "Admin panel support"],
     rows: [
-      ["Warning", "socket", "Reconnect spike detected"],
-      ["Error", "checkout", "Payment retry required"],
-      ["Warning", "room", "Ping above threshold"]
+      ["Room errors", "Render logs", "Add room_code and mode_key to server log context"],
+      ["Payment issues", "Stripe events", "Show linked checkout or payment failure records later"],
+      ["Reconnect issues", "Room history", "Capture reconnect_started and reconnect_failed events"],
+      ["Critical incidents", "Render alerts", "Summarize incident state when monitoring is connected"]
     ]
   },
   {
@@ -184,20 +151,21 @@ const dashboardSections = [
     label: "Balancing metrics",
     eyebrow: "Gameplay",
     title: "Gameplay balancing metrics",
-    description: "Tune Heat Surge, Corruption, Partial Break, death reasons, and combo difficulty.",
+    description:
+      "Tune Heat Surge, Corruption, Partial Break, death reasons, and combo difficulty from session telemetry.",
     metrics: [
-      { label: "Heat Surge", value: "18%", delta: "Target 15–22%" },
-      { label: "Corruption", value: "12%", delta: "Target 10–16%" },
-      { label: "Partial Break", value: "27%", delta: "Target 24–30%" },
-      { label: "Average combo", value: "7.4x", delta: "+0.8x" }
+      { label: "Heat Surge", value: "Track", delta: "Occurrence rate per session" },
+      { label: "Corruption", value: "Track", delta: "Occurrence rate per session" },
+      { label: "Partial Break", value: "Track", delta: "Occurrence rate per session" },
+      { label: "Average combo", value: "Live", delta: "Already available in game analytics" }
     ],
-    tableTitle: "Death reasons",
-    tableColumns: ["Reason", "Share", "Trend"],
+    tableTitle: "Balancing event capture",
+    tableColumns: ["Metric", "Event or field", "Use"],
     rows: [
-      ["Timeout", "34%", "Stable"],
-      ["Corruption overload", "28%", "+2%"],
-      ["Missed chain", "21%", "-1%"],
-      ["Heat Surge", "17%", "+1%"]
+      ["Heat Surge percent", "heat_surge_triggered", "Tune intensity and frequency"],
+      ["Corruption percent", "corruption_triggered", "Tune penalty pressure"],
+      ["Partial Break percent", "partial_break_triggered", "Tune forgiveness"],
+      ["Death reasons", "session_end end_reason", "Identify unfair or boring failure states"]
     ]
   },
   {
@@ -205,21 +173,21 @@ const dashboardSections = [
     label: "Preview analytics",
     eyebrow: "Growth",
     title: "Preview analytics",
-    description: "Track preview starts, completions, and preview-to-purchase conversion.",
+    description:
+      "Track preview starts, preview completions, checkout handoff, and preview-to-purchase conversion.",
     metrics: [
-      { label: "Preview starts", value: "8,742", delta: "+8.1%" },
-      { label: "Completions", value: "5,916", delta: "+6.6%" },
-      { label: "Completion rate", value: "67.7%", delta: "Healthy" },
-      { label: "Preview → purchase", value: "14.7%", delta: "+1.9%" }
+      { label: "Preview starts", value: "Track", delta: "preview_started" },
+      { label: "Completions", value: "Track", delta: "preview_completed" },
+      { label: "Checkout handoff", value: "Track", delta: "checkout_started from preview" },
+      { label: "Purchase conversion", value: "Stripe", delta: "purchase_completed after preview" }
     ],
-    chartTitle: "Preview completion trend",
-    chartBars: [58, 62, 66, 61, 70, 74, 78],
-    tableTitle: "Preview drop-off",
-    tableColumns: ["Moment", "Drop-off", "Opportunity"],
+    tableTitle: "Preview funnel events",
+    tableColumns: ["Stage", "Event", "Source"],
     rows: [
-      ["Intro", "11%", "Shorten setup"],
-      ["First challenge", "14%", "Add hint"],
-      ["Purchase CTA", "7%", "Clarify offer"]
+      ["Preview starts", "preview_started", "Game client or game server"],
+      ["Preview completions", "preview_completed", "Game server"],
+      ["Checkout started", "checkout_started", "Game server before Stripe redirect"],
+      ["Purchase completed", "purchase_completed", "Stripe webhook"]
     ]
   },
   {
@@ -227,19 +195,21 @@ const dashboardSections = [
     label: "Retention analytics",
     eyebrow: "Retention",
     title: "Retention analytics",
-    description: "Placeholder retention view for repeat purchases and returning host behavior.",
+    description:
+      "Track repeat purchases and returning hosts after host identity and purchase events are linked.",
     metrics: [
-      { label: "Repeat purchases", value: "31%", delta: "+4.3%" },
-      { label: "Returning hosts", value: "39%", delta: "+3.4%" },
-      { label: "30-day retention", value: "44%", delta: "+2.2%" },
-      { label: "Churn risk", value: "12%", delta: "-1.5%" }
+      { label: "Repeat purchases", value: "Stripe", delta: "Customer or host-linked purchases" },
+      { label: "Returning hosts", value: "Track", delta: "Host ID seen across rooms" },
+      { label: "Purchase cohorts", value: "Later", delta: "When enough event history exists" },
+      { label: "Churn risk", value: "Later", delta: "Derived from host inactivity" }
     ],
-    tableTitle: "Retention cohorts",
-    tableColumns: ["Cohort", "Returning hosts", "Repeat purchase"],
+    tableTitle: "Retention dimensions",
+    tableColumns: ["Metric", "Required data", "Source"],
     rows: [
-      ["Week 1", "52%", "18%"],
-      ["Week 2", "44%", "25%"],
-      ["Week 3", "39%", "31%"]
+      ["Repeat purchases", "stripe_customer_id or host_id", "Stripe plus admin DB"],
+      ["Returning hosts", "host_id across room_created events", "Game database"],
+      ["Cohorts", "first_purchase_at and follow-up purchases", "Admin analytics table"],
+      ["Support follow-up", "host_id, email, latest room", "Host analytics and live rooms"]
     ]
   },
   {
@@ -247,20 +217,21 @@ const dashboardSections = [
     label: "Traffic sources",
     eyebrow: "Acquisition",
     title: "Traffic source analytics",
-    description: "Understand which channels drive visitors, previews, and purchases.",
+    description:
+      "Use PostHog or UTM reporting for TikTok, YouTube, Facebook, direct traffic, previews, and purchases.",
     metrics: [
-      { label: "TikTok", value: "38%", delta: "+6.2%" },
-      { label: "YouTube", value: "24%", delta: "+3.1%" },
-      { label: "Facebook", value: "14%", delta: "-0.8%" },
-      { label: "Direct", value: "19%", delta: "+1.2%" }
+      { label: "TikTok", value: "PostHog", delta: "utm_source and referrer" },
+      { label: "YouTube", value: "PostHog", delta: "utm_source and referrer" },
+      { label: "Facebook", value: "PostHog", delta: "utm_source and referrer" },
+      { label: "Direct", value: "PostHog", delta: "No referrer or UTM" }
     ],
-    tableTitle: "Channel performance",
-    tableColumns: ["Source", "Visitors", "Purchases"],
+    tableTitle: "Traffic attribution plan",
+    tableColumns: ["Source", "Capture", "Conversion link"],
     rows: [
-      ["TikTok", "9,458", "512"],
-      ["YouTube", "5,974", "344"],
-      ["Facebook", "3,485", "128"],
-      ["Direct", "4,729", "249"]
+      ["TikTok", "utm_source=tiktok", "Persist attribution through preview and checkout"],
+      ["YouTube", "utm_source=youtube", "Persist attribution through preview and checkout"],
+      ["Facebook", "utm_source=facebook", "Persist attribution through preview and checkout"],
+      ["Direct", "landing URL and no referrer", "Attach anonymous ID before checkout"]
     ]
   }
 ];

@@ -5,6 +5,7 @@
   "description": "Basic admin API server for Vervus deployments on Render.",
   "main": "index.js",
   "scripts": {
+    "check": "node -e \"const { createApp } = require('./src/app'); const app = createApp(); if (typeof app.listen !== 'function') process.exit(1);\"",
     "dev": "nodemon index.js",
     "start": "node index.js"
   },

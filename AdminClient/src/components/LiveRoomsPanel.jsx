@@ -1,7 +1,14 @@
 import { useEffect, useState } from "react";
 import { adminApiUrl } from "../config";
-import { DataTable, EmptyPanel } from "./DashboardWidgets";
-import { formatDateTime, formatPing, formatPlayers, formatStatusLabel } from "../utils/formatters";
+import { DataTable, EmptyPanel, MetricGrid } from "./DashboardWidgets";
+import {
+  formatDateTime,
+  formatNumber,
+  formatPing,
+  formatPlayers,
+  formatStatusLabel,
+  humanizeKey
+} from "../utils/formatters";
 
 function LiveRoomsPanel({ adminKey }) {
   const [liveRooms, setLiveRooms] = useState(null);

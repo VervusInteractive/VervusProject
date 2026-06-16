@@ -9,6 +9,7 @@ import {
   emptyModeForm,
   falseTwinTypeOptions,
   normalizeModeForm,
+  normalizeOrientationLock,
   normalizeProductKey,
   updateListItem,
   visualEffectOptions

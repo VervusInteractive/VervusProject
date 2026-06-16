@@ -89,7 +89,7 @@ function SectionNavigation({ activeSectionId, onSectionChange }) {
                   onClick={() => handleNavigationGroupClick(item.group)}
                 >
                   <span>{item.group.label}</span>
-                  <span aria-hidden="true">{isGroupOpen ? "−" : "+"}</span>
+                  <span aria-hidden="true">{isGroupOpen ? "-" : "+"}</span>
                 </button>
 
                 {isGroupOpen && (
@@ -99,7 +99,7 @@ function SectionNavigation({ activeSectionId, onSectionChange }) {
                         key={section.id}
                         type="button"
                         className={section.id === activeSectionId ? "submenu-item active" : "submenu-item"}
-                        onClick={() => onSectionChange(section.id)}
+                        onClick={() => handleSectionChange(section.id)}
                       >
                         {section.label}
                       </button>

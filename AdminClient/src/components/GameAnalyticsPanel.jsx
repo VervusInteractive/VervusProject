@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { adminApiUrl } from "../config";
-import { DataTable, EmptyPanel } from "./DashboardWidgets";
+import { DataTable, EmptyPanel, MetricGrid } from "./DashboardWidgets";
 import { formatCombo, formatDateTime, formatDuration, formatNumber } from "../utils/formatters";
 
 function GameAnalyticsPanel({ adminKey }) {

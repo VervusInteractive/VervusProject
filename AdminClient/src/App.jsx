@@ -4,19 +4,28 @@ import { LoginPage } from "./components/Auth";
 import { DashboardPage } from "./components/DashboardPage";
 
 function App() {
+  const [adminActor, setAdminActor] = useState("");
   const [adminKey, setAdminKey] = useState("");
   const [overview, setOverview] = useState(null);
   const [status, setStatus] = useState("Enter your Admin Key to continue.");
   const [isLoading, setIsLoading] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
-  async function loadOverview(key = adminKey) {
+  function getAdminHeaders(key = adminKey, actor = adminActor) {
+    return {
+      ...(key ? { "X-Admin-Token": key } : {}),
+      ...(actor.trim() ? { "X-Admin-Actor": actor.trim() } : {})
+    };
+  }
+
+  async function loadOverview(key = adminKey, { logLogin = false, actor = adminActor } = {}) {
     setIsLoading(true);
     setStatus("Verifying Admin Key...");
 
     try {
-      const response = await fetch(`${adminApiUrl}/api/admin/overview`, {
-        headers: key ? { "X-Admin-Token": key } : {}
+      const response = await fetch(`${adminApiUrl}/api/admin/${logLogin ? "login" : "overview"}`, {
+        method: logLogin ? "POST" : "GET",
+        headers: getAdminHeaders(key, actor)
       });
       const payload = await response.json();
 
@@ -39,12 +48,19 @@ function App() {
   function handleLogin(event) {
     event.preventDefault();
     const trimmedAdminKey = adminKey.trim();
+    const trimmedAdminActor = adminActor.trim();
     setAdminKey(trimmedAdminKey);
-    loadOverview(trimmedAdminKey);
+    setAdminActor(trimmedAdminActor);
+    loadOverview(trimmedAdminKey, { logLogin: true, actor: trimmedAdminActor });
   }
 
   function handleSignOut() {
+    fetch(`${adminApiUrl}/api/admin/logout`, {
+      method: "POST",
+      headers: getAdminHeaders()
+    }).catch(() => {});
     setAdminKey("");
+    setAdminActor("");
     setOverview(null);
     setIsAuthenticated(false);
     setStatus("Signed out. Enter your Admin Key to continue.");
@@ -53,6 +69,7 @@ function App() {
   if (isAuthenticated) {
     return (
       <DashboardPage
+        adminActor={adminActor}
         adminKey={adminKey}
         overview={overview}
         status={status}
@@ -65,9 +82,11 @@ function App() {
 
   return (
     <LoginPage
+      adminActor={adminActor}
       adminKey={adminKey}
       status={status}
       isLoading={isLoading}
+      onAdminActorChange={setAdminActor}
       onAdminKeyChange={setAdminKey}
       onSubmit={handleLogin}
     />

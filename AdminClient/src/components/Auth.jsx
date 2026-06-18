@@ -1,4 +1,4 @@
-function LoginPage({ adminKey, status, isLoading, onAdminKeyChange, onSubmit }) {
+function LoginPage({ adminActor, adminKey, status, isLoading, onAdminActorChange, onAdminKeyChange, onSubmit }) {
   return (
     <main className="admin-shell login-shell">
       <section className="hero-card login-card">
@@ -9,6 +9,16 @@ function LoginPage({ adminKey, status, isLoading, onAdminKeyChange, onSubmit }) 
         </p>
 
         <form className="login-form" onSubmit={onSubmit}>
+          <label className="token-field">
+            <span>Admin name</span>
+            <input
+              value={adminActor}
+              onChange={(event) => onAdminActorChange(event.target.value)}
+              placeholder="Who is signing in?"
+              autoComplete="username"
+            />
+          </label>
+
           <label className="token-field">
             <span>Admin Key</span>
             <input

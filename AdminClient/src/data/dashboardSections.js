@@ -125,6 +125,13 @@ const dashboardSections = [
     description: "Audit joins, leaves, starts, ends, and host changes for completed or active rooms."
   },
   {
+    id: "admin-activity",
+    label: "Admin activity",
+    eyebrow: "Operations",
+    title: "Admin activity log",
+    description: "View admin logins, sign-outs, and database-backed edits recorded by the admin server."
+  },
+  {
     id: "errors",
     label: "Error logs",
     eyebrow: "Reliability",

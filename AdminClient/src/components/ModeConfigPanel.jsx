@@ -15,7 +15,7 @@ import {
   visualEffectOptions
 } from "../data/modeConfig";
 
-function ModeConfigPanel({ adminKey }) {
+function ModeConfigPanel({ adminActor, adminKey }) {
   const [modes, setModes] = useState([]);
   const [modeForm, setModeForm] = useState(emptyModeForm);
   const [configStatus, setConfigStatus] = useState("Loading database-backed game configuration...");
@@ -26,13 +26,21 @@ function ModeConfigPanel({ adminKey }) {
     loadModes();
   }, []);
 
+  function getAdminHeaders(extraHeaders = {}) {
+    return {
+      ...extraHeaders,
+      ...(adminKey ? { "X-Admin-Token": adminKey } : {}),
+      ...(adminActor?.trim() ? { "X-Admin-Actor": adminActor.trim() } : {})
+    };
+  }
+
   async function loadModes() {
     setIsConfigLoading(true);
     setConfigStatus("Loading modes from database...");
 
     try {
       const response = await fetch(`${adminApiUrl}/api/admin/game-modes`, {
-        headers: adminKey ? { "X-Admin-Token": adminKey } : {}
+        headers: getAdminHeaders()
       });
       const payload = await response.json();
       if (!response.ok) {
@@ -65,10 +73,7 @@ function ModeConfigPanel({ adminKey }) {
     try {
       const response = await fetch(`${adminApiUrl}/api/admin/game-modes/${encodeURIComponent(modeKey)}`, {
         method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          ...(adminKey ? { "X-Admin-Token": adminKey } : {})
-        },
+        headers: getAdminHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({ ...modeForm, modeKey })
       });
       const payload = await response.json();

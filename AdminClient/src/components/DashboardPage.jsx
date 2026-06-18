@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { adminApiUrl } from "../config";
 import { dashboardSections } from "../data/dashboardSections";
 import { SectionNavigation } from "./Navigation";
+import { AdminActivityPanel } from "./AdminActivityPanel";
 import { AdminAnalyticsPanel } from "./AdminAnalyticsPanel";
 import { DataTable, FunnelPanel, MetricGrid, PlaceholderChart, TimelinePanel } from "./DashboardWidgets";
 import { GameAnalyticsPanel } from "./GameAnalyticsPanel";
@@ -22,7 +23,7 @@ const apiBackedAnalyticsSections = new Set([
   "traffic"
 ]);
 
-function DashboardPage({ adminKey, overview, status, isLoading, onRefresh, onSignOut }) {
+function DashboardPage({ adminActor, adminKey, overview, status, isLoading, onRefresh, onSignOut }) {
   const [activeSectionId, setActiveSectionId] = useState(dashboardSections[0].id);
   const activeSection = useMemo(
     () => dashboardSections.find((section) => section.id === activeSectionId) || dashboardSections[0],
@@ -65,14 +66,16 @@ function DashboardPage({ adminKey, overview, status, isLoading, onRefresh, onSig
           <LiveRoomsPanel adminKey={adminKey} />
         ) : activeSection.id === "room-history" ? (
           <RoomHistoryPanel adminKey={adminKey} />
+        ) : activeSection.id === "admin-activity" ? (
+          <AdminActivityPanel adminActor={adminActor} adminKey={adminKey} />
         ) : (
           <>
             <MetricGrid metrics={activeSection.metrics} />
             <FunnelPanel funnel={activeSection.funnel} />
             <PlaceholderChart title={activeSection.chartTitle} bars={activeSection.chartBars} />
             <TimelinePanel timeline={activeSection.timeline} />
-            {activeSection.id === "mode-config" && <ModeConfigPanel adminKey={adminKey} />}
-            {activeSection.id === "products" && <ProductsPanel adminKey={adminKey} />}
+            {activeSection.id === "mode-config" && <ModeConfigPanel adminActor={adminActor} adminKey={adminKey} />}
+            {activeSection.id === "products" && <ProductsPanel adminActor={adminActor} adminKey={adminKey} />}
             <DataTable
               title={activeSection.tableTitle}
               columns={activeSection.tableColumns}

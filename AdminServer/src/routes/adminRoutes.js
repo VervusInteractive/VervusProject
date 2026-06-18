@@ -1,6 +1,7 @@
 const express = require("express");
 const { config } = require("../config");
 const { requireAdmin } = require("../middleware/requireAdmin");
+const { listAdminActivityLogs, writeAdminActivityLog } = require("../services/adminActivity");
 const { getAdminAnalyticsSection } = require("../services/adminAnalytics");
 const { getGameAnalytics } = require("../services/gameAnalytics");
 const { getLiveRooms, getRoomHistory } = require("../services/liveRooms");
@@ -9,8 +10,8 @@ const { listProducts, saveProduct } = require("../services/products");
 
 const router = express.Router();
 
-router.get("/overview", requireAdmin, (req, res) => {
-  res.json({
+function buildOverviewPayload() {
+  return {
     service: "vervus-admin-server",
     environment: config.nodeEnv,
     uptimeSeconds: Math.round(process.uptime()),
@@ -19,7 +20,61 @@ router.get("/overview", requireAdmin, (req, res) => {
       "Admin server scaffold is running.",
       "Connect database-backed metrics and moderation tools here when ready."
     ]
-  });
+  };
+}
+
+function summarizeModePayload(payload = {}) {
+  return {
+    displayName: payload.displayName,
+    isEnabled: payload.isEnabled,
+    hasLastChance: payload.hasLastChance,
+    orientationLock: payload.orientationLock,
+    difficultyBandCount: Array.isArray(payload.difficultyBands) ? payload.difficultyBands.length : undefined,
+    corruptionBandCount: Array.isArray(payload.corruptionBands) ? payload.corruptionBands.length : undefined,
+    heatSurgeConfigured: Boolean(payload.heatSurgeConfig)
+  };
+}
+
+function summarizeProductPayload(payload = {}) {
+  return {
+    productName: payload.productName,
+    priceCents: payload.priceCents,
+    currencyCode: payload.currencyCode,
+    validityDurationHours: payload.validityDurationHours,
+    status: payload.status,
+    displayOrder: payload.displayOrder,
+    modeKeys: Array.isArray(payload.modeKeys) ? payload.modeKeys : []
+  };
+}
+
+router.post("/login", requireAdmin, async (req, res, next) => {
+  try {
+    await writeAdminActivityLog(req, {
+      actionType: "admin_login",
+      targetType: "session",
+      metadata: { environment: config.nodeEnv }
+    });
+    res.json(buildOverviewPayload());
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post("/logout", requireAdmin, async (req, res, next) => {
+  try {
+    await writeAdminActivityLog(req, {
+      actionType: "admin_logout",
+      targetType: "session",
+      metadata: { environment: config.nodeEnv }
+    });
+    res.status(204).end();
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get("/overview", requireAdmin, (req, res) => {
+  res.json(buildOverviewPayload());
 });
 
 router.get("/game-analytics", requireAdmin, async (req, res, next) => {
@@ -62,6 +117,20 @@ router.get("/room-history", requireAdmin, async (req, res, next) => {
   }
 });
 
+router.get("/admin-activity", requireAdmin, async (req, res, next) => {
+  try {
+    const activity = await listAdminActivityLogs({
+      limit: req.query.limit,
+      actionType: req.query.actionType,
+      targetType: req.query.targetType,
+      targetKey: req.query.targetKey
+    });
+    res.json(activity);
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.get("/game-modes", requireAdmin, async (req, res, next) => {
   try {
     const modes = await listModeConfigurations();
@@ -74,6 +143,12 @@ router.get("/game-modes", requireAdmin, async (req, res, next) => {
 router.put("/game-modes/:modeKey", requireAdmin, async (req, res, next) => {
   try {
     const modes = await saveModeConfiguration({ ...req.body, modeKey: req.params.modeKey });
+    await writeAdminActivityLog(req, {
+      actionType: "game_mode_updated",
+      targetType: "game_mode",
+      targetKey: req.params.modeKey,
+      metadata: summarizeModePayload({ ...req.body, modeKey: req.params.modeKey })
+    });
     res.json({ modes });
   } catch (error) {
     next(error);
@@ -83,6 +158,12 @@ router.put("/game-modes/:modeKey", requireAdmin, async (req, res, next) => {
 router.post("/game-modes", requireAdmin, async (req, res, next) => {
   try {
     const modes = await saveModeConfiguration(req.body);
+    await writeAdminActivityLog(req, {
+      actionType: "game_mode_created",
+      targetType: "game_mode",
+      targetKey: req.body?.modeKey,
+      metadata: summarizeModePayload(req.body)
+    });
     res.status(201).json({ modes });
   } catch (error) {
     next(error);
@@ -99,7 +180,14 @@ router.get("/products", requireAdmin, async (req, res, next) => {
 
 router.put("/products/:productKey", requireAdmin, async (req, res, next) => {
   try {
-    res.json(await saveProduct({ ...req.body, productKey: req.params.productKey }));
+    const products = await saveProduct({ ...req.body, productKey: req.params.productKey });
+    await writeAdminActivityLog(req, {
+      actionType: "product_updated",
+      targetType: "product",
+      targetKey: req.params.productKey,
+      metadata: summarizeProductPayload({ ...req.body, productKey: req.params.productKey })
+    });
+    res.json(products);
   } catch (error) {
     next(error);
   }
@@ -108,6 +196,12 @@ router.put("/products/:productKey", requireAdmin, async (req, res, next) => {
 router.post("/products", requireAdmin, async (req, res, next) => {
   try {
     const products = await saveProduct(req.body);
+    await writeAdminActivityLog(req, {
+      actionType: "product_created",
+      targetType: "product",
+      targetKey: req.body?.productKey,
+      metadata: summarizeProductPayload(req.body)
+    });
     res.status(201).json(products);
   } catch (error) {
     next(error);

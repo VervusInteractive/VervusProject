@@ -3,7 +3,7 @@ import { adminApiUrl } from "../config";
 import { DataTable } from "./DashboardWidgets";
 import { emptyProductForm, normalizeCurrencyCode, normalizeProductForm, normalizeProductKey } from "../data/modeConfig";
 
-function ProductsPanel({ adminKey }) {
+function ProductsPanel({ adminActor, adminKey }) {
   const [products, setProducts] = useState([]);
   const [availableModes, setAvailableModes] = useState([]);
   const [productForm, setProductForm] = useState(emptyProductForm);
@@ -14,13 +14,21 @@ function ProductsPanel({ adminKey }) {
     loadProducts();
   }, []);
 
+  function getAdminHeaders(extraHeaders = {}) {
+    return {
+      ...extraHeaders,
+      ...(adminKey ? { "X-Admin-Token": adminKey } : {}),
+      ...(adminActor?.trim() ? { "X-Admin-Actor": adminActor.trim() } : {})
+    };
+  }
+
   async function loadProducts() {
     setIsLoading(true);
     setStatus("Loading products from database...");
 
     try {
       const response = await fetch(`${adminApiUrl}/api/admin/products`, {
-        headers: adminKey ? { "X-Admin-Token": adminKey } : {}
+        headers: getAdminHeaders()
       });
       const payload = await response.json();
       if (!response.ok) {
@@ -58,10 +66,7 @@ function ProductsPanel({ adminKey }) {
     try {
       const response = await fetch(`${adminApiUrl}/api/admin/products/${encodeURIComponent(productKey)}`, {
         method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          ...(adminKey ? { "X-Admin-Token": adminKey } : {})
-        },
+        headers: getAdminHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({
           ...productForm,
           productKey,

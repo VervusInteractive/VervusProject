@@ -5,6 +5,7 @@ const { listAdminActivityLogs, writeAdminActivityLog } = require("../services/ad
 const { getAdminAnalyticsSection } = require("../services/adminAnalytics");
 const { getGameAnalytics } = require("../services/gameAnalytics");
 const { getLiveRooms, getRoomHistory } = require("../services/liveRooms");
+const { resolveErrorLogs } = require("../services/errorLogs");
 const { listModeConfigurations, saveModeConfiguration } = require("../services/modeConfigurations");
 const { listProducts, saveProduct } = require("../services/products");
 
@@ -90,6 +91,25 @@ router.get("/analytics/:sectionId", requireAdmin, async (req, res, next) => {
   try {
     const analytics = await getAdminAnalyticsSection(req.params.sectionId, req.query);
     res.json(analytics);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.patch("/errors/resolve", requireAdmin, async (req, res, next) => {
+  try {
+    const result = await resolveErrorLogs(req.body?.ids);
+    await writeAdminActivityLog(req, {
+      actionType: "errors_resolved",
+      targetType: "error_log",
+      targetKey: result.resolvedIds[0] || null,
+      metadata: {
+        requestedCount: result.requestedCount,
+        resolvedCount: result.resolvedCount,
+        errorIds: result.resolvedIds
+      }
+    });
+    res.json(result);
   } catch (error) {
     next(error);
   }

@@ -51,8 +51,8 @@ function table(title, columns, rows) {
   return { title, columns, rows };
 }
 
-function buildPayload(sectionId, title, { windowDays, metrics = [], tables = [], sourceStatus = [] } = {}) {
-  return {
+function buildPayload(sectionId, title, { windowDays, metrics = [], tables = [], sourceStatus = [], errorLogs } = {}) {
+  const payload = {
     sectionId,
     title,
     windowDays,
@@ -61,6 +61,8 @@ function buildPayload(sectionId, title, { windowDays, metrics = [], tables = [],
     tables,
     sourceStatus
   };
+  if (errorLogs) payload.errorLogs = errorLogs;
+  return payload;
 }
 
 const HOST_EVENTS_CTE = `unique_profile_names AS (
@@ -369,7 +371,8 @@ async function getErrorAnalytics({ days, limit, severity }) {
                        COUNT(*) FILTER (WHERE resolved_at IS NULL)::int AS open_issues
                 FROM vervus_data.error_logs
                 WHERE occurred_at >= now() - ($1::int * interval '1 day')`, [windowDays]),
-    pool.query(`SELECT occurred_at, severity, source, room_code, error_code, message, resolved_at
+    pool.query(`SELECT id, room_id, room_code, player_id, occurred_at, severity, source,
+                       error_code, message, stack_trace, context, resolved_at
                 FROM vervus_data.error_logs
                 WHERE occurred_at >= now() - ($1::int * interval '1 day')
                 ${severityFilter}
@@ -396,6 +399,20 @@ async function getErrorAnalytics({ days, limit, severity }) {
   const summary = summaryResult.rows[0] || {};
   return buildPayload("errors", "Error log viewer", {
     windowDays,
+    errorLogs: latestResult.rows.map((row) => ({
+      id: row.id,
+      roomId: row.room_id,
+      roomCode: row.room_code,
+      playerId: row.player_id,
+      occurredAt: row.occurred_at,
+      severity: row.severity,
+      source: row.source,
+      errorCode: row.error_code,
+      message: row.message,
+      stackTrace: row.stack_trace,
+      context: row.context || {},
+      resolvedAt: row.resolved_at
+    })),
     metrics: [
       metric("Warnings", formatNumber(summary.warnings), `${windowDays} day window`),
       metric("Errors", formatNumber(summary.errors), "Logged server errors"),

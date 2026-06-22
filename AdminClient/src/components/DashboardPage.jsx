@@ -6,6 +6,7 @@ import { AdminActivityPanel } from "./AdminActivityPanel";
 import { AdminAnalyticsPanel } from "./AdminAnalyticsPanel";
 import { DataTable, FunnelPanel, MetricGrid, PlaceholderChart, TimelinePanel } from "./DashboardWidgets";
 import { GameAnalyticsPanel } from "./GameAnalyticsPanel";
+import { ErrorsPanel } from "./ErrorsPanel";
 import { LiveRoomsPanel } from "./LiveRoomsPanel";
 import { ModeConfigPanel } from "./ModeConfigPanel";
 import { ProductsPanel } from "./ProductsPanel";
@@ -16,7 +17,6 @@ const apiBackedAnalyticsSections = new Set([
   "sales",
   "modes",
   "hosts",
-  "errors",
   "balancing",
   "previews",
   "retention",
@@ -58,7 +58,9 @@ function DashboardPage({ adminActor, adminKey, overview, status, isLoading, onRe
           <span>Checked: {overview?.checkedAt || "Not checked"}</span>
         </section>
 
-        {apiBackedAnalyticsSections.has(activeSection.id) ? (
+        {activeSection.id === "errors" ? (
+          <ErrorsPanel adminActor={adminActor} adminKey={adminKey} />
+        ) : apiBackedAnalyticsSections.has(activeSection.id) ? (
           <AdminAnalyticsPanel adminKey={adminKey} sectionId={activeSection.id} />
         ) : activeSection.id === "game" ? (
           <GameAnalyticsPanel adminKey={adminKey} />

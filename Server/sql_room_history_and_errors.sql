@@ -170,6 +170,7 @@ CREATE TABLE IF NOT EXISTS vervus_data.room_history (
   event_type TEXT NOT NULL,
   event_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   actor_player_id UUID NULL REFERENCES vervus_data.players(id) ON DELETE SET NULL,
+  actor_profile_id UUID NULL REFERENCES vervus_data.player_profiles(id) ON DELETE SET NULL,
   from_status vervus_data.room_status NULL,
   to_status vervus_data.room_status NULL,
   metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
@@ -188,6 +189,9 @@ CREATE TABLE IF NOT EXISTS vervus_data.room_history (
     )
   )
 );
+
+ALTER TABLE vervus_data.room_history
+  ADD COLUMN IF NOT EXISTS actor_profile_id UUID NULL REFERENCES vervus_data.player_profiles(id) ON DELETE SET NULL;
 
 CREATE INDEX IF NOT EXISTS idx_room_history_room_id_event_at
   ON vervus_data.room_history(room_id, event_at DESC);

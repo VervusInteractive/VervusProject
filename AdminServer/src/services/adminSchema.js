@@ -109,11 +109,14 @@ async function ensureOperationalTables() {
     event_type TEXT NOT NULL,
     event_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     actor_player_id UUID NULL,
+    actor_profile_id UUID NULL,
     from_status vervus_data.room_status NULL,
     to_status vervus_data.room_status NULL,
     metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
   );`);
+  await pool.query(`ALTER TABLE vervus_data.room_history
+    ADD COLUMN IF NOT EXISTS actor_profile_id UUID NULL;`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_room_history_event_type_event_at
     ON vervus_data.room_history(event_type, event_at DESC);`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_room_history_room_code_event_at

@@ -30,12 +30,13 @@ async function logRoomHistoryEvent({ roomCode, eventType, actorPlayerId = null, 
               r.room_code,
               $2 AS event_type,
               p.id AS actor_player_id,
+              ap.id AS actor_profile_id,
               $4::vervus_data.room_status AS from_status,
               $5::vervus_data.room_status AS to_status,
-              CASE
-                WHEN COALESCE(p.display_name, ap.display_name) IS NULL THEN $6::jsonb
-                ELSE $6::jsonb || jsonb_build_object('actorDisplayName', COALESCE(p.display_name, ap.display_name))
-              END AS metadata
+              $6::jsonb || jsonb_strip_nulls(jsonb_build_object(
+                'actorDisplayName', COALESCE(p.display_name, ap.display_name),
+                'actorProfileId', ap.id
+              )) AS metadata
        FROM target_room r
        LEFT JOIN LATERAL (
          SELECT id, display_name
@@ -45,7 +46,7 @@ async function logRoomHistoryEvent({ roomCode, eventType, actorPlayerId = null, 
          FOR KEY SHARE
        ) p ON true
        LEFT JOIN LATERAL (
-         SELECT display_name
+         SELECT id, display_name
          FROM vervus_data.player_profiles
          WHERE id = $3::uuid
          LIMIT 1
@@ -55,14 +56,15 @@ async function logRoomHistoryEvent({ roomCode, eventType, actorPlayerId = null, 
               $1,
               $2,
               NULL::uuid,
+              $3::uuid,
               $4::vervus_data.room_status,
               $5::vervus_data.room_status,
-              $6::jsonb
+              $6::jsonb || jsonb_strip_nulls(jsonb_build_object('actorProfileId', $3::uuid))
        WHERE $2 = 'room_deleted'
          AND NOT EXISTS (SELECT 1 FROM target_room)
      )
-     INSERT INTO vervus_data.room_history (room_id, room_code, event_type, actor_player_id, from_status, to_status, metadata)
-     SELECT room_id, room_code, event_type, actor_player_id, from_status, to_status, metadata
+     INSERT INTO vervus_data.room_history (room_id, room_code, event_type, actor_player_id, actor_profile_id, from_status, to_status, metadata)
+     SELECT room_id, room_code, event_type, actor_player_id, actor_profile_id, from_status, to_status, metadata
      FROM history_row`,
     [roomCode, eventType, actorPlayerId, fromStatus, toStatus, JSON.stringify(metadata || {})]
   );

@@ -117,7 +117,7 @@ function DataTable({ title, columns = [], rows = [] }) {
           </thead>
           <tbody>
             {rows.map((row, rowIndex) => (
-              <tr key={row.join("-")}>
+              <tr key={`${rowIndex}-${row.join("-")}`}>
                 {row.map((cell, cellIndex) => (
                   <td key={`${rowIndex}-${cellIndex}`}>{cell}</td>
                 ))}

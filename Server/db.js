@@ -495,15 +495,33 @@ async function getRecentErrorLogs({ limit = 25 } = {}) {
   return rows;
 }
 
-async function getRecentRoomHistory({ limit = 50 } = {}) {
+async function getRecentRoomHistory({ limit = 50, roomCode = "", eventType = "" } = {}) {
   await ensureRoomTrackingTables();
   const safeLimit = Math.max(1, Math.min(200, Number(limit) || 50));
+  const normalizedRoomCode = normalizeAnalyticsText(roomCode, 32)?.toUpperCase() || "";
+  const normalizedEventType = normalizeAnalyticsText(eventType, 64)?.toLowerCase() || "";
+  const params = [];
+  const filters = [];
+
+  if (normalizedRoomCode) {
+    params.push(normalizedRoomCode);
+    filters.push(`room_code = $${params.length}`);
+  }
+
+  if (normalizedEventType) {
+    params.push(normalizedEventType);
+    filters.push(`event_type = $${params.length}`);
+  }
+
+  params.push(safeLimit);
+  const whereSql = filters.length ? `WHERE ${filters.join(" AND ")}` : "";
   const { rows } = await pool.query(
     `SELECT id, room_code, event_type, event_at, actor_player_id, from_status::text AS from_status, to_status::text AS to_status, metadata
      FROM vervus_data.room_history
+     ${whereSql}
      ORDER BY event_at DESC
-     LIMIT $1`,
-    [safeLimit]
+     LIMIT $${params.length}`,
+    params
   );
   return rows;
 }
@@ -614,11 +632,13 @@ async function recordGameSessionStart({ roomCode, modeKey = 'standard', isPrevie
   return fallback.rows[0] || null;
 }
 
-async function recordGameSessionEnd({ sessionId, roomCode, finalCombo = 0, highestCombo = 0, endReason = 'game_over', metadata = {} }) {
+async function recordGameSessionEnd({ sessionId, roomCode, analyticsRunId = null, finalCombo = 0, highestCombo = 0, endReason = 'game_over', metadata = {} }) {
   await ensureGameAnalyticsTables();
+  const safeMetadata = metadata && typeof metadata === 'object' && !Array.isArray(metadata) ? metadata : {};
   const safeFinalCombo = Math.max(0, Number(finalCombo) || 0);
   const safeHighestCombo = Math.max(safeFinalCombo, Number(highestCombo) || 0);
-  const values = [safeFinalCombo, safeHighestCombo, endReason || 'game_over', JSON.stringify(metadata || {})];
+  const normalizedAnalyticsRunId = normalizeAnalyticsText(analyticsRunId || safeMetadata.analyticsRunId, 140);
+  const values = [safeFinalCombo, safeHighestCombo, endReason || 'game_over', JSON.stringify(safeMetadata)];
   const updateSql = `UPDATE vervus_data.game_sessions
      SET ended_at = now(),
          duration_ms = GREATEST(0, FLOOR(EXTRACT(EPOCH FROM (now() - started_at)) * 1000)::integer),
@@ -644,6 +664,7 @@ async function recordGameSessionEnd({ sessionId, roomCode, finalCombo = 0, highe
        FROM vervus_data.game_sessions
        WHERE room_code = $5
          AND ended_at IS NULL
+         AND ($6::text IS NULL OR metadata->>'analyticsRunId' = $6)
        ORDER BY started_at DESC
        LIMIT 1
      )
@@ -658,9 +679,77 @@ async function recordGameSessionEnd({ sessionId, roomCode, finalCombo = 0, highe
      FROM latest_open_session
      WHERE gs.id = latest_open_session.id
      RETURNING gs.id`,
-    [...values, roomCode]
+    [...values, roomCode, normalizedAnalyticsRunId]
   );
-  return rows[0] || null;
+  if (rows[0]) return rows[0];
+
+  if (normalizedAnalyticsRunId) {
+    const existing = await pool.query(
+      `SELECT id
+       FROM vervus_data.game_sessions
+       WHERE room_code = $1
+         AND metadata->>'analyticsRunId' = $2
+       ORDER BY started_at DESC
+       LIMIT 1`,
+      [roomCode, normalizedAnalyticsRunId]
+    );
+    if (existing.rows[0]) return existing.rows[0];
+  }
+
+  const fallbackStartedAtMs = Number(safeMetadata.startedAtMs);
+  const fallbackStartedAt = Number.isFinite(fallbackStartedAtMs) && fallbackStartedAtMs > 0
+    ? new Date(fallbackStartedAtMs)
+    : null;
+  const fallbackModeKey = normalizeAnalyticsText(safeMetadata.modeKey || safeMetadata.modeId, 64) || 'standard';
+  const fallbackPlayerCount = Math.max(0, Number(safeMetadata.playerCount) || 0);
+  const fallbackMetadata = {
+    ...safeMetadata,
+    analyticsRunId: normalizedAnalyticsRunId || safeMetadata.analyticsRunId || null,
+    recoveredAtEnd: true
+  };
+  const inserted = await pool.query(
+    `INSERT INTO vervus_data.game_sessions (
+       room_id,
+       room_code,
+       mode_key,
+       is_preview,
+       started_at,
+       ended_at,
+       duration_ms,
+       final_combo,
+       highest_combo,
+       player_count,
+       end_reason,
+       metadata
+     )
+     SELECT r.id,
+            $1,
+            $2,
+            $3,
+            COALESCE($4::timestamptz, now()),
+            now(),
+            GREATEST(0, FLOOR(EXTRACT(EPOCH FROM (now() - COALESCE($4::timestamptz, now()))) * 1000)::integer),
+            $5,
+            $6,
+            $7,
+            $8,
+            $9::jsonb
+     FROM (SELECT 1) seed
+     LEFT JOIN vervus_data.rooms r ON r.room_code = $1
+     RETURNING id`,
+    [
+      roomCode,
+      fallbackModeKey,
+      Boolean(safeMetadata.isPreview),
+      fallbackStartedAt,
+      safeFinalCombo,
+      safeHighestCombo,
+      fallbackPlayerCount,
+      endReason || 'game_over',
+      JSON.stringify(fallbackMetadata)
+    ]
+  );
+  return inserted.rows[0] || null;
 }
 
 async function getRecentStripeWebhookEvents({ limit = 25 } = {}) {

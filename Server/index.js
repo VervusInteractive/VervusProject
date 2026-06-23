@@ -369,7 +369,14 @@ app.get("/api/admin/errors", requireAdmin, async (req, res) => {
 app.get("/api/admin/room-history", requireAdmin, async (req, res) => {
   try {
     const limit = Number(req.query.limit) || 50;
-    res.status(200).json({ ok: true, history: await getRecentRoomHistory({ limit }) });
+    res.status(200).json({
+      ok: true,
+      history: await getRecentRoomHistory({
+        limit,
+        roomCode: req.query.roomCode,
+        eventType: req.query.eventType
+      })
+    });
   } catch (error) {
     logErrorEntry({ source: "admin:room-history", message: error.message || "Failed to read room history", stackTrace: error.stack }).catch(() => {});
     res.status(500).json({ error: "Failed to read room history" });

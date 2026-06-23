@@ -310,7 +310,9 @@ function registerSocketHandlers(io) {
           score: completedGame.score,
           modeId: completedGame.modeId,
           isPreview: completedGame.isPreview,
-          analyticsRunId: completedGame.analyticsRunId || null
+          analyticsRunId: completedGame.analyticsRunId || null,
+          startedAtMs: completedGame.startedAtMs || null,
+          playerCount: Array.from(room.players.values()).filter((player) => player.currentGameParticipant).length
         }
       };
       const hasSessionStartPromise = Boolean(completedGame.analyticsSessionStartPromise);
@@ -318,11 +320,17 @@ function registerSocketHandlers(io) {
         .catch(() => null)
         .then((session) => {
           const resolvedSessionId = completedGame.analyticsSessionId || session?.id || sessionEndPayload.sessionId;
-          if (hasSessionStartPromise && !resolvedSessionId) return null;
           return recordGameSessionEnd({
             ...sessionEndPayload,
-            sessionId: resolvedSessionId
+            sessionId: resolvedSessionId,
+            analyticsRunId: completedGame.analyticsRunId || null
           });
+        })
+        .then((session) => {
+          if (session?.id) completedGame.analyticsSessionId = session.id;
+          if (hasSessionStartPromise && !session?.id) {
+            console.warn("DB game session end did not match an open session", { roomId, analyticsRunId: completedGame.analyticsRunId || null });
+          }
         })
         .catch((error) => console.error("DB game session end failed", error));
       recordAnalyticsEvent({

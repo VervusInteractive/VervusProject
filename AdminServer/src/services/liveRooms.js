@@ -120,7 +120,11 @@ function getRuntimeStatus(room = {}) {
 
 function getDatabaseRoomStatus(row = {}) {
   if (["payment_pending", "reconnecting", "ended", "expired"].includes(row.status)) return row.status;
-  if (row.status === "preview" || row.status === "premium" || (row.latest_session_mode_key && row.latest_session_ended_at === null)) {
+  if (row.status === "preview" || row.status === "premium") {
+    if (row.latest_session_mode_key && row.latest_session_ended_at !== null) return "game_over";
+    return "in_game";
+  }
+  if (row.latest_session_mode_key && row.latest_session_ended_at === null) {
     return "in_game";
   }
   if ((Number(row.connected_player_count) || 0) < 2) return "waiting_for_players";

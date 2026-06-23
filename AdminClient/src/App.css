@@ -857,6 +857,26 @@ tr:last-child td {
   min-width: 8rem;
 }
 
+.runtime-warning-panel {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem 1rem;
+  align-items: center;
+  border: 1px solid rgba(251, 191, 36, 0.36);
+  border-radius: 1rem;
+  padding: 0.85rem 1rem;
+  color: #fef3c7;
+  background: rgba(120, 53, 15, 0.28);
+}
+
+.runtime-warning-panel strong {
+  color: #fde68a;
+}
+
+.runtime-warning-panel span {
+  overflow-wrap: anywhere;
+}
+
 .live-room-table td {
   vertical-align: middle;
 }

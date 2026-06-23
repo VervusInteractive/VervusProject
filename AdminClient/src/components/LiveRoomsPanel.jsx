@@ -34,6 +34,15 @@ function formatReadyState(player) {
   return "-";
 }
 
+function formatSourceLabel(source) {
+  return humanizeKey(source || "admin API");
+}
+
+function formatRoomPing(room) {
+  if ((Number(room?.players?.connected) || 0) <= 0) return "-";
+  return formatPing(room?.pingMs);
+}
+
 function LiveRoomsPanel({ adminKey }) {
   const [liveRooms, setLiveRooms] = useState(null);
   const [status, setStatus] = useState("Loading live rooms...");
@@ -70,7 +79,10 @@ function LiveRoomsPanel({ adminKey }) {
         throw new Error(payload.error || "Unable to load live rooms");
       }
       setLiveRooms(payload);
-      setStatus(`Showing ${payload.summary?.roomCount || 0} live rooms from ${payload.source || "admin API"}.`);
+      const runtimeError = payload.runtime?.available === false && payload.runtime?.error
+        ? ` Runtime unavailable: ${payload.runtime.error}.`
+        : "";
+      setStatus(`Showing ${payload.summary?.roomCount || 0} live rooms from ${formatSourceLabel(payload.source)}.${runtimeError}`);
     } catch (error) {
       setLiveRooms(null);
       setStatus(error.message || "Unable to load live rooms");
@@ -84,7 +96,7 @@ function LiveRoomsPanel({ adminKey }) {
     .map(([key, value]) => `${humanizeKey(key)} ${value}`)
     .join(", ") || "No active statuses";
   const metrics = [
-    { label: "Live rooms", value: formatNumber(summary.roomCount), delta: liveRooms?.source || "runtime" },
+    { label: "Live rooms", value: formatNumber(summary.roomCount), delta: formatSourceLabel(liveRooms?.source || "runtime") },
     { label: "Players", value: formatNumber(summary.playerCount), delta: `${formatNumber(summary.connectedPlayerCount)} connected` },
     { label: "Statuses", value: formatNumber(Object.keys(summary.statusCounts || {}).length), delta: statusSummary },
     { label: "Last refresh", value: formatDateTime(liveRooms?.generatedAt), delta: isLoading ? "Refreshing" : "Auto every 10s" }
@@ -92,6 +104,9 @@ function LiveRoomsPanel({ adminKey }) {
   const rooms = liveRooms?.rooms || [];
   const selectedRoom = rooms.find((room) => room.roomCode === selectedRoomCode) || rooms[0] || null;
   const selectedRoomPlayers = getRoomPlayers(selectedRoom);
+  const runtimeWarning = liveRooms?.runtime?.available === false
+    ? liveRooms.runtime.error || "The admin API is showing database fallback data because runtime room data is unavailable."
+    : "";
 
   return (
     <>
@@ -109,6 +124,12 @@ function LiveRoomsPanel({ adminKey }) {
           </div>
         </div>
       </section>
+      {runtimeWarning ? (
+        <section className="runtime-warning-panel">
+          <strong>Runtime feed unavailable</strong>
+          <span>{runtimeWarning}</span>
+        </section>
+      ) : null}
       <MetricGrid metrics={metrics} />
       {rooms.length ? (
         <>
@@ -143,7 +164,7 @@ function LiveRoomsPanel({ adminKey }) {
                         <td>{formatPlayers(room.players)}</td>
                         <td>{humanizeKey(room.modeLabel || room.mode)}</td>
                         <td>{formatStatusLabel(room.status)}</td>
-                        <td>{formatPing(room.pingMs)}</td>
+                        <td>{formatRoomPing(room)}</td>
                         <td>{formatDateTime(room.updatedAt)}</td>
                         <td>
                           <button
@@ -174,7 +195,7 @@ function LiveRoomsPanel({ adminKey }) {
               <span>{formatPlayers(selectedRoom?.players)}</span>
               <span>{formatStatusLabel(selectedRoom?.status)}</span>
               <span>{humanizeKey(selectedRoom?.modeLabel || selectedRoom?.mode)}</span>
-              <span>{formatPing(selectedRoom?.pingMs)}</span>
+              <span>{formatRoomPing(selectedRoom)}</span>
               <span>{formatDateTime(selectedRoom?.updatedAt)}</span>
             </div>
             {selectedRoomPlayers.length ? (

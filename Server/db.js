@@ -672,7 +672,27 @@ async function getProductById(productId) {
 
 // existing functions
 async function createRoomRecord({ roomCode, status = 'lobby', maxPlayers = 4, selectedModeId = null }) { await ensureRoomTrackingTables(); await pool.query(`INSERT INTO vervus_data.rooms (room_code, status, max_players, metadata) VALUES ($1, $2::vervus_data.room_status, $3, jsonb_strip_nulls(jsonb_build_object('selectedModeId', $4::text))) ON CONFLICT (room_code) DO UPDATE SET status = EXCLUDED.status, metadata = COALESCE(vervus_data.rooms.metadata, '{}'::jsonb) || EXCLUDED.metadata`, [roomCode, status, maxPlayers, selectedModeId]); }
-async function addPlayerRecord({ roomCode, playerId, displayName, isHost = false, slot }) { await pool.query(`INSERT INTO vervus_data.players (id, room_id, display_name, is_host, connection_status, is_ready, last_seen_at, player_slot) SELECT $2::uuid, r.id, $3, $4, 'connected', false, now(), $5 FROM vervus_data.rooms r WHERE r.room_code = $1 ON CONFLICT (id) DO UPDATE SET display_name = EXCLUDED.display_name, connection_status = 'connected', last_seen_at = now(), left_at = null`, [roomCode, playerId, displayName, isHost, slot]); if (isHost) await pool.query(`UPDATE vervus_data.rooms SET host_player_id = $2::uuid WHERE room_code = $1`, [roomCode, playerId]); }
+async function addPlayerRecord({ roomCode, playerId, displayName, isHost = false, slot }) {
+  await pool.query(
+    `INSERT INTO vervus_data.players (id, room_id, display_name, is_host, connection_status, is_ready, last_seen_at, player_slot)
+     SELECT $2::uuid, r.id, $3, $4, 'connected', false, now(), $5
+     FROM vervus_data.rooms r
+     WHERE r.room_code = $1
+     ON CONFLICT (id) DO UPDATE SET
+       room_id = EXCLUDED.room_id,
+       display_name = EXCLUDED.display_name,
+       is_host = EXCLUDED.is_host,
+       connection_status = 'connected',
+       is_ready = false,
+       player_slot = EXCLUDED.player_slot,
+       last_seen_at = now(),
+       left_at = null,
+       reconnecting_started_at = null,
+       disconnected_at = null`,
+    [roomCode, playerId, displayName, isHost, slot]
+  );
+  if (isHost) await pool.query(`UPDATE vervus_data.rooms SET host_player_id = $2::uuid WHERE room_code = $1`, [roomCode, playerId]);
+}
 async function updatePlayerReady({ playerId, isReady }) { await pool.query('UPDATE vervus_data.players SET is_ready = $2, last_seen_at = now() WHERE id = $1::uuid', [playerId, isReady]); }
 async function updatePlayerConnection({ playerId, status, stateChangedAtMs = Date.now(), reconnectingStartedAtMs = null, disconnectedAtMs = null }) { await ensureRoomTrackingTables(); const isDisconnected = !['connected', 'degraded'].includes(status); await pool.query(`UPDATE vervus_data.players SET connection_status = $2, last_seen_at = now(), left_at = CASE WHEN $3 THEN now() ELSE null END, connection_state_changed_at = to_timestamp($4::double precision / 1000), reconnecting_started_at = CASE WHEN $5::bigint IS NULL THEN null ELSE to_timestamp($5::double precision / 1000) END, disconnected_at = CASE WHEN $6::bigint IS NULL THEN null ELSE to_timestamp($6::double precision / 1000) END WHERE id = $1::uuid`, [playerId, status, isDisconnected, stateChangedAtMs, reconnectingStartedAtMs, disconnectedAtMs]); }
 async function deletePlayerRecord(playerId) { await pool.query('DELETE FROM vervus_data.players WHERE id = $1::uuid', [playerId]); }

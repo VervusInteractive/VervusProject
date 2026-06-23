@@ -191,10 +191,11 @@ async function getLiveRoomsFromGameServer() {
 
 async function getLiveRoomsFromDatabase() {
   assertDatabaseConfigured();
-  const [hasRooms, hasPlayers, hasGameSessions] = await Promise.all([
+  const [hasRooms, hasPlayers, hasGameSessions, hasRoomHistory] = await Promise.all([
     tableExists("vervus_data", "rooms"),
     tableExists("vervus_data", "players"),
-    tableExists("vervus_data", "game_sessions")
+    tableExists("vervus_data", "game_sessions"),
+    tableExists("vervus_data", "room_history")
   ]);
 
   if (!hasRooms) {
@@ -230,6 +231,42 @@ async function getLiveRoomsFromDatabase() {
          GROUP BY room_id
        ) p ON p.room_id = r.id`
     : `LEFT JOIN (SELECT NULL::uuid AS room_id, 0::int AS player_count, 0::int AS connected_player_count, '[]'::jsonb AS players) p ON false`;
+  const historyPlayerJoin = hasPlayers && hasRoomHistory
+    ? `LEFT JOIN (
+         SELECT latest.room_code,
+                COUNT(*)::int AS player_count,
+                COUNT(*) FILTER (WHERE p.connection_status::text IN ('connected', 'degraded'))::int AS connected_player_count,
+                COALESCE(jsonb_agg(jsonb_build_object(
+                  'playerId', p.id::text,
+                  'name', p.display_name,
+                  'connected', p.connection_status::text IN ('connected', 'degraded'),
+                  'connectionState', p.connection_status::text,
+                  'connectionStateLabel', initcap(replace(p.connection_status::text, '_', ' ')),
+                  'ready', p.is_ready,
+                  'isHost', p.is_host,
+                  'slot', p.player_slot,
+                  'lastSeenAt', p.last_seen_at,
+                  'connectionStateChangedAt', p.connection_state_changed_at,
+                  'reconnectingStartedAt', p.reconnecting_started_at,
+                  'disconnectedAt', p.disconnected_at
+                ) ORDER BY p.is_host DESC, p.player_slot ASC NULLS LAST, p.last_seen_at DESC), '[]'::jsonb) AS players
+         FROM (
+           SELECT DISTINCT ON (room_code, actor_player_id)
+                  room_code,
+                  actor_player_id,
+                  event_type,
+                  event_at
+           FROM vervus_data.room_history
+           WHERE actor_player_id IS NOT NULL
+             AND event_type IN ('room_joined', 'room_left')
+           ORDER BY room_code, actor_player_id, event_at DESC
+         ) latest
+         JOIN vervus_data.players p ON p.id = latest.actor_player_id
+         WHERE latest.event_type = 'room_joined'
+           AND p.left_at IS NULL
+         GROUP BY latest.room_code
+       ) hp ON hp.room_code = r.room_code`
+    : `LEFT JOIN (SELECT NULL::text AS room_code, 0::int AS player_count, 0::int AS connected_player_count, '[]'::jsonb AS players) hp ON false`;
   const hasRoomMetadata = await columnExists("vervus_data", "rooms", "metadata");
   const metadataSelect = hasRoomMetadata ? "COALESCE(r.metadata, '{}'::jsonb)" : "'{}'::jsonb";
   const gameSessionJoin = hasGameSessions
@@ -250,12 +287,13 @@ async function getLiveRoomsFromDatabase() {
             gs.mode_key AS latest_session_mode_key,
             gs.ended_at AS latest_session_ended_at,
             COALESCE(r.max_players, 0)::int AS max_players,
-            COALESCE(p.player_count, 0)::int AS player_count,
-            COALESCE(p.connected_player_count, 0)::int AS connected_player_count,
-            COALESCE(p.players, '[]'::jsonb) AS players,
+            CASE WHEN COALESCE(p.player_count, 0) > 0 THEN p.player_count ELSE COALESCE(hp.player_count, 0) END::int AS player_count,
+            CASE WHEN COALESCE(p.player_count, 0) > 0 THEN p.connected_player_count ELSE COALESCE(hp.connected_player_count, 0) END::int AS connected_player_count,
+            COALESCE(CASE WHEN COALESCE(p.player_count, 0) > 0 THEN p.players ELSE hp.players END, '[]'::jsonb) AS players,
             COALESCE(r.started_at, r.created_at, now()) AS updated_at
      FROM vervus_data.rooms r
      ${playerJoin}
+     ${historyPlayerJoin}
      ${gameSessionJoin}
      WHERE r.ended_at IS NULL
        AND r.status::text NOT IN ('ended', 'expired')
@@ -304,14 +342,33 @@ async function getLiveRoomsFromDatabase() {
 }
 
 async function getLiveRooms() {
+  let fallbackReason = null;
+
   try {
     const runtimeRooms = await getLiveRoomsFromGameServer();
-    if (runtimeRooms) return runtimeRooms;
+    if (runtimeRooms) {
+      return {
+        ...runtimeRooms,
+        runtime: { available: true, error: null }
+      };
+    }
+    fallbackReason = config.gameServerAdminUrl
+      ? "Game server runtime endpoint returned no payload"
+      : "GAME_SERVER_ADMIN_URL is not configured";
   } catch (error) {
+    fallbackReason = error.message || "Game server runtime fetch failed";
     console.warn("Game server live room fetch failed", error.message);
   }
 
-  return getLiveRoomsFromDatabase();
+  const databaseRooms = await getLiveRoomsFromDatabase();
+  return {
+    ...databaseRooms,
+    source: "database_fallback",
+    runtime: {
+      available: false,
+      error: fallbackReason
+    }
+  };
 }
 
 async function getRoomHistory({ limit = 50, roomCode = "", eventType = "" } = {}) {

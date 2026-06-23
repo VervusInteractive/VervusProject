@@ -2,8 +2,32 @@ const { config } = require("../config");
 const { pool, assertDatabaseConfigured, tableExists, columnExists } = require("../db");
 const { normalizeLimit, normalizeOptionalText } = require("../utils/normalizers");
 
+const CONNECTED_CONNECTION_STATES = new Set(["connected", "degraded"]);
+
+function toNonNegativeNumber(value) {
+  const number = Number(value);
+  return Number.isFinite(number) && number >= 0 ? number : null;
+}
+
+function formatConnectionStateLabel(value) {
+  return String(value || "unknown")
+    .replace(/[_-]+/g, " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function toIsoTimestamp(value) {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+}
+
+function isConnectedPlayer(player = {}) {
+  const connectionState = String(player.connectionState || player.connection_status || "").toLowerCase();
+  return CONNECTED_CONNECTION_STATES.has(connectionState) || player.connected === true;
+}
+
 function getConnectedPlayerCount(players = []) {
-  return players.filter((player) => player?.connected).length;
+  return players.filter((player) => isConnectedPlayer(player)).length;
 }
 
 function getAveragePingMs(players = []) {
@@ -12,6 +36,54 @@ function getAveragePingMs(players = []) {
     .filter((pingMs) => Number.isFinite(pingMs) && pingMs >= 0);
   if (!pings.length) return null;
   return Math.round(pings.reduce((sum, pingMs) => sum + pingMs, 0) / pings.length);
+}
+
+function normalizeRuntimePlayer(player = {}, index = 0) {
+  const connectionState = String(player.connectionState || (player.connected ? "connected" : "disconnected")).toLowerCase();
+  const pingMs = toNonNegativeNumber(player.pingMs);
+  return {
+    playerId: player.playerId || player.id || null,
+    name: player.name || player.displayName || `Player ${index + 1}`,
+    connected: isConnectedPlayer({ ...player, connectionState }),
+    connectionState,
+    connectionStateLabel: player.connectionStateLabel || formatConnectionStateLabel(connectionState),
+    ready: Boolean(player.ready ?? player.isReady),
+    isHost: Boolean(player.isHost),
+    pingMs,
+    color: player.color || null,
+    currentGameParticipant: Boolean(player.currentGameParticipant),
+    waitingForNextGame: Boolean(player.waitingForNextGame),
+    assetsLoaded: Boolean(player.assetsLoaded),
+    timeSyncQuality: player.timeSyncQuality || null,
+    connectionStateChangedAt: toIsoTimestamp(player.connectionStateChangedAt || player.connectionStateChangedAtMs),
+    reconnectingStartedAt: toIsoTimestamp(player.reconnectingStartedAt || player.reconnectingStartedAtMs),
+    disconnectedAt: toIsoTimestamp(player.disconnectedAt || player.disconnectedAtMs)
+  };
+}
+
+function normalizeDatabasePlayer(player = {}, index = 0) {
+  const connectionState = String(player.connectionState || "disconnected").toLowerCase();
+  const slot = toNonNegativeNumber(player.slot);
+  return {
+    playerId: player.playerId || player.id || null,
+    name: player.name || player.displayName || `Player ${index + 1}`,
+    connected: isConnectedPlayer({ ...player, connectionState }),
+    connectionState,
+    connectionStateLabel: player.connectionStateLabel || formatConnectionStateLabel(connectionState),
+    ready: Boolean(player.ready ?? player.isReady),
+    isHost: Boolean(player.isHost),
+    slot,
+    pingMs: null,
+    color: null,
+    currentGameParticipant: null,
+    waitingForNextGame: null,
+    assetsLoaded: null,
+    timeSyncQuality: null,
+    lastSeenAt: toIsoTimestamp(player.lastSeenAt),
+    connectionStateChangedAt: toIsoTimestamp(player.connectionStateChangedAt),
+    reconnectingStartedAt: toIsoTimestamp(player.reconnectingStartedAt),
+    disconnectedAt: toIsoTimestamp(player.disconnectedAt)
+  };
 }
 
 function getRuntimeMode(room = {}) {
@@ -56,15 +128,18 @@ function getDatabaseRoomStatus(row = {}) {
 }
 
 function normalizeRuntimeRoom(room = {}) {
-  const players = Array.isArray(room.players) ? room.players : [];
+  const players = (Array.isArray(room.players) ? room.players : []).map(normalizeRuntimePlayer);
+  const currentPlayerCount = Math.max(toNonNegativeNumber(room.currentPlayerCount) ?? 0, players.length);
+  const connectedPlayerCount = getConnectedPlayerCount(players);
   const mode = getRuntimeMode(room);
   return {
     roomCode: room.roomId || room.roomCode || "",
     players: {
-      current: Number(room.currentPlayerCount) || players.length || 0,
-      connected: getConnectedPlayerCount(players),
-      max: Number(room.maxPlayers) || 0
+      current: Math.max(currentPlayerCount, connectedPlayerCount),
+      connected: connectedPlayerCount,
+      max: toNonNegativeNumber(room.maxPlayers) ?? 0
     },
+    playerList: players,
     mode: mode.modeKey,
     modeLabel: mode.modeLabel,
     status: getRuntimeStatus(room),
@@ -78,10 +153,10 @@ function normalizeRuntimeRoom(room = {}) {
 }
 
 async function fetchGameServerAdmin(path) {
-  if (!GAME_SERVER_ADMIN_URL) return null;
+  if (!config.gameServerAdminUrl) return null;
 
-  const response = await fetch(`${GAME_SERVER_ADMIN_URL.replace(/\/+$/, "")}${path}`, {
-    headers: GAME_SERVER_ADMIN_TOKEN ? { "X-Admin-Token": GAME_SERVER_ADMIN_TOKEN } : {}
+  const response = await fetch(`${config.gameServerAdminUrl.replace(/\/+$/, "")}${path}`, {
+    headers: config.gameServerAdminToken ? { "X-Admin-Token": config.gameServerAdminToken } : {}
   });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
@@ -135,12 +210,26 @@ async function getLiveRoomsFromDatabase() {
     ? `LEFT JOIN (
          SELECT room_id,
                 COUNT(*)::int AS player_count,
-                COUNT(*) FILTER (WHERE connection_status::text IN ('connected', 'degraded'))::int AS connected_player_count
+                COUNT(*) FILTER (WHERE connection_status::text IN ('connected', 'degraded'))::int AS connected_player_count,
+                COALESCE(jsonb_agg(jsonb_build_object(
+                  'playerId', id::text,
+                  'name', display_name,
+                  'connected', connection_status::text IN ('connected', 'degraded'),
+                  'connectionState', connection_status::text,
+                  'connectionStateLabel', initcap(replace(connection_status::text, '_', ' ')),
+                  'ready', is_ready,
+                  'isHost', is_host,
+                  'slot', player_slot,
+                  'lastSeenAt', last_seen_at,
+                  'connectionStateChangedAt', connection_state_changed_at,
+                  'reconnectingStartedAt', reconnecting_started_at,
+                  'disconnectedAt', disconnected_at
+                ) ORDER BY is_host DESC, player_slot ASC NULLS LAST, last_seen_at DESC), '[]'::jsonb) AS players
          FROM vervus_data.players
          WHERE left_at IS NULL
          GROUP BY room_id
        ) p ON p.room_id = r.id`
-    : `LEFT JOIN (SELECT NULL::uuid AS room_id, 0::int AS player_count, 0::int AS connected_player_count) p ON false`;
+    : `LEFT JOIN (SELECT NULL::uuid AS room_id, 0::int AS player_count, 0::int AS connected_player_count, '[]'::jsonb AS players) p ON false`;
   const hasRoomMetadata = await columnExists("vervus_data", "rooms", "metadata");
   const metadataSelect = hasRoomMetadata ? "COALESCE(r.metadata, '{}'::jsonb)" : "'{}'::jsonb";
   const gameSessionJoin = hasGameSessions
@@ -163,6 +252,7 @@ async function getLiveRoomsFromDatabase() {
             COALESCE(r.max_players, 0)::int AS max_players,
             COALESCE(p.player_count, 0)::int AS player_count,
             COALESCE(p.connected_player_count, 0)::int AS connected_player_count,
+            COALESCE(p.players, '[]'::jsonb) AS players,
             COALESCE(r.started_at, r.created_at, now()) AS updated_at
      FROM vervus_data.rooms r
      ${playerJoin}
@@ -189,20 +279,24 @@ async function getLiveRoomsFromDatabase() {
     },
     rooms: rows.map((row) => {
       const status = getDatabaseRoomStatus(row);
+      const playerList = (Array.isArray(row.players) ? row.players : []).map(normalizeDatabasePlayer);
+      const currentPlayerCount = Math.max(Number(row.player_count) || 0, playerList.length);
+      const connectedPlayerCount = Math.max(Number(row.connected_player_count) || 0, getConnectedPlayerCount(playerList));
       return {
         roomCode: row.room_code,
         players: {
-          current: Number(row.player_count) || 0,
-          connected: Number(row.connected_player_count) || 0,
+          current: Math.max(currentPlayerCount, connectedPlayerCount),
+          connected: connectedPlayerCount,
           max: Number(row.max_players) || 0
         },
+        playerList,
         mode: row.mode_key || "standard",
         modeLabel: row.mode_key || "standard",
         status,
         rawStatus: row.status,
         pingMs: null,
         phase: null,
-        hostPlayerId: null,
+        hostPlayerId: playerList.find((player) => player.isHost)?.playerId || null,
         updatedAt: row.updated_at
       };
     })

@@ -16,6 +16,8 @@ services:
         value: https://vervus-admin-client.onrender.com
       - key: GAME_SERVER_ADMIN_URL
         value: https://vervus-server.onrender.com
+      - key: GAME_SERVER_ADMIN_TOKEN
+        sync: false
 
   - type: web
     name: vervus-admin-client

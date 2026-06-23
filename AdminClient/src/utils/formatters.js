@@ -76,7 +76,9 @@ function formatPlayers(players = {}) {
   const current = Number(players.current) || 0;
   const connected = Number(players.connected) || 0;
   const max = Number(players.max) || 0;
-  return max ? `${connected}/${current}/${max}` : `${connected}/${current}`;
+  return max
+    ? `${formatNumber(connected)} connected / ${formatNumber(current)} total / ${formatNumber(max)} max`
+    : `${formatNumber(connected)} connected / ${formatNumber(current)} total`;
 }
 
 function formatPing(pingMs) {

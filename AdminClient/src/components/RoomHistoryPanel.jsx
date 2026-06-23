@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { adminApiUrl } from "../config";
 import { DataTable, EmptyPanel } from "./DashboardWidgets";
 import { formatDateTime, formatEventLabel, formatStatusLabel, summarizeMetadata } from "../utils/formatters";
@@ -10,16 +10,26 @@ function RoomHistoryPanel({ adminKey }) {
   const [roomCode, setRoomCode] = useState("");
   const [eventType, setEventType] = useState("");
   const [limit, setLimit] = useState(50);
+  const [resultKey, setResultKey] = useState("initial");
+  const requestIdRef = useRef(0);
 
   useEffect(() => {
     loadHistory();
   }, []);
 
   async function loadHistory() {
+    const requestId = requestIdRef.current + 1;
+    requestIdRef.current = requestId;
+    const normalizedRoomCode = roomCode.trim().toUpperCase();
+    const normalizedEventType = eventType.trim();
+    const normalizedLimit = Number(limit) || 50;
     setIsLoading(true);
-    const params = new URLSearchParams({ limit: String(limit) });
-    if (roomCode.trim()) params.set("roomCode", roomCode.trim().toUpperCase());
-    if (eventType) params.set("eventType", eventType);
+    setHistory([]);
+    setResultKey(`loading-${requestId}`);
+    setStatus(normalizedRoomCode ? `Loading room ${normalizedRoomCode} history...` : "Loading room history...");
+    const params = new URLSearchParams({ limit: String(normalizedLimit) });
+    if (normalizedRoomCode) params.set("roomCode", normalizedRoomCode);
+    if (normalizedEventType) params.set("eventType", normalizedEventType);
 
     try {
       const response = await fetch(`${adminApiUrl}/api/admin/room-history?${params.toString()}`, {
@@ -29,16 +39,29 @@ function RoomHistoryPanel({ adminKey }) {
       if (!response.ok) {
         throw new Error(payload.error || "Unable to load room history");
       }
-      setHistory(payload.history || []);
-      setStatus(`Loaded ${(payload.history || []).length} room history events.`);
+      if (requestId !== requestIdRef.current) return;
+      const events = Array.isArray(payload.history) ? payload.history : [];
+      const matchingEvents = normalizedRoomCode
+        ? events.filter((event) => String(event.roomCode || "").trim().toUpperCase() === normalizedRoomCode)
+        : events;
+      setHistory(matchingEvents);
+      setResultKey(`${requestId}-${params.toString()}`);
+      setStatus(`Loaded ${matchingEvents.length} room history events.`);
     } catch (error) {
+      if (requestId !== requestIdRef.current) return;
       setHistory([]);
+      setResultKey(`error-${requestId}`);
       setStatus(error.message || "Unable to load room history");
     } finally {
-      setIsLoading(false);
+      if (requestId === requestIdRef.current) {
+        setIsLoading(false);
+      }
     }
   }
 
+  const historyRowKeys = history.map((event, index) => (
+    event.id || `${event.roomCode || "room"}-${event.eventAt || index}-${event.eventType || "event"}-${event.actorPlayerId || index}`
+  ));
   const historyRows = history.map((event) => [
     formatDateTime(event.eventAt),
     event.roomCode || "-",
@@ -91,9 +114,11 @@ function RoomHistoryPanel({ adminKey }) {
       </section>
       {historyRows.length ? (
         <DataTable
+          key={resultKey}
           title="Recent room events"
           columns={["Time", "Room", "Event", "Actor", "From", "To", "Metadata"]}
           rows={historyRows}
+          rowKeys={historyRowKeys}
         />
       ) : (
         <EmptyPanel title="Recent room events" message="No room history events match the current filters." />

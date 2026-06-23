@@ -94,7 +94,7 @@ function EmptyPanel({ title, message }) {
   );
 }
 
-function DataTable({ title, columns = [], rows = [] }) {
+function DataTable({ title, columns = [], rows = [], rowKeys = [] }) {
   if (!columns.length || !rows.length) {
     return null;
   }
@@ -117,7 +117,7 @@ function DataTable({ title, columns = [], rows = [] }) {
           </thead>
           <tbody>
             {rows.map((row, rowIndex) => (
-              <tr key={`${rowIndex}-${row.join("-")}`}>
+              <tr key={rowKeys[rowIndex] || `${rowIndex}-${row.join("-")}`}>
                 {row.map((cell, cellIndex) => (
                   <td key={`${rowIndex}-${cellIndex}`}>{cell}</td>
                 ))}

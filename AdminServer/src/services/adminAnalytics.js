@@ -1,5 +1,5 @@
 const { pool } = require("../db");
-const { normalizeAnalyticsWindowDays, normalizeLimit, normalizeOptionalText } = require("../utils/normalizers");
+const { normalizeAnalyticsWindowDays, normalizeLimit, normalizeModeKey, normalizeOptionalText } = require("../utils/normalizers");
 const { ensureCommerceTables, ensureOperationalTables } = require("./adminSchema");
 const { ensureGameAnalyticsTables } = require("./gameAnalytics");
 const { ensureProductTables } = require("./products");
@@ -444,10 +444,15 @@ async function getErrorAnalytics({ days, limit, severity }) {
   });
 }
 
-async function getBalancingAnalytics({ days }) {
+async function getBalancingAnalytics({ days, modeKey }) {
   await prepareAnalyticsTables();
   const windowDays = normalizeAnalyticsWindowDays(days);
-  const params = [windowDays];
+  const normalizedModeKey = normalizeModeKey(modeKey);
+  const params = normalizedModeKey ? [windowDays, normalizedModeKey] : [windowDays];
+  const eventModeFilter = normalizedModeKey ? "AND mode_key = $2" : "";
+  const sessionModeFilter = normalizedModeKey ? "AND mode_key = $2" : "";
+  const modeConfigFilter = normalizedModeKey ? "WHERE gm.mode_key = $1" : "";
+  const modeConfigParams = normalizedModeKey ? [normalizedModeKey] : [];
   const [roundResult, sessionResult, deathResult, modeConfigResult] = await Promise.all([
     pool.query(`SELECT COUNT(*)::int AS rounds,
                        COUNT(*) FILTER (WHERE COALESCE((metadata->>'heatSurgeActive')::boolean, false))::int AS heat_surge_rounds,
@@ -455,16 +460,19 @@ async function getBalancingAnalytics({ days }) {
                        COUNT(*) FILTER (WHERE metadata->>'deviationType' = 'partial_break')::int AS partial_break_rounds
                 FROM vervus_data.analytics_events
                 WHERE event_name = 'round_started'
-                  AND event_at >= now() - ($1::int * interval '1 day')`, params),
+                  AND event_at >= now() - ($1::int * interval '1 day')
+                  ${eventModeFilter}`, params),
     pool.query(`SELECT COUNT(*)::int AS sessions,
                        COALESCE(AVG(final_combo) FILTER (WHERE ended_at IS NOT NULL), 0)::float AS avg_combo,
                        COALESCE(MAX(highest_combo), 0)::int AS highest_combo
                 FROM vervus_data.game_sessions
-                WHERE started_at >= now() - ($1::int * interval '1 day')`, params),
+                WHERE started_at >= now() - ($1::int * interval '1 day')
+                  ${sessionModeFilter}`, params),
     pool.query(`SELECT COALESCE(end_reason, 'unknown') AS reason,
                        COUNT(*)::int AS count
                 FROM vervus_data.game_sessions
                 WHERE started_at >= now() - ($1::int * interval '1 day')
+                  ${sessionModeFilter}
                   AND ended_at IS NOT NULL
                 GROUP BY end_reason
                 ORDER BY count DESC
@@ -476,13 +484,17 @@ async function getBalancingAnalytics({ days }) {
                 FROM vervus_data.game_modes gm
                 LEFT JOIN vervus_data.mode_heat_surge_configs hs ON hs.mode_id = gm.id
                 LEFT JOIN vervus_data.mode_difficulty_bands db ON db.mode_id = gm.id
+                ${modeConfigFilter}
                 GROUP BY gm.display_name, gm.mode_key, hs.activation_chance_percent
-                ORDER BY gm.display_name ASC`)
+                ORDER BY gm.display_name ASC`, modeConfigParams)
   ]);
 
   const rounds = roundResult.rows[0] || {};
   const sessions = sessionResult.rows[0] || {};
-  return buildPayload("balancing", "Gameplay balancing metrics", {
+  const selectedModeName = normalizedModeKey
+    ? modeConfigResult.rows[0]?.display_name || humanizeKey(normalizedModeKey)
+    : "";
+  return buildPayload("balancing", selectedModeName ? `Gameplay balancing metrics - ${selectedModeName}` : "Gameplay balancing metrics", {
     windowDays,
     metrics: [
       metric("Heat Surge", formatPercent(rounds.heat_surge_rounds, rounds.rounds), `${formatNumber(rounds.heat_surge_rounds)} of ${formatNumber(rounds.rounds)} rounds`),

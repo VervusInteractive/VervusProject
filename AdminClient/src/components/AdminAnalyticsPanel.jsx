@@ -15,12 +15,40 @@ function AdminAnalyticsPanel({ adminKey, sectionId }) {
   const [days, setDays] = useState(30);
   const [limit, setLimit] = useState(50);
   const [severity, setSeverity] = useState("");
+  const [balanceModeKey, setBalanceModeKey] = useState("");
+  const [balanceModeOptions, setBalanceModeOptions] = useState([]);
   const [status, setStatus] = useState("Loading analytics...");
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     loadAnalytics();
-  }, [sectionId]);
+  }, [sectionId, balanceModeKey]);
+
+  useEffect(() => {
+    if (sectionId === "balancing") {
+      loadBalanceModeOptions();
+    }
+  }, [sectionId, adminKey]);
+
+  async function loadBalanceModeOptions() {
+    try {
+      const response = await fetch(`${adminApiUrl}/api/admin/game-modes`, {
+        headers: adminKey ? { "X-Admin-Token": adminKey } : {}
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload.error || "Unable to load mode filters");
+      }
+
+      const loadedModes = payload.modes || [];
+      setBalanceModeOptions(loadedModes);
+      setBalanceModeKey((currentModeKey) => (
+        currentModeKey && !loadedModes.some((mode) => mode.modeKey === currentModeKey) ? "" : currentModeKey
+      ));
+    } catch (error) {
+      setBalanceModeOptions([]);
+    }
+  }
 
   async function loadAnalytics() {
     setIsLoading(true);
@@ -30,6 +58,9 @@ function AdminAnalyticsPanel({ adminKey, sectionId }) {
     if (sectionId === "errors") {
       params.set("limit", String(limit));
       if (severity) params.set("severity", severity);
+    }
+    if (sectionId === "balancing" && balanceModeKey) {
+      params.set("modeKey", balanceModeKey);
     }
 
     try {
@@ -41,7 +72,13 @@ function AdminAnalyticsPanel({ adminKey, sectionId }) {
         throw new Error(payload.error || "Unable to load analytics");
       }
       setAnalytics(payload);
-      setStatus(`Showing ${payload.windowDays || days} day analytics generated ${formatDateTime(payload.generatedAt)}.`);
+      const selectedBalanceMode = balanceModeOptions.find((mode) => mode.modeKey === balanceModeKey);
+      const balanceScope = sectionId === "balancing"
+        ? balanceModeKey
+          ? ` for ${selectedBalanceMode?.displayName || balanceModeKey}`
+          : " across all modes"
+        : "";
+      setStatus(`Showing ${payload.windowDays || days} day analytics${balanceScope} generated ${formatDateTime(payload.generatedAt)}.`);
     } catch (error) {
       setAnalytics(null);
       setStatus(error.message || "Unable to load analytics");
@@ -71,6 +108,19 @@ function AdminAnalyticsPanel({ adminKey, sectionId }) {
                 <option value={365}>365 days</option>
               </select>
             </label>
+            {sectionId === "balancing" ? (
+              <label className="token-field compact-field">
+                <span>Mode</span>
+                <select value={balanceModeKey} onChange={(event) => setBalanceModeKey(event.target.value)}>
+                  <option value="">All modes</option>
+                  {balanceModeOptions.map((mode) => (
+                    <option key={mode.modeKey} value={mode.modeKey}>
+                      {mode.displayName || mode.modeKey}{mode.isEnabled ? "" : " (disabled)"}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
             {sectionId === "errors" ? (
               <>
                 <label className="token-field compact-field">

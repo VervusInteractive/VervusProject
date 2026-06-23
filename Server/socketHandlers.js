@@ -297,31 +297,47 @@ function registerSocketHandlers(io) {
     clearRoomGameTimers(room);
     touchRoom(room);
     if (room.game && !room.game.analyticsEnded) {
-      room.game.analyticsEnded = true;
-      recordGameSessionEnd({
-        sessionId: room.game.analyticsSessionId,
+      const completedGame = room.game;
+      completedGame.analyticsEnded = true;
+      const sessionEndPayload = {
+        sessionId: completedGame.analyticsSessionId,
         roomCode: roomId,
-        finalCombo: room.game.combo,
-        highestCombo: room.game.highestCombo ?? room.game.combo,
+        finalCombo: completedGame.combo,
+        highestCombo: completedGame.highestCombo ?? completedGame.combo,
         endReason: metadata.causeLabel || metadata.reason || "game_over",
         metadata: {
           ...metadata,
-          score: room.game.score,
-          modeId: room.game.modeId,
-          isPreview: room.game.isPreview
+          score: completedGame.score,
+          modeId: completedGame.modeId,
+          isPreview: completedGame.isPreview,
+          analyticsRunId: completedGame.analyticsRunId || null
         }
-      }).catch((error) => console.error("DB game session end failed", error));
+      };
+      const hasSessionStartPromise = Boolean(completedGame.analyticsSessionStartPromise);
+      Promise.resolve(completedGame.analyticsSessionStartPromise)
+        .catch(() => null)
+        .then((session) => {
+          const resolvedSessionId = completedGame.analyticsSessionId || session?.id || sessionEndPayload.sessionId;
+          if (hasSessionStartPromise && !resolvedSessionId) return null;
+          return recordGameSessionEnd({
+            ...sessionEndPayload,
+            sessionId: resolvedSessionId
+          });
+        })
+        .catch((error) => console.error("DB game session end failed", error));
       recordAnalyticsEvent({
-        eventName: room.game.isPreview ? "preview_completed" : "game_completed",
+        eventName: completedGame.isPreview ? "preview_completed" : "game_completed",
         profileId: room.creatorPlayerId,
         roomCode: roomId,
-        modeKey: room.game.modeId,
+        modeKey: completedGame.modeId,
+        sessionId: completedGame.analyticsRunId || completedGame.analyticsSessionId || null,
         metadata: {
           ...metadata,
-          score: room.game.score,
-          finalCombo: room.game.combo,
-          highestCombo: room.game.highestCombo ?? room.game.combo,
-          isPreview: room.game.isPreview
+          score: completedGame.score,
+          finalCombo: completedGame.combo,
+          highestCombo: completedGame.highestCombo ?? completedGame.combo,
+          isPreview: completedGame.isPreview,
+          analyticsRunId: completedGame.analyticsRunId || null
         }
       }).catch((error) => console.error("DB completion analytics event failed", error));
     }
@@ -487,6 +503,7 @@ function registerSocketHandlers(io) {
       room.phase = "play";
       const selectedModeId = hasSelectedModeEntitlement ? requestedModeId : "standard";
       room.game = createGameState(selectedModeId);
+      room.game.analyticsRunId = createRandomId();
       room.game.status = "loading";
       room.game.isPreview = !hasSelectedModeEntitlement;
       room.game.previewComboLimit = room.game.isPreview ? PREVIEW_COMBO_LIMIT : null;
@@ -521,29 +538,36 @@ function registerSocketHandlers(io) {
     room.game.startedAtMs = Date.now();
     room.game.highestCombo = Math.max(room.game.highestCombo || 0, room.game.combo || 0);
     room.game.reconnectCountdownStartedAtMs = null;
-    recordGameSessionStart({
+    const activeGame = room.game;
+    const analyticsRunId = activeGame.analyticsRunId || createRandomId();
+    activeGame.analyticsRunId = analyticsRunId;
+    activeGame.analyticsSessionStartPromise = recordGameSessionStart({
       roomCode: roomId,
-      modeKey: room.game.modeId,
-      isPreview: room.game.isPreview,
+      modeKey: activeGame.modeId,
+      isPreview: activeGame.isPreview,
       playerCount: participants.length,
       metadata: {
-        previewComboLimit: room.game.previewComboLimit,
-        expiresAtMs: room.expiresAtMs
+        previewComboLimit: activeGame.previewComboLimit,
+        expiresAtMs: room.expiresAtMs,
+        analyticsRunId
       }
     }).then((session) => {
-      if (session?.id && room.game) {
-        room.game.analyticsSessionId = session.id;
+      if (session?.id && room.game === activeGame && activeGame.analyticsRunId === analyticsRunId) {
+        activeGame.analyticsSessionId = session.id;
       }
+      return session;
     }).catch((error) => console.error("DB game session start failed", error));
     recordAnalyticsEvent({
-      eventName: room.game.isPreview ? "preview_started" : "game_started",
+      eventName: activeGame.isPreview ? "preview_started" : "game_started",
       profileId: room.creatorPlayerId,
       roomCode: roomId,
-      modeKey: room.game.modeId,
+      modeKey: activeGame.modeId,
+      sessionId: analyticsRunId,
       metadata: {
         playerCount: participants.length,
-        previewComboLimit: room.game.previewComboLimit,
-        expiresAtMs: room.expiresAtMs
+        previewComboLimit: activeGame.previewComboLimit,
+        expiresAtMs: room.expiresAtMs,
+        analyticsRunId
       }
     }).catch((error) => console.error("DB start analytics event failed", error));
     scheduleNextRound(room, roomId, 3000);

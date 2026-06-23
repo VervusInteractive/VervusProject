@@ -618,20 +618,47 @@ async function recordGameSessionEnd({ sessionId, roomCode, finalCombo = 0, highe
   await ensureGameAnalyticsTables();
   const safeFinalCombo = Math.max(0, Number(finalCombo) || 0);
   const safeHighestCombo = Math.max(safeFinalCombo, Number(highestCombo) || 0);
-  const values = [sessionId || null, roomCode || null, safeFinalCombo, safeHighestCombo, endReason || 'game_over', JSON.stringify(metadata || {})];
-  const { rows } = await pool.query(
-    `UPDATE vervus_data.game_sessions
-     SET ended_at = COALESCE(ended_at, now()),
-         duration_ms = GREATEST(0, FLOOR(EXTRACT(EPOCH FROM (COALESCE(ended_at, now()) - started_at)) * 1000)::integer),
-         final_combo = $3,
-         highest_combo = $4,
-         end_reason = $5,
-         metadata = metadata || $6::jsonb,
+  const values = [safeFinalCombo, safeHighestCombo, endReason || 'game_over', JSON.stringify(metadata || {})];
+  const updateSql = `UPDATE vervus_data.game_sessions
+     SET ended_at = now(),
+         duration_ms = GREATEST(0, FLOOR(EXTRACT(EPOCH FROM (now() - started_at)) * 1000)::integer),
+         final_combo = $1,
+         highest_combo = $2,
+         end_reason = $3,
+         metadata = metadata || $4::jsonb,
          updated_at = now()
-     WHERE ($1::uuid IS NOT NULL AND id = $1::uuid)
-        OR ($1::uuid IS NULL AND $2::text IS NOT NULL AND room_code = $2 AND ended_at IS NULL)
-     RETURNING id`,
-    values
+     WHERE id = $5::uuid
+       AND ended_at IS NULL
+     RETURNING id`;
+
+  if (sessionId) {
+    const { rows } = await pool.query(updateSql, [...values, sessionId]);
+    if (rows[0]) return rows[0];
+  }
+
+  if (!roomCode) return null;
+
+  const { rows } = await pool.query(
+    `WITH latest_open_session AS (
+       SELECT id
+       FROM vervus_data.game_sessions
+       WHERE room_code = $5
+         AND ended_at IS NULL
+       ORDER BY started_at DESC
+       LIMIT 1
+     )
+     UPDATE vervus_data.game_sessions gs
+     SET ended_at = now(),
+         duration_ms = GREATEST(0, FLOOR(EXTRACT(EPOCH FROM (now() - gs.started_at)) * 1000)::integer),
+         final_combo = $1,
+         highest_combo = $2,
+         end_reason = $3,
+         metadata = gs.metadata || $4::jsonb,
+         updated_at = now()
+     FROM latest_open_session
+     WHERE gs.id = latest_open_session.id
+     RETURNING gs.id`,
+    [...values, roomCode]
   );
   return rows[0] || null;
 }

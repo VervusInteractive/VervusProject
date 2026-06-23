@@ -52,6 +52,7 @@ function GameAnalyticsPanel({ adminKey }) {
   ]);
   const recentRows = (analytics?.recentSessions || []).map((session) => [
     session.roomCode,
+    `#${formatNumber(session.roomPlayNumber || 1)}`,
     session.modeKey,
     session.isPreview ? "Preview" : "Premium",
     session.endedAt ? formatDuration(session.durationMs) : "In progress",
@@ -92,7 +93,7 @@ function GameAnalyticsPanel({ adminKey }) {
       />
       <DataTable
         title="Recent game sessions"
-        columns={["Room", "Game", "Type", "Duration", "Highest combo", "End reason"]}
+        columns={["Room", "Play", "Game", "Type", "Duration", "Highest combo", "End reason"]}
         rows={recentRows}
       />
     </>

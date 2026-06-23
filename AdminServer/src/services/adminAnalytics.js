@@ -73,7 +73,8 @@ const HOST_EVENTS_CTE = `unique_profile_names AS (
   GROUP BY LOWER(TRIM(display_name))
   HAVING COUNT(*) = 1
 ), host_events AS (
-  SELECT COALESCE(rh.actor_profile_id, rh.actor_player_id, upn.profile_id) AS profile_id,
+  SELECT rh.room_code,
+         COALESCE(rh.actor_profile_id, rh.actor_player_id, upn.profile_id) AS profile_id,
          COALESCE(
            rh.actor_profile_id::text,
            rh.actor_player_id::text,
@@ -86,12 +87,12 @@ const HOST_EVENTS_CTE = `unique_profile_names AS (
   LEFT JOIN unique_profile_names upn
     ON upn.normalized_name = LOWER(TRIM(rh.metadata->>'actorDisplayName'))
   WHERE rh.event_type = 'room_created'
-    AND rh.event_at >= now() - ($1::int * interval '1 day')
 )`;
 
 async function prepareAnalyticsTables() {
   await ensureProductTables();
   await ensureCommerceTables();
+  await ensureOperationalTables();
   await ensureGameAnalyticsTables();
 }
 
@@ -221,7 +222,7 @@ async function getModeAnalytics({ days }) {
   await prepareAnalyticsTables();
   const windowDays = normalizeAnalyticsWindowDays(days);
   const params = [windowDays];
-  const [summaryResult, modeResult, previewResult] = await Promise.all([
+  const [summaryResult, modeResult, previewResult, roomSessionResult] = await Promise.all([
     pool.query(`SELECT COUNT(*)::int AS sessions,
                        COALESCE(AVG(final_combo) FILTER (WHERE ended_at IS NOT NULL), 0)::float AS avg_combo,
                        COALESCE(MAX(highest_combo), 0)::int AS highest_combo,
@@ -246,7 +247,18 @@ async function getModeAnalytics({ days }) {
                 FROM vervus_data.game_sessions
                 WHERE started_at >= now() - ($1::int * interval '1 day')
                 GROUP BY mode_key
-                ORDER BY mode_key ASC`, params)
+                ORDER BY mode_key ASC`, params),
+    pool.query(`SELECT room_code,
+                       COUNT(*)::int AS sessions,
+                       COUNT(DISTINCT mode_key)::int AS modes_played,
+                       string_agg(DISTINCT mode_key, ', ' ORDER BY mode_key) AS mode_keys,
+                       MAX(started_at) AS latest_started_at
+                FROM vervus_data.game_sessions
+                WHERE started_at >= now() - ($1::int * interval '1 day')
+                GROUP BY room_code
+                HAVING COUNT(*) > 1
+                ORDER BY modes_played DESC, sessions DESC, latest_started_at DESC
+                LIMIT 10`, params)
   ]);
 
   const summary = summaryResult.rows[0] || {};
@@ -272,6 +284,13 @@ async function getModeAnalytics({ days }) {
         humanizeKey(row.mode_key),
         formatNumber(row.previews),
         formatNumber(row.paid_sessions)
+      ])),
+      table("Rooms with multiple game sessions", ["Room", "Game sessions", "Modes played", "Mode keys", "Latest game"], roomSessionResult.rows.map((row) => [
+        row.room_code,
+        formatNumber(row.sessions),
+        formatNumber(row.modes_played),
+        row.mode_keys || "-",
+        formatDateTime(row.latest_started_at)
       ]))
     ]
   });
@@ -282,28 +301,93 @@ async function getHostAnalytics({ days }) {
   const windowDays = normalizeAnalyticsWindowDays(days);
   const params = [windowDays];
   const [summaryResult, topHostsResult, purchaseResult] = await Promise.all([
-    pool.query(`WITH ${HOST_EVENTS_CTE}, hosted AS (
-                  SELECT host_key, MIN(profile_id::text)::uuid AS profile_id, COUNT(*)::int AS rooms
+    pool.query(`WITH ${HOST_EVENTS_CTE},
+                hosted_rooms AS (
+                  SELECT host_key,
+                         COUNT(DISTINCT room_code)::int AS rooms
                   FROM host_events
                   WHERE host_key IS NOT NULL
+                    AND event_at >= now() - ($1::int * interval '1 day')
                   GROUP BY host_key
+                ),
+                session_rows AS (
+                  SELECT gs.id,
+                         gs.room_code,
+                         COALESCE(he.host_key, 'room:' || gs.room_code) AS host_key
+                  FROM vervus_data.game_sessions gs
+                  LEFT JOIN LATERAL (
+                    SELECT host_key
+                    FROM host_events he
+                    WHERE he.room_code = gs.room_code
+                      AND he.event_at <= gs.started_at
+                    ORDER BY he.event_at DESC
+                    LIMIT 1
+                  ) he ON true
+                  WHERE gs.started_at >= now() - ($1::int * interval '1 day')
+                ),
+                hosted_sessions AS (
+                  SELECT host_key,
+                         COUNT(*)::int AS game_sessions
+                  FROM session_rows
+                  GROUP BY host_key
+                ),
+                combined_hosts AS (
+                  SELECT host_key FROM hosted_rooms
+                  UNION
+                  SELECT host_key FROM hosted_sessions
                 )
-                SELECT (SELECT COUNT(*)::int
-                        FROM vervus_data.room_history
-                        WHERE event_type = 'room_created'
-                          AND event_at >= now() - ($1::int * interval '1 day')) AS games_hosted,
+                SELECT COALESCE((SELECT COUNT(*)::int FROM vervus_data.game_sessions WHERE started_at >= now() - ($1::int * interval '1 day')), 0) AS games_hosted,
+                       COALESCE((SELECT SUM(rooms)::int FROM hosted_rooms), 0) AS rooms_hosted,
                        COUNT(*)::int AS hosts,
-                       COUNT(*) FILTER (WHERE rooms > 1)::int AS repeat_hosts
-                FROM hosted`, params),
-    pool.query(`WITH ${HOST_EVENTS_CTE}, hosted AS (
+                       COUNT(*) FILTER (WHERE COALESCE(hs.game_sessions, 0) > 1)::int AS repeat_hosts
+                FROM combined_hosts ch
+                LEFT JOIN hosted_sessions hs ON hs.host_key = ch.host_key`, params),
+    pool.query(`WITH ${HOST_EVENTS_CTE},
+                hosted_rooms AS (
                   SELECT host_key,
                          MIN(profile_id::text)::uuid AS profile_id,
                          MAX(recorded_display_name) AS recorded_display_name,
-                         COUNT(*)::int AS rooms,
-                         MAX(event_at) AS last_hosted_at
+                         COUNT(DISTINCT room_code)::int AS rooms,
+                         MAX(event_at) AS last_room_created_at
                   FROM host_events
                   WHERE host_key IS NOT NULL
+                    AND event_at >= now() - ($1::int * interval '1 day')
                   GROUP BY host_key
+                ),
+                session_rows AS (
+                  SELECT gs.id,
+                         gs.room_code,
+                         gs.mode_key,
+                         gs.started_at,
+                         COALESCE(he.host_key, 'room:' || gs.room_code) AS host_key,
+                         he.profile_id,
+                         he.recorded_display_name
+                  FROM vervus_data.game_sessions gs
+                  LEFT JOIN LATERAL (
+                    SELECT host_key, profile_id, recorded_display_name
+                    FROM host_events he
+                    WHERE he.room_code = gs.room_code
+                      AND he.event_at <= gs.started_at
+                    ORDER BY he.event_at DESC
+                    LIMIT 1
+                  ) he ON true
+                  WHERE gs.started_at >= now() - ($1::int * interval '1 day')
+                ),
+                hosted_sessions AS (
+                  SELECT host_key,
+                         MIN(profile_id::text)::uuid AS profile_id,
+                         MAX(recorded_display_name) AS recorded_display_name,
+                         COUNT(*)::int AS game_sessions,
+                         COUNT(DISTINCT room_code)::int AS rooms_with_games,
+                         COUNT(DISTINCT mode_key)::int AS modes_played,
+                         MAX(started_at) AS last_game_at
+                  FROM session_rows
+                  GROUP BY host_key
+                ),
+                combined_hosts AS (
+                  SELECT host_key FROM hosted_rooms
+                  UNION
+                  SELECT host_key FROM hosted_sessions
                 ),
                 paid AS (
                   SELECT player_id AS host_id,
@@ -314,17 +398,22 @@ async function getHostAnalytics({ days }) {
                   WHERE created_at >= now() - ($1::int * interval '1 day')
                   GROUP BY player_id
                 )
-                SELECT h.profile_id AS host_id,
-                       COALESCE(pp.display_name, h.recorded_display_name, h.profile_id::text, 'Unknown host') AS host_name,
-                       h.rooms,
+                SELECT COALESCE(hs.profile_id, hr.profile_id) AS host_id,
+                       COALESCE(pp.display_name, hs.recorded_display_name, hr.recorded_display_name, COALESCE(hs.profile_id, hr.profile_id)::text, 'Unknown host') AS host_name,
+                       COALESCE(hs.game_sessions, 0)::int AS game_sessions,
+                       COALESCE(hr.rooms, 0)::int AS rooms,
+                       COALESCE(hs.rooms_with_games, 0)::int AS rooms_with_games,
+                       COALESCE(hs.modes_played, 0)::int AS modes_played,
                        COALESCE(p.purchases, 0)::int AS purchases,
                        COALESCE(p.revenue_cents, 0)::int AS revenue_cents,
                        COALESCE(p.currency_code, 'USD') AS currency_code,
-                       h.last_hosted_at
-                FROM hosted h
-                LEFT JOIN paid p ON p.host_id = h.profile_id
-                LEFT JOIN vervus_data.player_profiles pp ON pp.id = h.profile_id
-                ORDER BY h.rooms DESC, purchases DESC, h.last_hosted_at DESC
+                       COALESCE(hs.last_game_at, hr.last_room_created_at) AS last_hosted_at
+                FROM combined_hosts ch
+                LEFT JOIN hosted_sessions hs ON hs.host_key = ch.host_key
+                LEFT JOIN hosted_rooms hr ON hr.host_key = ch.host_key
+                LEFT JOIN paid p ON p.host_id = COALESCE(hs.profile_id, hr.profile_id)
+                LEFT JOIN vervus_data.player_profiles pp ON pp.id = COALESCE(hs.profile_id, hr.profile_id)
+                ORDER BY game_sessions DESC, rooms DESC, purchases DESC, last_hosted_at DESC
                 LIMIT 15`, params),
     pool.query(`SELECT COUNT(*) FILTER (WHERE payment_status::text = 'paid')::int AS host_purchases,
                        COUNT(DISTINCT player_id) FILTER (WHERE payment_status::text = 'paid')::int AS purchasing_hosts
@@ -337,15 +426,18 @@ async function getHostAnalytics({ days }) {
   return buildPayload("hosts", "Host analytics", {
     windowDays,
     metrics: [
-      metric("Games hosted", formatNumber(summary.games_hosted), "Room creation events"),
-      metric("Hosts", formatNumber(summary.hosts), "Unique room creators"),
-      metric("Repeat hosts", formatPercent(summary.repeat_hosts, summary.hosts), `${formatNumber(summary.repeat_hosts)} repeat hosts`),
+      metric("Games hosted", formatNumber(summary.games_hosted), "Game session rows"),
+      metric("Rooms created", formatNumber(summary.rooms_hosted), "Room creation events"),
+      metric("Hosts", formatNumber(summary.hosts), "Hosts with rooms or game sessions"),
+      metric("Repeat hosts", formatPercent(summary.repeat_hosts, summary.hosts), `${formatNumber(summary.repeat_hosts)} hosts with multiple game sessions`),
       metric("Host purchases", formatNumber(purchases.host_purchases), `${formatNumber(purchases.purchasing_hosts)} purchasing hosts`)
     ],
     tables: [
-      table("Top hosts", ["Host", "Rooms hosted", "Purchases", "Revenue", "Last hosted"], topHostsResult.rows.map((row) => [
+      table("Top hosts", ["Host", "Game sessions", "Rooms created", "Modes played", "Purchases", "Revenue", "Last hosted"], topHostsResult.rows.map((row) => [
         row.host_name,
+        formatNumber(row.game_sessions),
         formatNumber(row.rooms),
+        formatNumber(row.modes_played),
         formatNumber(row.purchases),
         formatCurrency(row.revenue_cents, row.currency_code),
         formatDateTime(row.last_hosted_at)
@@ -522,10 +614,16 @@ async function getPreviewAnalytics({ days }) {
   await prepareAnalyticsTables();
   const windowDays = normalizeAnalyticsWindowDays(days);
   const params = [windowDays];
-  const [summaryResult, modeResult, recentResult] = await Promise.all([
+  const [summaryResult, modeResult, recentResult, repeatRoomResult] = await Promise.all([
     pool.query(`SELECT COUNT(*) FILTER (WHERE is_preview = true)::int AS preview_starts,
                        COUNT(*) FILTER (WHERE is_preview = true AND ended_at IS NOT NULL)::int AS preview_ends,
                        COUNT(*) FILTER (WHERE is_preview = true AND (end_reason = 'preview ended' OR metadata->>'causeLabel' = 'preview ended'))::int AS preview_completions,
+                       COUNT(DISTINCT room_code) FILTER (WHERE is_preview = true)::int AS preview_rooms,
+                       GREATEST(
+                         COUNT(*) FILTER (WHERE is_preview = true) -
+                         COUNT(DISTINCT room_code) FILTER (WHERE is_preview = true),
+                         0
+                       )::int AS repeat_preview_plays,
                        COALESCE(AVG(duration_ms) FILTER (WHERE is_preview = true AND ended_at IS NOT NULL), 0)::float AS avg_duration_ms
                 FROM vervus_data.game_sessions
                 WHERE started_at >= now() - ($1::int * interval '1 day')`, params),
@@ -538,33 +636,56 @@ async function getPreviewAnalytics({ days }) {
                   AND started_at >= now() - ($1::int * interval '1 day')
                 GROUP BY mode_key
                 ORDER BY starts DESC`, params),
-    pool.query(`SELECT room_code, mode_key, started_at, ended_at, duration_ms, highest_combo, end_reason
+    pool.query(`WITH preview_sessions AS (
+                  SELECT room_code,
+                         mode_key,
+                         started_at,
+                         ended_at,
+                         duration_ms,
+                         highest_combo,
+                         end_reason,
+                         ROW_NUMBER() OVER (PARTITION BY room_code ORDER BY started_at ASC) AS room_play_number
+                  FROM vervus_data.game_sessions
+                  WHERE is_preview = true
+                    AND started_at >= now() - ($1::int * interval '1 day')
+                )
+                SELECT room_code, mode_key, room_play_number, started_at, ended_at, duration_ms, highest_combo, end_reason
+                FROM preview_sessions
+                ORDER BY started_at DESC
+                LIMIT 15`, params),
+    pool.query(`SELECT room_code,
+                       COUNT(*)::int AS starts,
+                       COUNT(*) FILTER (WHERE ended_at IS NOT NULL)::int AS ends,
+                       COUNT(*) FILTER (WHERE end_reason = 'preview ended' OR metadata->>'causeLabel' = 'preview ended')::int AS completions,
+                       MAX(started_at) AS latest_started_at
                 FROM vervus_data.game_sessions
                 WHERE is_preview = true
-                ORDER BY started_at DESC
-                LIMIT 15`)
+                  AND started_at >= now() - ($1::int * interval '1 day')
+                GROUP BY room_code
+                HAVING COUNT(*) > 1
+                ORDER BY starts DESC, latest_started_at DESC
+                LIMIT 10`, params)
   ]);
 
   const summary = summaryResult.rows[0] || {};
-  const conversionResult = await pool.query(`WITH preview_hosts AS (
-                                               SELECT profile_id, MIN(event_at) AS first_preview_at
+  const conversionResult = await pool.query(`WITH preview_events AS (
+                                               SELECT id, profile_id, event_at
                                                FROM vervus_data.analytics_events
                                                WHERE event_name = 'preview_started'
                                                  AND profile_id IS NOT NULL
                                                  AND event_at >= now() - ($1::int * interval '1 day')
-                                               GROUP BY profile_id
-                                             ), converted_hosts AS (
-                                               SELECT DISTINCT ph.profile_id
-                                               FROM preview_hosts ph
+                                             ), converted_preview_events AS (
+                                               SELECT DISTINCT pe.id
+                                               FROM preview_events pe
                                                JOIN vervus_data.purchases p
-                                                 ON p.player_id = ph.profile_id
+                                                 ON p.player_id = pe.profile_id
                                                 AND p.payment_status::text = 'paid'
-                                                AND COALESCE(p.paid_at, p.created_at) >= ph.first_preview_at
+                                                AND COALESCE(p.paid_at, p.created_at) >= pe.event_at
                                              )
-                                             SELECT COUNT(*)::int AS preview_hosts,
-                                                    COUNT(ch.profile_id)::int AS converted_hosts
-                                             FROM preview_hosts ph
-                                             LEFT JOIN converted_hosts ch ON ch.profile_id = ph.profile_id`, params);
+                                             SELECT COUNT(pe.id)::int AS preview_events,
+                                                    COUNT(cpe.id)::int AS converted_preview_events
+                                             FROM preview_events pe
+                                             LEFT JOIN converted_preview_events cpe ON cpe.id = pe.id`, params);
   const conversion = conversionResult.rows[0] || {};
   return buildPayload("previews", "Preview analytics", {
     windowDays,
@@ -572,7 +693,8 @@ async function getPreviewAnalytics({ days }) {
       metric("Preview starts", formatNumber(summary.preview_starts), "Preview game sessions"),
       metric("Preview completions", formatNumber(summary.preview_completions), "Ended at preview combo limit"),
       metric("Completion rate", formatPercent(summary.preview_completions, summary.preview_starts), "Completions / starts"),
-      metric("Preview to purchase", formatPercent(conversion.converted_hosts, conversion.preview_hosts), `${formatNumber(conversion.converted_hosts)} of ${formatNumber(conversion.preview_hosts)} preview hosts purchased`),
+      metric("Repeat preview plays", formatNumber(summary.repeat_preview_plays), `${formatNumber(summary.preview_rooms)} rooms started previews`),
+      metric("Preview to purchase", formatPercent(conversion.converted_preview_events, conversion.preview_events), `${formatNumber(conversion.converted_preview_events)} of ${formatNumber(conversion.preview_events)} tracked preview starts purchased`),
       metric("Avg. preview duration", formatDuration(summary.avg_duration_ms), "Completed previews")
     ],
     tables: [
@@ -583,13 +705,21 @@ async function getPreviewAnalytics({ days }) {
         formatNumber(row.completions),
         formatPercent(row.completions, row.starts)
       ])),
-      table("Recent previews", ["Room", "Mode", "Started", "Duration", "Highest combo", "End reason"], recentResult.rows.map((row) => [
+      table("Recent previews", ["Room", "Play", "Mode", "Started", "Duration", "Highest combo", "End reason"], recentResult.rows.map((row) => [
         row.room_code,
+        `#${formatNumber(row.room_play_number)}`,
         humanizeKey(row.mode_key),
         formatDateTime(row.started_at),
         row.ended_at ? formatDuration(row.duration_ms) : "In progress",
         `${formatNumber(row.highest_combo)}x`,
         row.end_reason || "-"
+      ])),
+      table("Rooms with repeat previews", ["Room", "Preview plays", "Ended", "Completions", "Latest preview"], repeatRoomResult.rows.map((row) => [
+        row.room_code,
+        formatNumber(row.starts),
+        formatNumber(row.ends),
+        formatNumber(row.completions),
+        formatDateTime(row.latest_started_at)
       ]))
     ]
   });
@@ -612,15 +742,47 @@ async function getRetentionAnalytics({ days }) {
                        COUNT(*) FILTER (WHERE purchases > 1)::int AS repeat_purchasers,
                        COALESCE(SUM(purchases), 0)::int AS purchases
                 FROM paid`, params),
-    pool.query(`WITH ${HOST_EVENTS_CTE}, hosted AS (
-                  SELECT host_key, COUNT(*)::int AS rooms
+    pool.query(`WITH ${HOST_EVENTS_CTE},
+                hosted_rooms AS (
+                  SELECT host_key,
+                         COUNT(DISTINCT room_code)::int AS rooms
                   FROM host_events
                   WHERE host_key IS NOT NULL
+                    AND event_at >= now() - ($1::int * interval '1 day')
                   GROUP BY host_key
+                ),
+                session_rows AS (
+                  SELECT gs.id,
+                         COALESCE(he.host_key, 'room:' || gs.room_code) AS host_key
+                  FROM vervus_data.game_sessions gs
+                  LEFT JOIN LATERAL (
+                    SELECT host_key
+                    FROM host_events he
+                    WHERE he.room_code = gs.room_code
+                      AND he.event_at <= gs.started_at
+                    ORDER BY he.event_at DESC
+                    LIMIT 1
+                  ) he ON true
+                  WHERE gs.started_at >= now() - ($1::int * interval '1 day')
+                ),
+                hosted_sessions AS (
+                  SELECT host_key,
+                         COUNT(*)::int AS game_sessions
+                  FROM session_rows
+                  GROUP BY host_key
+                ),
+                combined_hosts AS (
+                  SELECT host_key FROM hosted_rooms
+                  UNION
+                  SELECT host_key FROM hosted_sessions
                 )
                 SELECT COUNT(*)::int AS hosts,
-                       COUNT(*) FILTER (WHERE rooms > 1)::int AS returning_hosts
-                FROM hosted`, params),
+                       COUNT(*) FILTER (WHERE COALESCE(hs.game_sessions, 0) > 1)::int AS returning_hosts,
+                       COALESCE(SUM(hs.game_sessions), 0)::int AS game_sessions,
+                       COALESCE(SUM(hr.rooms), 0)::int AS rooms
+                FROM combined_hosts ch
+                LEFT JOIN hosted_sessions hs ON hs.host_key = ch.host_key
+                LEFT JOIN hosted_rooms hr ON hr.host_key = ch.host_key`, params),
     pool.query(`WITH first_purchase AS (
                   SELECT player_id, MIN(paid_at) AS first_paid_at
                   FROM vervus_data.purchases
@@ -658,9 +820,10 @@ async function getRetentionAnalytics({ days }) {
     windowDays,
     metrics: [
       metric("Repeat purchases", formatPercent(purchases.repeat_purchasers, purchases.purchasing_hosts), `${formatNumber(purchases.repeat_purchasers)} repeat buyers`),
-      metric("Returning hosts", formatPercent(hosts.returning_hosts, hosts.hosts), `${formatNumber(hosts.returning_hosts)} returning hosts`),
+      metric("Returning hosts", formatPercent(hosts.returning_hosts, hosts.hosts), `${formatNumber(hosts.returning_hosts)} hosts with multiple game sessions`),
+      metric("Host game sessions", formatNumber(hosts.game_sessions), `${formatNumber(hosts.rooms)} rooms created`),
       metric("Purchases", formatNumber(purchases.purchases), "Paid purchases"),
-      metric("Active hosts", formatNumber(hosts.hosts), "Hosts creating rooms")
+      metric("Active hosts", formatNumber(hosts.hosts), "Hosts with rooms or game sessions")
     ],
     tables: [
       table("Purchase cohorts", ["Cohort week", "Buyers", "Repeat buyers", "Repeat rate"], cohortResult.rows.map((row) => [

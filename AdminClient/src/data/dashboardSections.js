@@ -96,15 +96,15 @@ const dashboardSections = [
     description:
       "Understand hosting activity, purchase behavior, repeat hosts, and games hosted by linking room creators to purchases.",
     metrics: [
-      { label: "Games hosted", value: "Track", delta: "Rooms created per host" },
+      { label: "Games hosted", value: "Track", delta: "Game sessions per host" },
       { label: "Host purchases", value: "Stripe", delta: "Purchases linked to host identity" },
-      { label: "Repeat hosts", value: "Track", delta: "Returning host ID or email" },
+      { label: "Repeat hosts", value: "Track", delta: "Multiple game sessions by host" },
       { label: "Rooms per host", value: "Track", delta: "Room creation history" }
     ],
     tableTitle: "Host analytics requirements",
     tableColumns: ["Need", "Identifier", "Source"],
     rows: [
-      ["Games hosted", "host_id or normalized email", "Room creation events"],
+      ["Games hosted", "host_id or normalized email", "Game session rows"],
       ["Purchases", "stripe_customer_id plus host_id", "Stripe webhook mirror"],
       ["Repeat hosts", "stable host_id", "Rooms and sessions"],
       ["Support lookup", "room_code plus host_id", "Live rooms and room history"]
@@ -206,7 +206,7 @@ const dashboardSections = [
       "Track repeat purchases and returning hosts from purchase history and room creation events.",
     metrics: [
       { label: "Repeat purchases", value: "Stripe", delta: "Customer or host-linked purchases" },
-      { label: "Returning hosts", value: "Track", delta: "Host ID seen across rooms" },
+      { label: "Returning hosts", value: "Track", delta: "Host ID with multiple game sessions" },
       { label: "Purchase cohorts", value: "Later", delta: "When enough event history exists" },
       { label: "Churn risk", value: "Later", delta: "Derived from host inactivity" }
     ],
@@ -214,7 +214,7 @@ const dashboardSections = [
     tableColumns: ["Metric", "Required data", "Source"],
     rows: [
       ["Repeat purchases", "stripe_customer_id or host_id", "Stripe plus admin DB"],
-      ["Returning hosts", "host_id across room_created events", "Game database"],
+      ["Returning hosts", "host_id across game sessions", "Game database"],
       ["Cohorts", "first_purchase_at and follow-up purchases", "Admin analytics table"],
       ["Support follow-up", "host_id, email, latest room", "Host analytics and live rooms"]
     ]

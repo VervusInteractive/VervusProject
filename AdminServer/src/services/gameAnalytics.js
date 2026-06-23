@@ -54,9 +54,23 @@ async function getGameAnalytics({ days = 30 } = {}) {
                 WHERE gs.started_at >= now() - ($1::int * interval '1 day')
                 GROUP BY gs.mode_key, gm.display_name
                 ORDER BY sessions DESC, game_name ASC`, params),
-    pool.query(`SELECT room_code, mode_key, is_preview, started_at, ended_at, duration_ms, final_combo, highest_combo, player_count, end_reason
-                FROM vervus_data.game_sessions
-                WHERE started_at >= now() - ($1::int * interval '1 day')
+    pool.query(`WITH window_sessions AS (
+                  SELECT room_code,
+                         mode_key,
+                         is_preview,
+                         started_at,
+                         ended_at,
+                         duration_ms,
+                         final_combo,
+                         highest_combo,
+                         player_count,
+                         end_reason,
+                         ROW_NUMBER() OVER (PARTITION BY room_code ORDER BY started_at ASC) AS room_play_number
+                  FROM vervus_data.game_sessions
+                  WHERE started_at >= now() - ($1::int * interval '1 day')
+                )
+                SELECT room_code, mode_key, is_preview, room_play_number, started_at, ended_at, duration_ms, final_combo, highest_combo, player_count, end_reason
+                FROM window_sessions
                 ORDER BY started_at DESC
                 LIMIT 10`, params)
   ]);
@@ -83,6 +97,7 @@ async function getGameAnalytics({ days = 30 } = {}) {
       roomCode: row.room_code,
       modeKey: row.mode_key,
       isPreview: Boolean(row.is_preview),
+      roomPlayNumber: Number(row.room_play_number) || 1,
       startedAt: row.started_at,
       endedAt: row.ended_at,
       durationMs: Number(row.duration_ms) || 0,

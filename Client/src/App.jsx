@@ -1121,7 +1121,7 @@ function App() {
   }, [roomId, roomState?.phase, me?.game?.status, me?.waitingForNextGame, me?.currentGameParticipant, setStoredRoomViewPreference]);
 
   return (
-    <main className="app-page">
+    <main className={`app-page${!roomId && !isSoloChaosLabOpen ? " app-page-lobby" : ""}`}>
       {roomId ? (
         shouldShowGamePage ? (
         <GlitchGamePage

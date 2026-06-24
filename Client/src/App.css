@@ -9,6 +9,200 @@
   font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
 }
 
+.app-page-lobby {
+  min-height: 100svh;
+  place-items: stretch center;
+  padding: 0;
+  background:
+    radial-gradient(circle at 50% 16%, rgba(116, 47, 185, 0.14), transparent 34%),
+    linear-gradient(180deg, #05050c 0%, #090817 48%, #0c0b1b 100%);
+  color: #f8f6ff;
+}
+
+.lobby-start-page {
+  width: min(100%, 430px);
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+  padding: max(8px, env(safe-area-inset-top)) 20px max(20px, env(safe-area-inset-bottom));
+  background:
+    radial-gradient(circle at 14% 72%, rgba(98, 38, 170, 0.12), transparent 30%),
+    linear-gradient(180deg, rgba(5, 5, 12, 0.96) 0%, rgba(12, 10, 27, 0.98) 100%);
+}
+
+.lobby-brand {
+  position: relative;
+  display: block;
+  align-self: center;
+  margin-top: 42px;
+  line-height: 0;
+}
+
+.lobby-brand::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -15px;
+  width: 176px;
+  height: 1px;
+  transform: translateX(-50%);
+  background: linear-gradient(90deg, transparent, rgba(117, 83, 155, 0.28), transparent);
+}
+
+.lobby-brand img {
+  display: block;
+  width: auto;
+  height: 31px;
+  filter: drop-shadow(0 0 16px rgba(138, 65, 255, 0.3));
+}
+
+.lobby-start-form {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  margin-top: 52px;
+}
+
+.lobby-heading-block {
+  margin-bottom: 20px;
+}
+
+.lobby-back-button {
+  align-self: flex-start;
+  margin: -10px 0 20px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: rgba(244, 239, 255, 0.68);
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.lobby-back-button:hover {
+  color: #ffffff;
+}
+
+.lobby-kicker {
+  margin: 0 0 8px;
+  color: #a964ff;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.lobby-heading-block h1 {
+  margin: 0;
+  color: #ffffff;
+  font-size: clamp(1.88rem, 8vw, 2.18rem);
+  line-height: 0.98;
+  font-weight: 900;
+  letter-spacing: -0.035em;
+}
+
+.lobby-heading-block p:last-child {
+  margin: 12px 0 0;
+  color: rgba(235, 229, 247, 0.74);
+  font-size: 0.92rem;
+  line-height: 1.28;
+  font-weight: 500;
+}
+
+.lobby-field {
+  display: grid;
+  gap: 7px;
+  margin-top: 17px;
+}
+
+.lobby-field span {
+  color: rgba(244, 239, 255, 0.86);
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.lobby-field input {
+  width: 100%;
+  min-height: 49px;
+  border: 1px solid rgba(134, 111, 172, 0.34);
+  border-radius: 9px;
+  padding: 0 15px;
+  background: rgba(10, 9, 25, 0.72);
+  color: #f8f6ff;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  outline: none;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02);
+}
+
+.lobby-field input::placeholder {
+  color: rgba(212, 203, 232, 0.46);
+}
+
+.lobby-field input:focus {
+  border-color: rgba(169, 100, 255, 0.76);
+  box-shadow:
+    0 0 0 3px rgba(125, 58, 215, 0.2),
+    0 0 20px rgba(114, 48, 198, 0.16);
+}
+
+.lobby-actions {
+  display: grid;
+  gap: 12px;
+  margin-top: auto;
+  padding-top: 36px;
+}
+
+.lobby-primary-action,
+.lobby-secondary-action {
+  width: 100%;
+  min-height: 54px;
+  border: 0;
+  border-radius: 999px;
+  color: #f8f6ff;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.lobby-primary-action {
+  border: 1px solid rgba(151, 72, 255, 0.42);
+  background:
+    linear-gradient(180deg, rgba(78, 29, 130, 0.58), rgba(31, 18, 59, 0.88)),
+    #1a1231;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 0 0 1px rgba(116, 46, 215, 0.16),
+    0 0 24px rgba(126, 57, 217, 0.44);
+}
+
+.lobby-primary-action:not(:disabled):hover {
+  border-color: rgba(176, 109, 255, 0.78);
+  background:
+    linear-gradient(180deg, rgba(99, 37, 164, 0.72), rgba(45, 24, 82, 0.96)),
+    #241044;
+}
+
+.lobby-primary-action:disabled {
+  color: rgba(237, 230, 255, 0.42);
+  cursor: not-allowed;
+}
+
+.lobby-secondary-action {
+  background: rgba(28, 26, 48, 0.84);
+  color: rgba(255, 255, 255, 0.92);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    0 10px 28px rgba(0, 0, 0, 0.18);
+}
+
+.lobby-secondary-action:hover {
+  background: rgba(39, 36, 65, 0.92);
+}
+
 .panel {
   width: min(680px, 100%);
   margin-inline: auto;
@@ -316,6 +510,10 @@
 @media (max-width: 640px) {
   .app-page {
     padding: 14px;
+  }
+
+  .app-page-lobby {
+    padding: 0;
   }
 
   .panel {

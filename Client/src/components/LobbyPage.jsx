@@ -1,177 +1,193 @@
-import { useEffect, useMemo, useState } from "react";
-import ModeDebugOverlay from "./ModeDebugOverlay";
+import { useState } from "react";
+import clearBackgroundLogo from "../assets/images/Logos/Logo_ClearBackground.svg";
+
+const ROOM_CODE_MAX_LENGTH = 6;
+
+function normalizeRoomCodeInput(value) {
+  return String(value || "")
+    .toUpperCase()
+    .replace(/[^A-Z2-9]/g, "")
+    .slice(0, ROOM_CODE_MAX_LENGTH);
+}
+
+function formatRoomCode(value) {
+  const normalized = normalizeRoomCodeInput(value);
+  return normalized.match(/.{1,2}/g)?.join("-") || "";
+}
 
 function LobbyPage({
   name,
   roomIdInput,
-  pingMs,
-  timeSyncStatus = null,
   onNameChange,
   onRoomIdInputChange,
   onCreateRoom,
   onJoinRoom,
   onUiButtonClick,
-  onOpenStore,
-  selectedModeId = "standard",
-  availableModes = [],
-  canSelectMode = false,
-  profileEntitlementExpiresAtMs = null,
-  entitledModeKeys = [],
-  entitledModeExpiriesMs = {},
-  onSelectedModeChange,
-  onCreateEntitlementTransfer,
-  actionsLocked = false,
-  modeDebugConfigs = []
+  actionsLocked = false
 }) {
-  const [currentTimeMs, setCurrentTimeMs] = useState(() => Date.now());
-  const [transferLink, setTransferLink] = useState(null);
-  const [isCreatingTransferLink, setIsCreatingTransferLink] = useState(false);
-  const [showDebug, setShowDebug] = useState(false);
+  const [lobbyStep, setLobbyStep] = useState(() => (roomIdInput ? "play" : "choice"));
+  const [isQrNoticeOpen, setIsQrNoticeOpen] = useState(false);
+  const formattedRoomCode = formatRoomCode(roomIdInput);
+  const canJoin = !actionsLocked && name.trim().length > 0 && normalizeRoomCodeInput(roomIdInput).length >= 4;
+  const canHost = !actionsLocked && name.trim().length > 0;
 
-  useEffect(() => {
-    const interval = window.setInterval(() => setCurrentTimeMs(Date.now()), 30000);
-    return () => window.clearInterval(interval);
-  }, []);
-
-  const formatRemainingTime = (remainingMs) => {
-    if (remainingMs <= 0) return "Expired";
-    const totalMinutes = Math.floor(remainingMs / 60000);
-    const hours = Math.floor(totalMinutes / 60);
-    const minutes = totalMinutes % 60;
-    if (hours <= 0) return `${minutes}m left`;
-    return `${hours}h ${minutes}m left`;
+  const handleJoinSubmit = (event) => {
+    event.preventDefault();
+    if (!canJoin) return;
+    onUiButtonClick?.();
+    onJoinRoom();
   };
 
-  const entitlementTransferQrUrl = transferLink?.transferUrl
-    ? `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(transferLink.transferUrl)}`
-    : null;
-  const hasActiveEntitlement = (entitledModeKeys || []).length > 0;
-
-  const selectedMode = useMemo(() => {
-    const debugMode = modeDebugConfigs.find((mode) => mode.id === selectedModeId) || null;
-    const availableMode = availableModes.find((mode) => mode.id === selectedModeId) || null;
-    if (!debugMode) return availableMode;
-    if (!availableMode) return debugMode;
-    return { ...debugMode, orientationLock: availableMode.orientationLock || debugMode.orientationLock || "both" };
-  }, [modeDebugConfigs, availableModes, selectedModeId]);
-  const canShowDebug = modeDebugConfigs.length > 0 && Boolean(selectedMode);
-
-  const handleCreateEntitlementTransfer = async () => {
-    if (!onCreateEntitlementTransfer || isCreatingTransferLink) return;
-    setIsCreatingTransferLink(true);
-    try {
-      const result = await onCreateEntitlementTransfer();
-      if (result?.transferUrl) {
-        setTransferLink(result);
-      }
-    } finally {
-      setIsCreatingTransferLink(false);
-    }
+  const handleHostSubmit = (event) => {
+    event.preventDefault();
+    if (!canHost) return;
+    onUiButtonClick?.();
+    onCreateRoom();
   };
 
-  const modeOptions = (availableModes || []).map((mode) => {
-    const ownsMode = (entitledModeKeys || []).includes(mode.id);
-    const modeExpiryMs = entitledModeExpiriesMs?.[mode.id] ?? profileEntitlementExpiresAtMs;
-    const hasTimedEntitlement = typeof modeExpiryMs === "number";
-    const remainingMs = hasTimedEntitlement ? (modeExpiryMs - currentTimeMs) : null;
-    const hasActiveEntitlement = ownsMode && (!hasTimedEntitlement || remainingMs > 0);
-    const entitlementStatus = hasActiveEntitlement
-      ? (hasTimedEntitlement ? formatRemainingTime(remainingMs) : "Owned")
-      : (mode.id === "standard" ? "Preview" : "Purchase Mode");
-    return {
-      ...mode,
-      disabled: canSelectMode && !hasActiveEntitlement,
-      label: `${mode.title} · ${entitlementStatus}`
-    };
-  });
+  const handleRoomCodeChange = (event) => {
+    onRoomIdInputChange(normalizeRoomCodeInput(event.target.value));
+  };
 
-  return (
-    <section className="panel">
-      {canShowDebug ? (
-        <button type="button" className="btn btn-secondary debug-button" onClick={() => { onUiButtonClick?.(); setShowDebug(true); }}>Debug</button>
-      ) : null}
-      {canShowDebug && showDebug ? <ModeDebugOverlay mode={selectedMode} heatSurgeConfig={selectedMode?.heatSurgeConfig} onClose={() => { onUiButtonClick?.(); setShowDebug(false); }} /> : null}
-      <h1 className="panel-title">Vervus Lobby</h1>
-      <p className="panel-subtitle">Create a room or join with an invite code.</p>
-      <p className="panel-meta"><strong>Ping:</strong> {pingMs === null ? "-" : `${pingMs} ms`}</p>
-      <p className="panel-meta">
-        <strong>Clock sync:</strong> {timeSyncStatus?.quality || "syncing"}
-        {timeSyncStatus?.offsetMs === null || timeSyncStatus?.offsetMs === undefined ? "" : ` · offset ${timeSyncStatus.offsetMs} ms`}
-        {timeSyncStatus?.jitterMs === null || timeSyncStatus?.jitterMs === undefined ? "" : ` · jitter ${timeSyncStatus.jitterMs} ms`}
-      </p>
+  const handleSelectStep = (nextStep) => {
+    onUiButtonClick?.();
+    setLobbyStep(nextStep);
+  };
 
-      <label className="field">
-        <span className="field-label">Display name</span>
+  const handleOpenQrNotice = () => {
+    onUiButtonClick?.();
+    setIsQrNoticeOpen(true);
+  };
+
+  const renderChoiceStep = () => (
+    <div className="lobby-start-form">
+      <div className="lobby-heading-block">
+        <p className="lobby-kicker">Vervus Interactive</p>
+        <h1>Host or Play</h1>
+        <p>Create a room for others, or join with a room code.</p>
+      </div>
+
+      <div className="lobby-actions">
+        <button className="lobby-primary-action" type="button" onClick={() => handleSelectStep("host")}>
+          Host
+        </button>
+        <button className="lobby-secondary-action" type="button" onClick={() => handleSelectStep("play")}>
+          Play
+        </button>
+      </div>
+    </div>
+  );
+
+  const renderHostStep = () => (
+    <form className="lobby-start-form" onSubmit={handleHostSubmit}>
+      <button className="lobby-back-button" type="button" onClick={() => handleSelectStep("choice")}>
+        Back
+      </button>
+
+      <div className="lobby-heading-block">
+        <p className="lobby-kicker">Host Room</p>
+        <h1>What should we call you?</h1>
+        <p>Enter a display name to create your room.</p>
+      </div>
+
+      <label className="lobby-field">
+        <span>Display name</span>
         <input
-          className="field-input"
-          placeholder="Your name"
+          type="text"
+          autoComplete="name"
+          inputMode="text"
+          placeholder="e.g. Alex"
           value={name}
           onChange={(event) => onNameChange(event.target.value)}
         />
       </label>
 
-      <div className="single-action-row">
-        <button className="btn btn-primary" disabled={actionsLocked} onClick={() => { onUiButtonClick?.(); onCreateRoom(); }}>Create Room</button>
-        <button className="btn btn-secondary" disabled={actionsLocked} onClick={() => { onUiButtonClick?.(); onOpenStore?.(); }}>Store</button>
-        {hasActiveEntitlement ? (
-          <button
-            className="btn btn-secondary"
-            type="button"
-            disabled={actionsLocked || isCreatingTransferLink}
-            onClick={() => { onUiButtonClick?.(); handleCreateEntitlementTransfer(); }}
-          >
-            {isCreatingTransferLink ? "Creating transfer…" : "Transfer Entitlement"}
-          </button>
-        ) : null}
+      <div className="lobby-actions">
+        <button className="lobby-primary-action" type="submit" disabled={!canHost}>
+          Host room
+        </button>
+      </div>
+    </form>
+  );
+
+  const renderPlayStep = () => (
+    <form className="lobby-start-form" onSubmit={handleJoinSubmit}>
+      <button className="lobby-back-button" type="button" onClick={() => handleSelectStep("choice")}>
+        Back
+      </button>
+
+      <div className="lobby-heading-block">
+        <p className="lobby-kicker">Join Room</p>
+        <h1 id="join-room-title">Get in. We're waiting.</h1>
+        <p>Join the room and start playing.<br />No download. No account.</p>
       </div>
 
-      {transferLink ? (
-        <div className="qr-modal-backdrop" onClick={() => { onUiButtonClick?.(); setTransferLink(null); }}>
+      <label className="lobby-field">
+        <span>Display name</span>
+        <input
+          type="text"
+          autoComplete="name"
+          inputMode="text"
+          placeholder="e.g. Alex"
+          value={name}
+          onChange={(event) => onNameChange(event.target.value)}
+        />
+      </label>
+
+      <label className="lobby-field">
+        <span>Room code</span>
+        <input
+          type="text"
+          autoCapitalize="characters"
+          autoComplete="off"
+          spellCheck="false"
+          inputMode="text"
+          maxLength={8}
+          placeholder="XX-XX-XX"
+          value={formattedRoomCode}
+          onChange={handleRoomCodeChange}
+        />
+      </label>
+
+      <div className="lobby-actions">
+        <button className="lobby-primary-action" type="submit" disabled={!canJoin}>
+          Join room
+        </button>
+        <button className="lobby-secondary-action" type="button" onClick={handleOpenQrNotice}>
+          Scan QR code
+        </button>
+      </div>
+    </form>
+  );
+
+  return (
+    <section className="lobby-start-page" aria-label="Vervus lobby">
+      <div className="lobby-brand" aria-label="Vervus">
+        <img src={clearBackgroundLogo} alt="Vervus" />
+      </div>
+
+      {lobbyStep === "choice" ? renderChoiceStep() : null}
+      {lobbyStep === "host" ? renderHostStep() : null}
+      {lobbyStep === "play" ? renderPlayStep() : null}
+
+      {isQrNoticeOpen ? (
+        <div className="qr-modal-backdrop" onClick={() => setIsQrNoticeOpen(false)}>
           <div className="qr-modal" onClick={(event) => event.stopPropagation()}>
-            <h2 className="qr-modal-title">Transfer entitlement</h2>
-            <p className="panel-subtitle">Scan this QR code on another device. The one-time magic link transfers your active entitlement to that device.</p>
-            {entitlementTransferQrUrl ? <img className="qr-image" src={entitlementTransferQrUrl} alt="QR code to transfer entitlement" /> : null}
-            <p className="qr-link">{transferLink.transferUrl}</p>
-            {transferLink.expiresAtMs ? <p className="field-label">Link expires at {new Date(transferLink.expiresAtMs).toLocaleTimeString()}.</p> : null}
+            <h2 className="qr-modal-title">Scan QR code</h2>
+            <p className="panel-subtitle">QR scanning is not connected yet. Enter the room code to join for now.</p>
             <button
               type="button"
-              className="btn btn-primary"
-              onClick={() => { onUiButtonClick?.(); setTransferLink(null); }}
+              className="btn btn-primary store-close-btn"
+              onClick={() => {
+                onUiButtonClick?.();
+                setIsQrNoticeOpen(false);
+              }}
             >
               Close
             </button>
           </div>
         </div>
       ) : null}
-
-      <label className="field">
-        <span className="field-label">Game mode</span>
-        <select
-          className="field-input"
-          value={selectedModeId}
-          onChange={(event) => onSelectedModeChange?.(event.target.value)}
-          disabled={!canSelectMode || actionsLocked}
-        >
-          {modeOptions.map((mode) => (
-            <option key={mode.id} value={mode.id} disabled={mode.disabled}>{mode.label}</option>
-          ))}
-        </select>
-        {!canSelectMode ? <span className="field-label">Purchase entitlement to select game mode.</span> : null}
-        {canSelectMode ? <span className="field-label">Only actively owned modes can be selected.</span> : null}
-      </label>
-
-      <div className="join-row">
-        <label className="field join-field">
-          <span className="field-label">Room code</span>
-          <input
-            className="field-input"
-            placeholder="ABCD"
-            value={roomIdInput}
-            onChange={(event) => onRoomIdInputChange(event.target.value)}
-          />
-        </label>
-        <button className="btn btn-primary" disabled={actionsLocked} onClick={() => { onUiButtonClick?.(); onJoinRoom(); }}>Join Room</button>
-      </div>
     </section>
   );
 }

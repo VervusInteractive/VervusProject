@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "sync:storyblok-lobby": "node scripts/sync-storyblok-lobby-schema.mjs"
   },
   "dependencies": {
     "@storyblok/react": "^7.0.0",

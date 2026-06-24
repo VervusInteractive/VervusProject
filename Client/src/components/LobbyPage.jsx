@@ -1,9 +1,9 @@
 import { useState } from "react";
 import clearBackgroundLogo from "../assets/images/Logos/Logo_ClearBackground.svg";
 import {
-  DEFAULT_START_PAGE_CONTENT
-} from "../storyblok/startPageContent.js";
-import StoryblokStartPageContent from "../storyblok/StoryblokStartPageContent.jsx";
+  DEFAULT_LOBBY_CONTENT
+} from "../storyblok/lobbyContent.js";
+import StoryblokLobbyContent from "../storyblok/StoryblokLobbyContent.jsx";
 import { STORYBLOK_IS_ENABLED } from "../storyblok/config.js";
 
 const ROOM_CODE_MAX_LENGTH = 6;
@@ -73,7 +73,7 @@ function LobbyPage({
       </span>
     ));
 
-  const renderChoiceStep = (startPageContent = DEFAULT_START_PAGE_CONTENT) => (
+  const renderChoiceStep = (startPageContent = DEFAULT_LOBBY_CONTENT.start) => (
     <div className="lobby-start-form" {...startPageContent.editableAttributes}>
       <div className="lobby-heading-block">
         <p className="lobby-kicker">{startPageContent.kicker}</p>
@@ -92,25 +92,25 @@ function LobbyPage({
     </div>
   );
 
-  const renderHostStep = () => (
-    <form className="lobby-start-form" onSubmit={handleHostSubmit}>
+  const renderHostStep = (hostPageContent = DEFAULT_LOBBY_CONTENT.host) => (
+    <form className="lobby-start-form" onSubmit={handleHostSubmit} {...hostPageContent.editableAttributes}>
       <button className="lobby-back-button" type="button" onClick={() => handleSelectStep("choice")}>
-        Back
+        {hostPageContent.backLabel}
       </button>
 
       <div className="lobby-heading-block">
-        <p className="lobby-kicker">Host Room</p>
-        <h1>What should we call you?</h1>
-        <p>Enter a display name to create your room.</p>
+        <p className="lobby-kicker">{hostPageContent.kicker}</p>
+        <h1>{hostPageContent.headline}</h1>
+        <p>{renderTextWithBreaks(hostPageContent.description)}</p>
       </div>
 
       <label className="lobby-field">
-        <span>Display name</span>
+        <span>{hostPageContent.nameLabel}</span>
         <input
           type="text"
           autoComplete="name"
           inputMode="text"
-          placeholder="e.g. Alex"
+          placeholder={hostPageContent.namePlaceholder}
           value={name}
           onChange={(event) => onNameChange(event.target.value)}
         />
@@ -118,38 +118,38 @@ function LobbyPage({
 
       <div className="lobby-actions">
         <button className="lobby-primary-action" type="submit" disabled={!canHost}>
-          Host room
+          {hostPageContent.submitLabel}
         </button>
       </div>
     </form>
   );
 
-  const renderPlayStep = () => (
-    <form className="lobby-start-form" onSubmit={handleJoinSubmit}>
+  const renderPlayStep = (playPageContent = DEFAULT_LOBBY_CONTENT.play) => (
+    <form className="lobby-start-form" onSubmit={handleJoinSubmit} {...playPageContent.editableAttributes}>
       <button className="lobby-back-button" type="button" onClick={() => handleSelectStep("choice")}>
-        Back
+        {playPageContent.backLabel}
       </button>
 
       <div className="lobby-heading-block">
-        <p className="lobby-kicker">Join Room</p>
-        <h1 id="join-room-title">Get in. We're waiting.</h1>
-        <p>Join the room and start playing.<br />No download. No account.</p>
+        <p className="lobby-kicker">{playPageContent.kicker}</p>
+        <h1 id="join-room-title">{playPageContent.headline}</h1>
+        <p>{renderTextWithBreaks(playPageContent.description)}</p>
       </div>
 
       <label className="lobby-field">
-        <span>Display name</span>
+        <span>{playPageContent.nameLabel}</span>
         <input
           type="text"
           autoComplete="name"
           inputMode="text"
-          placeholder="e.g. Alex"
+          placeholder={playPageContent.namePlaceholder}
           value={name}
           onChange={(event) => onNameChange(event.target.value)}
         />
       </label>
 
       <label className="lobby-field">
-        <span>Room code</span>
+        <span>{playPageContent.roomCodeLabel}</span>
         <input
           type="text"
           autoCapitalize="characters"
@@ -157,7 +157,7 @@ function LobbyPage({
           spellCheck="false"
           inputMode="text"
           maxLength={8}
-          placeholder="XX-XX-XX"
+          placeholder={playPageContent.roomCodePlaceholder}
           value={formattedRoomCode}
           onChange={handleRoomCodeChange}
         />
@@ -165,13 +165,41 @@ function LobbyPage({
 
       <div className="lobby-actions">
         <button className="lobby-primary-action" type="submit" disabled={!canJoin}>
-          Join room
+          {playPageContent.submitLabel}
         </button>
         <button className="lobby-secondary-action" type="button" onClick={handleOpenQrNotice}>
-          Scan QR code
+          {playPageContent.qrButtonLabel}
         </button>
       </div>
     </form>
+  );
+
+  const renderQrNotice = (playPageContent = DEFAULT_LOBBY_CONTENT.play) => (
+    <div className="qr-modal-backdrop" onClick={() => setIsQrNoticeOpen(false)}>
+      <div className="qr-modal" onClick={(event) => event.stopPropagation()}>
+        <h2 className="qr-modal-title">{playPageContent.qrModalTitle}</h2>
+        <p className="panel-subtitle">{playPageContent.qrModalDescription}</p>
+        <button
+          type="button"
+          className="btn btn-primary store-close-btn"
+          onClick={() => {
+            onUiButtonClick?.();
+            setIsQrNoticeOpen(false);
+          }}
+        >
+          {playPageContent.qrModalCloseLabel}
+        </button>
+      </div>
+    </div>
+  );
+
+  const renderLobbySteps = (lobbyContent = DEFAULT_LOBBY_CONTENT) => (
+    <>
+      {lobbyStep === "choice" ? renderChoiceStep(lobbyContent.start) : null}
+      {lobbyStep === "host" ? renderHostStep(lobbyContent.host) : null}
+      {lobbyStep === "play" ? renderPlayStep(lobbyContent.play) : null}
+      {isQrNoticeOpen ? renderQrNotice(lobbyContent.play) : null}
+    </>
   );
 
   return (
@@ -180,33 +208,11 @@ function LobbyPage({
         <img src={clearBackgroundLogo} alt="Vervus" />
       </div>
 
-      {lobbyStep === "choice" && STORYBLOK_IS_ENABLED ? (
-        <StoryblokStartPageContent>
-          {(startPageContent) => renderChoiceStep(startPageContent)}
-        </StoryblokStartPageContent>
-      ) : null}
-      {lobbyStep === "choice" && !STORYBLOK_IS_ENABLED ? renderChoiceStep() : null}
-      {lobbyStep === "host" ? renderHostStep() : null}
-      {lobbyStep === "play" ? renderPlayStep() : null}
-
-      {isQrNoticeOpen ? (
-        <div className="qr-modal-backdrop" onClick={() => setIsQrNoticeOpen(false)}>
-          <div className="qr-modal" onClick={(event) => event.stopPropagation()}>
-            <h2 className="qr-modal-title">Scan QR code</h2>
-            <p className="panel-subtitle">QR scanning is not connected yet. Enter the room code to join for now.</p>
-            <button
-              type="button"
-              className="btn btn-primary store-close-btn"
-              onClick={() => {
-                onUiButtonClick?.();
-                setIsQrNoticeOpen(false);
-              }}
-            >
-              Close
-            </button>
-          </div>
-        </div>
-      ) : null}
+      {STORYBLOK_IS_ENABLED ? (
+        <StoryblokLobbyContent>
+          {(lobbyContent) => renderLobbySteps(lobbyContent)}
+        </StoryblokLobbyContent>
+      ) : renderLobbySteps()}
     </section>
   );
 }

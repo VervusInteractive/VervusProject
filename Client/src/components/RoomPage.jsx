@@ -3,6 +3,7 @@ import ModeDebugOverlay from "./ModeDebugOverlay";
 import { CONNECTION_STATES, getConnectionStateLabel } from "../connectionState";
 import clearBackgroundLogo from "../assets/images/Logos/Logo_ClearBackground.svg";
 import copyButtonImage from "../assets/images/Buttons/Button_Copy.png";
+import sendButtonImage from "../assets/images/Buttons/Button_Send.png";
 
 function RoomPage({
   roomId,
@@ -414,7 +415,7 @@ function RoomPage({
                 aria-label="Open QR code"
                 onClick={() => { onUiButtonClick?.(); setShowQrCode(true); }}
               >
-                <span aria-hidden="true" />
+                <img src={copyButtonImage} alt="" aria-hidden="true" />
               </button>
             </div>
             <div className="room-qr-frame">
@@ -422,7 +423,7 @@ function RoomPage({
             </div>
             <span className="room-share-label">Share with your group</span>
             <button type="button" className="room-copy-button" onClick={handleCopyInvite}>
-              <img src={copyButtonImage} alt="" aria-hidden="true" />
+              <img src={sendButtonImage} alt="" aria-hidden="true" />
               {copyStatus || "Copy join link"}
             </button>
           </section>

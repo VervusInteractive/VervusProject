@@ -12,19 +12,33 @@
 .app-page-lobby {
   min-height: 100vh;
   min-height: 100dvh;
+  position: relative;
   place-items: stretch center;
   padding: 0;
+  overflow-x: hidden;
+  background: #05050c;
+  color: #f8f6ff;
+}
+
+.app-page-lobby::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
   background:
     radial-gradient(circle at 50% 16%, rgba(116, 47, 185, 0.14), transparent 34%),
+    radial-gradient(circle at 50% 92%, rgba(98, 38, 170, 0.18), transparent 38%),
     linear-gradient(180deg, #05050c 0%, #090817 48%, #0c0b1b 100%),
     #05050c;
-  color: #f8f6ff;
 }
 
 .lobby-start-page {
   width: min(100%, 430px);
   min-height: 100vh;
   min-height: 100dvh;
+  position: relative;
+  z-index: 1;
   display: flex;
   flex-direction: column;
   padding: max(8px, env(safe-area-inset-top)) 20px max(20px, env(safe-area-inset-bottom));

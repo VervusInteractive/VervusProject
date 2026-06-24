@@ -5,6 +5,7 @@
 html {
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
+  background: #05050c;
 }
 
 * {
@@ -13,8 +14,10 @@ html {
 
 body {
   margin: 0;
+  background: #05050c;
 }
 
 #root {
   min-height: 100vh;
+  background: #05050c;
 }

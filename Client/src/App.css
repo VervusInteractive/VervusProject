@@ -10,24 +10,25 @@
 }
 
 .app-page-lobby {
-  min-height: 100svh;
+  min-height: 100vh;
+  min-height: 100dvh;
   place-items: stretch center;
   padding: 0;
   background:
     radial-gradient(circle at 50% 16%, rgba(116, 47, 185, 0.14), transparent 34%),
-    linear-gradient(180deg, #05050c 0%, #090817 48%, #0c0b1b 100%);
+    linear-gradient(180deg, #05050c 0%, #090817 48%, #0c0b1b 100%),
+    #05050c;
   color: #f8f6ff;
 }
 
 .lobby-start-page {
   width: min(100%, 430px);
-  min-height: 100svh;
+  min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   flex-direction: column;
   padding: max(8px, env(safe-area-inset-top)) 20px max(20px, env(safe-area-inset-bottom));
-  background:
-    radial-gradient(circle at 14% 72%, rgba(98, 38, 170, 0.12), transparent 30%),
-    linear-gradient(180deg, rgba(5, 5, 12, 0.96) 0%, rgba(12, 10, 27, 0.98) 100%);
+  background: transparent;
 }
 
 .lobby-brand {

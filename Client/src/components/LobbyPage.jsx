@@ -1,5 +1,10 @@
 import { useState } from "react";
 import clearBackgroundLogo from "../assets/images/Logos/Logo_ClearBackground.svg";
+import {
+  DEFAULT_START_PAGE_CONTENT
+} from "../storyblok/startPageContent.js";
+import StoryblokStartPageContent from "../storyblok/StoryblokStartPageContent.jsx";
+import { STORYBLOK_IS_ENABLED } from "../storyblok/config.js";
 
 const ROOM_CODE_MAX_LENGTH = 6;
 
@@ -59,20 +64,29 @@ function LobbyPage({
     setIsQrNoticeOpen(true);
   };
 
-  const renderChoiceStep = () => (
-    <div className="lobby-start-form">
+  const renderTextWithBreaks = (text) => String(text || "")
+    .split("\n")
+    .map((line, index, lines) => (
+      <span key={`${line}-${index}`}>
+        {line}
+        {index < lines.length - 1 ? <br /> : null}
+      </span>
+    ));
+
+  const renderChoiceStep = (startPageContent = DEFAULT_START_PAGE_CONTENT) => (
+    <div className="lobby-start-form" {...startPageContent.editableAttributes}>
       <div className="lobby-heading-block">
-        <p className="lobby-kicker">Vervus Interactive</p>
-        <h1>Host or Play</h1>
-        <p>Create a room for others, or join with a room code.</p>
+        <p className="lobby-kicker">{startPageContent.kicker}</p>
+        <h1>{startPageContent.headline}</h1>
+        <p>{renderTextWithBreaks(startPageContent.description)}</p>
       </div>
 
       <div className="lobby-actions">
         <button className="lobby-primary-action" type="button" onClick={() => handleSelectStep("host")}>
-          Host
+          {startPageContent.hostLabel}
         </button>
         <button className="lobby-secondary-action" type="button" onClick={() => handleSelectStep("play")}>
-          Play
+          {startPageContent.playLabel}
         </button>
       </div>
     </div>
@@ -166,7 +180,12 @@ function LobbyPage({
         <img src={clearBackgroundLogo} alt="Vervus" />
       </div>
 
-      {lobbyStep === "choice" ? renderChoiceStep() : null}
+      {lobbyStep === "choice" && STORYBLOK_IS_ENABLED ? (
+        <StoryblokStartPageContent>
+          {(startPageContent) => renderChoiceStep(startPageContent)}
+        </StoryblokStartPageContent>
+      ) : null}
+      {lobbyStep === "choice" && !STORYBLOK_IS_ENABLED ? renderChoiceStep() : null}
       {lobbyStep === "host" ? renderHostStep() : null}
       {lobbyStep === "play" ? renderPlayStep() : null}
 

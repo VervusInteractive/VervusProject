@@ -17,6 +17,22 @@ Example:
 VITE_SERVER_URL=https://your-server.onrender.com
 ```
 
+To manage the starting Host/Play page in Storyblok, add a public Delivery API token:
+
+```bash
+VITE_STORYBLOK_DELIVERY_API_TOKEN=your_public_delivery_token
+VITE_STORYBLOK_REGION=eu
+VITE_STORYBLOK_START_PAGE_SLUG=home
+```
+
+The start page story can use either a `start_page` content type directly, or a `page` story with a `start_page` block in its `body`. Supported fields are:
+
+- `kicker`
+- `headline`
+- `description`
+- `host_button_label`
+- `play_button_label`
+
 Vite only exposes environment variables to client-side code when they begin with the `VITE_` prefix.
 
 ## React Compiler

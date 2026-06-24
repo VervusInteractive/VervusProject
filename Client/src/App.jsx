@@ -960,6 +960,12 @@ function App() {
     });
   };
 
+  const kickPlayer = (targetPlayerId) => {
+    emitIfConnected("room:kickPlayer", { roomId, playerId, targetPlayerId }, (response) => {
+      if (response?.error) alert(response.error);
+    });
+  };
+
   const submitAnswer = (answer) => {
     const didSend = emitIfConnected("game:submit", { roomId, playerId, answer }, (response) => {
       if (response?.error) alert(response.error);
@@ -1094,7 +1100,7 @@ function App() {
     }
   }, [ownedLobbyModeIds, selectedLobbyModeId]);
 
-  const players = roomState?.players ?? [];
+  const players = (roomState?.players ?? []).filter(Boolean);
   const me = players.find((player) => player.playerId === playerId);
   const hostPlayer = players.find((player) => player.isHost);
   const isPreviewRoom = Boolean(roomState?.game?.isPreview)
@@ -1120,8 +1126,10 @@ function App() {
     }
   }, [roomId, roomState?.phase, me?.game?.status, me?.waitingForNextGame, me?.currentGameParticipant, setStoredRoomViewPreference]);
 
+  const usesDarkLobbyShell = (!roomId && !isSoloChaosLabOpen) || (roomId && !shouldShowGamePage);
+
   return (
-    <main className={`app-page${!roomId && !isSoloChaosLabOpen ? " app-page-lobby" : ""}`}>
+    <main className={`app-page${usesDarkLobbyShell ? " app-page-lobby" : ""}`}>
       {roomId ? (
         shouldShowGamePage ? (
         <GlitchGamePage
@@ -1173,6 +1181,7 @@ function App() {
             entitledModeKeys={me?.entitledModeKeys ?? []}
             entitledModeExpiriesMs={me?.entitledModeExpiriesMs ?? {}}
             onSetMode={setRoomMode}
+            onKickPlayer={kickPlayer}
             modeDebugConfigs={modeDebugConfigs}
           />
         )

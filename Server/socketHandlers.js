@@ -985,6 +985,54 @@ function registerSocketHandlers(io) {
       if (callback) callback({ ok: true });
     });
 
+    socket.on("room:kickPlayer", (payload = {}, callback) => {
+      payload = normalizeSocketPayload(payload);
+      const roomId = normalizeRoomCode(payload.roomId);
+      const playerId = normalizeUuid(payload.playerId);
+      const targetPlayerId = normalizeUuid(payload.targetPlayerId);
+      const room = rooms.get(roomId);
+      if (!room) return callback?.({ error: "Room not found" });
+
+      const host = room.players.get(playerId);
+      if (!host || host.socketId !== socket.id || room.creatorPlayerId !== playerId) {
+        return callback?.({ error: "Only the host can remove players" });
+      }
+
+      if (targetPlayerId === playerId) {
+        return callback?.({ error: "Use leave room to exit as host" });
+      }
+
+      const targetPlayer = room.players.get(targetPlayerId);
+      if (!targetPlayer) return callback?.({ error: "Player not found" });
+
+      const canRemoveNow = room.phase === "lobby" || (room.phase === "play" && room.game?.status === "gameover");
+      if (!canRemoveNow) {
+        return callback?.({ error: "Players can only be removed while waiting in the lobby" });
+      }
+
+      clearPlayerReconnectTimer(targetPlayer);
+      room.players.delete(targetPlayerId);
+      logRoomHistoryEvent({
+        roomCode: roomId,
+        eventType: "room_left",
+        actorPlayerId: targetPlayerId,
+        metadata: { reason: "host_removed", removedByPlayerId: playerId }
+      }).catch((error) => console.error("DB room history host remove failed", error));
+      deletePlayerRecord(targetPlayerId).catch((error) => console.error("DB delete removed player failed", error));
+
+      const targetSocket = targetPlayer.socketId ? io.sockets.sockets.get(targetPlayer.socketId) : null;
+      if (targetSocket) {
+        targetSocket.leave(roomId);
+        targetSocket.emit("room:disbanded", {
+          roomId,
+          reason: "You were removed from the room by the host."
+        });
+      }
+
+      emitState(roomId);
+      callback?.({ ok: true });
+    });
+
     socket.on("player:setColor", (payload = {}, callback) => {
       payload = normalizeSocketPayload(payload);
       const roomId = normalizeRoomCode(payload.roomId);

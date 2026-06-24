@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import ModeDebugOverlay from "./ModeDebugOverlay";
 import { CONNECTION_STATES, getConnectionStateLabel } from "../connectionState";
 import clearBackgroundLogo from "../assets/images/Logos/Logo_ClearBackground.svg";
+import copyButtonImage from "../assets/images/Buttons/Button_Copy.png";
 
 function RoomPage({
   roomId,
@@ -421,7 +422,7 @@ function RoomPage({
             </div>
             <span className="room-share-label">Share with your group</span>
             <button type="button" className="room-copy-button" onClick={handleCopyInvite}>
-              <span aria-hidden="true" />
+              <img src={copyButtonImage} alt="" aria-hidden="true" />
               {copyStatus || "Copy join link"}
             </button>
           </section>

@@ -964,8 +964,7 @@
   background: rgba(12, 9, 28, 0.45);
 }
 
-.room-icon-button span,
-.room-copy-button span {
+.room-icon-button span {
   width: 12px;
   height: 12px;
   display: block;
@@ -1021,6 +1020,14 @@
   background: rgba(255, 255, 255, 0.07);
   color: rgba(255, 255, 255, 0.92);
   font-size: 0.76rem;
+}
+
+.room-copy-button img {
+  width: 16px;
+  height: 16px;
+  display: block;
+  flex: 0 0 auto;
+  object-fit: contain;
 }
 
 .room-copy-button:hover,

@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import correctAnswerSoundFile from "../assets/audio/Sound_CorrectAnswer.mp3";
-import gameOverSoundFile from "../assets/audio/Sound_GameOver.mp3";
-import lastChanceSoundFile from "../assets/audio/Sound_LastChance.mp3";
-import transitionSoundFile from "../assets/audio/Sound_Pulse.mp3";
-import voteReceiveSoundFile from "../assets/audio/Sound_VoteReceive.mp3";
-import countSoundFile from "../assets/audio/Sound_Count.mp3";
-import tickSoundFile from "../assets/audio/Sound_Tick.mp3";
+import correctAnswerSoundFile from "../assets/audio/GLiTCH!/Sound_CorrectAnswer.wav";
+import failImpactSoundFile from "../assets/audio/GLiTCH!/Sound_FailImpact.wav";
+import heatSurgeWarningSoundFile from "../assets/audio/GLiTCH!/Sound_HeatSurgeWarning.wav";
+import killScreenStingSoundFile from "../assets/audio/GLiTCH!/Sound_KillScreenSting.wav";
+import lastChanceFreezeSoundFile from "../assets/audio/GLiTCH!/Sound_SaveIt.wav";
+import resultsTickSoundFile from "../assets/audio/GLiTCH!/Sound_ResultsTick.wav";
+import transitionSoundFile from "../assets/audio/Vervus/Sound_GameTransition.wav";
 
 const clamp01 = (value) => Math.min(1, Math.max(0, value));
 
@@ -38,13 +38,13 @@ const EFFECT_OPTIONS = [
 const ICONS = ["👁️", "⚡", "💀", "🙂", "⭐"];
 
 const AUDIO_OPTIONS = [
-  { key: "voteReceive", label: "Vote Receive", src: voteReceiveSoundFile },
-  { key: "transition", label: "Transition", src: transitionSoundFile },
-  { key: "lastChance", label: "Last Chance", src: lastChanceSoundFile },
+  { key: "gameTransition", label: "Game Transition", src: transitionSoundFile },
+  { key: "lastChanceFreeze", label: "Last Chance Freeze", src: lastChanceFreezeSoundFile },
+  { key: "heatSurgeWarning", label: "Heat Surge Warning", src: heatSurgeWarningSoundFile },
   { key: "correctAnswer", label: "Correct", src: correctAnswerSoundFile },
-  { key: "gameOver", label: "Game Over", src: gameOverSoundFile },
-  { key: "count", label: "Countdown", src: countSoundFile },
-  { key: "tick", label: "Tick", src: tickSoundFile }
+  { key: "failImpact", label: "Fail Impact", src: failImpactSoundFile },
+  { key: "killScreenSting", label: "Kill Screen Sting", src: killScreenStingSoundFile },
+  { key: "resultsTick", label: "Results Tick", src: resultsTickSoundFile }
 ];
 
 const AUDIO_EFFECT_OPTIONS = [
@@ -488,9 +488,9 @@ function SoloChaosLabPage({ onBack, onUiButtonClick }) {
     if (tickLoopIntervalRef.current) window.clearInterval(tickLoopIntervalRef.current);
     if (tickLoopStopTimeoutRef.current) window.clearTimeout(tickLoopStopTimeoutRef.current);
 
-    await playAudioSample(tickSoundFile, { stopPrevious: true });
+    await playAudioSample(resultsTickSoundFile, { stopPrevious: true });
     tickLoopIntervalRef.current = window.setInterval(() => {
-      playAudioSample(tickSoundFile, { stopPrevious: true });
+      playAudioSample(resultsTickSoundFile, { stopPrevious: true });
     }, tickIntervalMs);
 
     tickLoopStopTimeoutRef.current = window.setTimeout(() => {
@@ -588,7 +588,7 @@ function SoloChaosLabPage({ onBack, onUiButtonClick }) {
       </div>
 
       <div className="field">
-        <span className="field-label">Transition Bass Test (Difficulty + Heat Surge)</span>
+        <span className="field-label">Game Transition Bass Test (Difficulty + Heat Surge)</span>
         <div className="single-action-row">
           <button
             className={`btn ${isHeatSurgeEnabled ? "btn-primary" : "btn-secondary"}`}
@@ -603,7 +603,7 @@ function SoloChaosLabPage({ onBack, onUiButtonClick }) {
               playTransitionWithBassProfile();
             }}
           >
-            Play Transition Bass Test
+            Play Game Transition Bass Test
           </button>
         </div>
         <div className="answer-row" style={{ marginTop: "0.5rem" }}>
@@ -620,7 +620,7 @@ function SoloChaosLabPage({ onBack, onUiButtonClick }) {
       </div>
 
       <div className="field">
-        <span className="field-label">Tick Cadence Test (Solo)</span>
+        <span className="field-label">Results Tick Cadence Test (Solo)</span>
         <div className="single-action-row">
           <button
             className="btn btn-secondary"

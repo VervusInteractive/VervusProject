@@ -28,6 +28,7 @@ function RoomPage({
   onExit,
   connectionState = CONNECTION_STATES.CONNECTING,
   onUiButtonClick,
+  onSelectionChanged,
   canManageReady = false,
   canOpenStore = false,
   isPreviewRoom = false,
@@ -357,7 +358,11 @@ function RoomPage({
             type="button"
             className={mode.id === selectedModeId ? "active" : ""}
             disabled={!canSelectMode || mode.disabled}
-            onClick={() => { onUiButtonClick?.(); onSetMode?.(mode.id); }}
+            onClick={() => {
+              if (mode.id === selectedModeId) return;
+              onSelectionChanged?.();
+              onSetMode?.(mode.id);
+            }}
           >
             {mode.id === "standard" ? "Standard" : mode.title.replace(/^GLiTCH!\s*/i, "")}
           </button>

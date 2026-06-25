@@ -9,10 +9,15 @@ import { DEFAULT_LOBBY_CONTENT } from "./storyblok/lobbyContent";
 import { STORYBLOK_IS_ENABLED } from "./storyblok/config";
 import "./App.css";
 import { CONNECTION_STATES, deriveSocketConnectionState } from "./connectionState";
-import voteSendSoundFile from "./assets/audio/Sound_VoteSend.mp3";
-import clickSoundFile from "./assets/audio/Sound_Click.mp3";
-import successPurchaseSoundFile from "./assets/audio/Sound_SuccessPurchase.mp3";
-import failedPurchaseSoundFile from "./assets/audio/Sound_FailedPurchase.mp3";
+import {
+  GAME_AUDIO_KEYS,
+  PLATFORM_AUDIO_KEYS,
+  playDebouncedSound,
+  playSound,
+  preloadAudioAssets,
+  resumeAudioEngine,
+  unlockAudioEngine
+} from "./audioEngine";
 
 const serverUrl = import.meta.env.VITE_SERVER_URL;
 if (!serverUrl) {
@@ -163,159 +168,27 @@ const DEFAULT_MODE_DEBUG_CONFIGS = [
 ];
 
 
-const AUDIO_DEBUG_ENABLED = new URLSearchParams(window.location.search).get("audioDebug") === "1";
-const SFX_SOUND_FILES = {
-  click: clickSoundFile,
-  voteSend: voteSendSoundFile,
-  successPurchase: successPurchaseSoundFile,
-  failedPurchase: failedPurchaseSoundFile
-};
-
-let audioContextRef = null;
-let audioUnlockInFlight = null;
-let isAudioUnlocked = false;
-let audioBufferMapPromise = null;
-let audioBufferMap = null;
-
-const getAudioContext = () => {
-  const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
-  if (!AudioContextCtor) return null;
-  if (!audioContextRef) {
-    audioContextRef = new AudioContextCtor({ latencyHint: "interactive" });
-  }
-  return audioContextRef;
-};
-
-const logAudioDebug = (event, details = {}) => {
-  if (!AUDIO_DEBUG_ENABLED) return;
-  const context = audioContextRef;
-  const payload = {
-    ts: new Date().toISOString(),
-    visibility: document.visibilityState,
-    unlocked: isAudioUnlocked,
-    contextState: context?.state ?? null,
-    event,
-    ...details
-  };
-  console.log("[audio-debug]", payload);
-  window.__audioDebugEvents = window.__audioDebugEvents || [];
-  window.__audioDebugEvents.push(payload);
-  if (window.__audioDebugEvents.length > 300) window.__audioDebugEvents.shift();
-};
-
-const decodeAudioBufferMap = async () => {
-  if (audioBufferMap) return audioBufferMap;
-  if (audioBufferMapPromise) return audioBufferMapPromise;
-
-  audioBufferMapPromise = (async () => {
-    const context = getAudioContext();
-    if (!context) return null;
-
-    const entries = await Promise.all(Object.entries(SFX_SOUND_FILES).map(async ([soundKey, src]) => {
-      try {
-        const response = await fetch(src);
-        const arrayBuffer = await response.arrayBuffer();
-        const decoded = await context.decodeAudioData(arrayBuffer.slice(0));
-        return [soundKey, decoded];
-      } catch (error) {
-        logAudioDebug("buffer:decode:failed", { soundKey, errorName: error?.name || null, errorMessage: error?.message || null });
-        return [soundKey, null];
-      }
-    }));
-
-    audioBufferMap = Object.fromEntries(entries);
-    logAudioDebug("buffer:decode:complete", { loadedKeys: Object.entries(audioBufferMap).filter(([, v]) => Boolean(v)).map(([k]) => k) });
-    return audioBufferMap;
-  })();
-
-  return audioBufferMapPromise;
-};
-
-const unlockAudioEngine = () => {
-  if (isAudioUnlocked) return Promise.resolve(true);
-  if (audioUnlockInFlight) return audioUnlockInFlight;
-
-  audioUnlockInFlight = (async () => {
-    const context = getAudioContext();
-    if (!context) return false;
-
-    try {
-      if (context.state !== "running") {
-        await context.resume();
-      }
-      const buffers = await decodeAudioBufferMap();
-      const didUnlock = context.state === "running" && Boolean(buffers);
-      isAudioUnlocked = didUnlock;
-      logAudioDebug("unlock:complete", { didUnlock, hasBuffers: Boolean(buffers), contextState: context.state });
-      return didUnlock;
-    } catch (error) {
-      isAudioUnlocked = false;
-      logAudioDebug("unlock:failed", { errorName: error?.name || null, errorMessage: error?.message || null });
-      return false;
-    } finally {
-      audioUnlockInFlight = null;
-    }
-  })();
-
-  return audioUnlockInFlight;
-};
-
-const playSound = async (soundKey, attemptLabel = "first") => {
-  const context = getAudioContext();
-  if (!context) {
-    logAudioDebug("play:failed", { soundKey, attemptLabel, reason: "no-audio-context" });
-    return false;
-  }
-
-  const buffers = await decodeAudioBufferMap();
-  const buffer = buffers?.[soundKey] || null;
-  if (!buffer) {
-    logAudioDebug("play:failed", { soundKey, attemptLabel, reason: "missing-buffer" });
-    return false;
-  }
-
-  try {
-    if (context.state !== "running") {
-      await context.resume();
-    }
-
-    logAudioDebug("play:attempt", { soundKey, attemptLabel, contextState: context.state, durationSec: Number(buffer.duration.toFixed(3)) });
-    const source = context.createBufferSource();
-    source.buffer = buffer;
-    source.connect(context.destination);
-    source.start(0);
-    logAudioDebug("play:success", { soundKey, attemptLabel, contextState: context.state });
-    return true;
-  } catch (error) {
-    logAudioDebug("play:failed", { soundKey, attemptLabel, errorName: error?.name || null, errorMessage: error?.message || null, contextState: context.state });
-    return false;
-  }
-};
-
-const playSoundWithUnlockRetry = (soundKey) => playSound(soundKey, "first").then((didPlay) => {
+const playSoundWithUnlockRetry = (soundKey, options = {}) => playSound(soundKey, options).then((didPlay) => {
   if (didPlay) return true;
   return unlockAudioEngine().then((didUnlock) => {
     if (!didUnlock) return false;
-    return playSound(soundKey, "retry");
+    return playSound(soundKey, options);
   });
 });
 
 const playClickSound = () => {
-  playSoundWithUnlockRetry("click");
+  playDebouncedSound("click", 150);
 };
 
-const playVoteSendSound = () => {
-  playSoundWithUnlockRetry("voteSend");
+const playSelectionChangedSound = () => {
+  playDebouncedSound("selectionChanged", 150);
 };
 
-const playSuccessPurchaseSound = () => playSoundWithUnlockRetry("successPurchase");
+const playAlertSound = () => playSoundWithUnlockRetry("alert");
 
-const playFailedPurchaseSound = () => playSoundWithUnlockRetry("failedPurchase");
+const playSuccessPurchaseSound = () => playSoundWithUnlockRetry("purchaseSuccess");
 
-if (AUDIO_DEBUG_ENABLED) {
-  window.dumpAudioDebug = () => (window.__audioDebugEvents || []).slice();
-  console.info("[audio-debug] Enabled. Use window.dumpAudioDebug() to inspect captured events.");
-}
+const playFailedPurchaseSound = () => playSoundWithUnlockRetry("purchaseFailed");
 
 function App() {
   const [name, setName] = useState(() => localStorage.getItem("playerName") || "");
@@ -358,6 +231,7 @@ function App() {
   const hasPlayedReturnPurchaseSoundRef = useRef(false);
   const hasTrackedPageViewRef = useRef(false);
   const suppressNextPurchaseResultRef = useRef(null);
+  const previousRoomAudioSnapshotRef = useRef(null);
   const timeSyncSequenceRef = useRef(0);
   const timeSyncSamplesRef = useRef([]);
   const pendingAutoJoinRoomIdRef = useRef(initialRoomFromQuery);
@@ -504,6 +378,7 @@ function App() {
     const handleRoomState = (state) => setRoomState(state);
     const handleRoomWarning = ({ message }) => {
       if (message) {
+        playAlertSound();
         alert(message);
       }
     };
@@ -511,6 +386,7 @@ function App() {
     const handleRoomDisbanded = ({ reason }) => {
       clearSessionState();
       if (reason) {
+        playAlertSound();
         alert(reason);
       }
     };
@@ -552,6 +428,8 @@ function App() {
 
 
   useEffect(() => {
+    preloadAudioAssets([...PLATFORM_AUDIO_KEYS, ...GAME_AUDIO_KEYS]).catch(() => {});
+
     const handleAudioActivation = () => {
       unlockAudioEngine();
     };
@@ -561,18 +439,15 @@ function App() {
     window.addEventListener("keydown", handleAudioActivation);
 
     const handleVisibilityChange = () => {
-      logAudioDebug("lifecycle:visibilitychange", { visibility: document.visibilityState });
       if (document.visibilityState === "visible") {
-        isAudioUnlocked = false;
+        resumeAudioEngine();
       }
     };
 
-    const handlePageShow = () => logAudioDebug("lifecycle:pageshow");
-    const handlePageHide = () => logAudioDebug("lifecycle:pagehide");
+    const handlePageShow = () => resumeAudioEngine();
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
     window.addEventListener("pageshow", handlePageShow);
-    window.addEventListener("pagehide", handlePageHide);
 
     return () => {
       window.removeEventListener("pointerdown", handleAudioActivation);
@@ -580,7 +455,6 @@ function App() {
       window.removeEventListener("keydown", handleAudioActivation);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.removeEventListener("pageshow", handlePageShow);
-      window.removeEventListener("pagehide", handlePageHide);
     };
   }, []);
 
@@ -970,13 +844,9 @@ function App() {
   };
 
   const submitAnswer = (answer) => {
-    const didSend = emitIfConnected("game:submit", { roomId, playerId, answer }, (response) => {
+    emitIfConnected("game:submit", { roomId, playerId, answer }, (response) => {
       if (response?.error) alert(response.error);
     });
-
-    if (didSend) {
-      playVoteSendSound();
-    }
   };
 
   const notifyAssetsLoaded = useCallback(() => {
@@ -1061,6 +931,7 @@ function App() {
       roomCode: roomId,
       metadata: { placement }
     });
+    playSoundWithUnlockRetry("sheetOpen");
     setShowStore(true);
   }, [roomId]);
 
@@ -1114,6 +985,44 @@ function App() {
     && me?.currentGameParticipant;
 
   useEffect(() => {
+    if (!roomId || !players.length) {
+      previousRoomAudioSnapshotRef.current = null;
+      return;
+    }
+
+    const playerSnapshot = new Map(players.map((player) => [player.playerId, {
+      ready: Boolean(player.ready),
+      connected: Boolean(player.connected)
+    }]));
+    const previousSnapshot = previousRoomAudioSnapshotRef.current;
+
+    if (!previousSnapshot || previousSnapshot.roomId !== roomId) {
+      previousRoomAudioSnapshotRef.current = { roomId, players: playerSnapshot };
+      return;
+    }
+
+    const previousPlayers = previousSnapshot.players;
+    const hasNewPlayer = players.some((player) => !previousPlayers.has(player.playerId));
+    const hasRemovedPlayer = Array.from(previousPlayers.keys()).some((id) => !playerSnapshot.has(id));
+    const hasNewReadyPlayer = players.some((player) => {
+      const previousPlayer = previousPlayers.get(player.playerId);
+      return Boolean(player.ready) && previousPlayer && !previousPlayer.ready;
+    });
+
+    if (hasNewPlayer) {
+      playSoundWithUnlockRetry("playerJoined");
+    }
+    if (hasRemovedPlayer) {
+      playSoundWithUnlockRetry("playerLeft");
+    }
+    if (hasNewReadyPlayer) {
+      playSoundWithUnlockRetry("playerReady");
+    }
+
+    previousRoomAudioSnapshotRef.current = { roomId, players: playerSnapshot };
+  }, [players, roomId]);
+
+  useEffect(() => {
     if (!roomId || roomState?.phase !== "play") {
       window.setTimeout(() => setIsViewingRoomPage(false), 0);
       return;
@@ -1137,7 +1046,6 @@ function App() {
         shouldShowGamePage ? (
         <GlitchGamePage
             roomId={roomId}
-            playerId={playerId}
             players={players}
             myGame={me?.game ?? null}
             serverNow={serverOffsetMs === null ? null : serverNow}
@@ -1170,6 +1078,7 @@ function App() {
             onExit={exitRoom}
             connectionState={connectionState}
             onUiButtonClick={playClickSound}
+            onSelectionChanged={playSelectionChangedSound}
             canManageReady={!actionsLocked && (connectionState === CONNECTION_STATES.CONNECTED || connectionState === CONNECTION_STATES.DEGRADED) && (roomState?.phase === "lobby" || (isViewingRoomPage && me?.game?.status === "gameover"))}
             canOpenStore={Boolean(me?.isHost)}
             isPreviewRoom={isPreviewRoom}
@@ -1206,6 +1115,7 @@ function App() {
           onCreateRoom={createRoom}
           onJoinRoom={joinRoom}
           onUiButtonClick={playClickSound}
+          onSelectionChanged={playSelectionChangedSound}
           selectedModeId={selectedLobbyModeId}
           availableModes={lobbyModeOptions}
           canSelectMode={Boolean(!actionsLocked && profileEntitledModeKeys.length)}

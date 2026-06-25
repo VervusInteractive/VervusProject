@@ -10,6 +10,8 @@ const renderTemplate = (template, values) => String(template || "").replace(/\{(
   values[key] ?? match
 ));
 
+const REMOVED_PLAYER_STATUSES = new Set(["removed", "removed_from_room", "kicked"]);
+
 function RoomPage({
   roomId,
   playerId,
@@ -255,19 +257,74 @@ function RoomPage({
     );
   };
 
+  const getPlayerStatusPill = (player, isActivelyInGame) => {
+    const explicitStatus = String(player.roomStatus || player.status || player.statusKey || "").toLowerCase();
+    const connectionState = String(player.connectionState || (player.connected ? "connected" : "disconnected")).toLowerCase();
+    const usesReadyStatus = phase === "lobby"
+      || player.waitingForNextGame
+      || player.game?.status === "gameover";
+
+    if (player.removedFromRoom || player.wasRemoved || REMOVED_PLAYER_STATUSES.has(explicitStatus)) {
+      return {
+        className: "removed",
+        label: content.playerRemovedLabel
+      };
+    }
+
+    if (player.unlockingInProgress) {
+      return {
+        className: "transferring-host",
+        label: content.playerTransferringHostLabel,
+        showSpinner: true
+      };
+    }
+
+    if (connectionState === "reconnecting" || connectionState === "connecting") {
+      return {
+        className: player.isHost ? "host-reconnecting" : "reconnecting",
+        label: player.isHost ? content.playerHostReconnectingLabel : content.playerReconnectingLabel,
+        showSpinner: true
+      };
+    }
+
+    if (connectionState === "disconnected") {
+      return {
+        className: "disconnected",
+        label: content.playerDisconnectedLabel
+      };
+    }
+
+    if (isActivelyInGame) {
+      return {
+        className: "ready",
+        label: content.playerInGameLabel
+      };
+    }
+
+    if (usesReadyStatus) {
+      return player.ready
+        ? { className: "ready", label: content.playerReadyLabel }
+        : { className: "waiting", label: content.playerWaitingLabel, showSpinner: true };
+    }
+
+    return {
+      className: "connected",
+      label: content.playerConnectedLabel
+    };
+  };
+
   const renderReadyPill = (player) => {
     const isWaitingForNextGame = Boolean(player.waitingForNextGame);
     const isActivelyInGame = phase === "play"
       && player.game?.status === "active"
       && Boolean(player.currentGameParticipant)
       && !isWaitingForNextGame;
-    const label = isActivelyInGame ? content.playerInGameLabel : (player.ready ? content.playerReadyLabel : content.playerWaitingLabel);
-    const className = isActivelyInGame || player.ready ? "ready" : "waiting";
+    const statusPill = getPlayerStatusPill(player, isActivelyInGame);
 
     return (
-      <span className={`room-ready-pill ${className}`}>
-        {!player.ready && !isActivelyInGame ? <span className="room-waiting-spinner" aria-hidden="true" /> : null}
-        {label}
+      <span className={`room-ready-pill ${statusPill.className}`}>
+        {statusPill.showSpinner ? <span className="room-waiting-spinner" aria-hidden="true" /> : null}
+        {statusPill.label}
       </span>
     );
   };

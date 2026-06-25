@@ -870,6 +870,12 @@
   font-size: 0.66rem;
   font-weight: 700;
   white-space: nowrap;
+  border: 1px solid rgba(181, 128, 255, 0.44);
+  background: linear-gradient(180deg, rgba(105, 62, 155, 0.78), rgba(65, 37, 101, 0.82));
+  color: #f8f1ff;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    0 0 10px rgba(141, 92, 255, 0.18);
 }
 
 .room-ready-pill.ready {
@@ -882,6 +888,60 @@
   border: 1px solid rgba(255, 255, 255, 0.22);
   background: linear-gradient(180deg, rgba(165, 158, 180, 0.62), rgba(70, 65, 85, 0.78));
   color: #ffffff;
+}
+
+.room-ready-pill.reconnecting {
+  border-color: rgba(251, 216, 113, 0.76);
+  background: linear-gradient(180deg, rgba(161, 130, 50, 0.9), rgba(72, 57, 35, 0.9));
+  color: #fff9de;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    0 0 12px rgba(245, 190, 56, 0.34);
+}
+
+.room-ready-pill.host-reconnecting {
+  border-color: rgba(99, 220, 255, 0.82);
+  background: linear-gradient(180deg, rgba(32, 129, 153, 0.9), rgba(18, 68, 95, 0.92));
+  color: #edfbff;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    0 0 12px rgba(43, 198, 235, 0.36);
+}
+
+.room-ready-pill.transferring-host {
+  border-color: rgba(122, 158, 255, 0.78);
+  background: linear-gradient(180deg, rgba(66, 84, 150, 0.9), rgba(35, 40, 89, 0.94));
+  color: #eef2ff;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    0 0 12px rgba(104, 127, 255, 0.32);
+}
+
+.room-ready-pill.disconnected {
+  border-color: rgba(255, 103, 103, 0.72);
+  background: linear-gradient(180deg, rgba(176, 54, 60, 0.94), rgba(104, 31, 42, 0.94));
+  color: #fff0f0;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    0 0 12px rgba(255, 67, 67, 0.28);
+}
+
+.room-ready-pill.connected {
+  border-color: rgba(99, 211, 124, 0.72);
+  background: linear-gradient(180deg, rgba(46, 128, 70, 0.92), rgba(28, 84, 48, 0.94));
+  color: #edfff1;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    0 0 12px rgba(65, 205, 99, 0.28);
+}
+
+.room-ready-pill.removed {
+  border-color: rgba(255, 95, 169, 0.74);
+  background: linear-gradient(180deg, rgba(153, 52, 109, 0.94), rgba(92, 31, 70, 0.95));
+  color: #fff1f8;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    0 0 12px rgba(255, 69, 158, 0.3);
 }
 
 .room-waiting-spinner {

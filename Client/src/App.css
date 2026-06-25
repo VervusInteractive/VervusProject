@@ -1628,7 +1628,7 @@
   --game-bg-bottom: #09145b;
   --game-noise: rgba(48, 117, 255, 0.3);
   --game-text-glow: rgba(74, 152, 255, 0.7);
-  width: min(100vw, 430px);
+  width: 100vw;
   min-height: 100vh;
   min-height: 100dvh;
   position: fixed;
@@ -1638,7 +1638,10 @@
   flex-direction: column;
   margin-inline: auto;
   overflow: hidden;
-  padding: max(7px, env(safe-area-inset-top)) 20px max(16px, env(safe-area-inset-bottom));
+  padding:
+    max(7px, env(safe-area-inset-top))
+    max(20px, calc((100vw - 430px) / 2 + 20px))
+    max(16px, env(safe-area-inset-bottom));
   background:
     radial-gradient(circle at 50% 44%, rgba(40, 95, 255, 0.2), transparent 36%),
     linear-gradient(180deg, var(--game-bg-top) 0%, var(--game-bg-mid) 56%, var(--game-bg-bottom) 100%);
@@ -2042,7 +2045,7 @@
 
 @media (max-height: 620px) {
   .glitch-game-screen {
-    padding-inline: 16px;
+    padding-inline: max(16px, calc((100vw - 430px) / 2 + 16px));
   }
 
   .glitch-game-heading {

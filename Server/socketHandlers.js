@@ -210,7 +210,8 @@ function registerSocketHandlers(io) {
       correctAnswer: "-",
       causeLabel: "preview ended",
       wasLastChanceActive: false,
-      decisivePlayers: []
+      decisivePlayers: [],
+      realityCheck: buildKillScreenRealityCheck(room, room.game.currentRound)
     };
     room.game.lastRoundResult = {
       passed: false,
@@ -364,6 +365,48 @@ function registerSocketHandlers(io) {
     }
   };
 
+  const buildKillScreenRealityCheck = (room, round) => {
+    if (!round) {
+      return {
+        expectedAnswer: null,
+        deviationLabel: null,
+        standardStimulus: null,
+        alteredStimulus: null,
+        standardPlayers: [],
+        alteredPlayers: []
+      };
+    }
+
+    const standardPlayers = [];
+    const alteredPlayers = [];
+    const playerStimuli = round.playerStimuli || {};
+
+    for (const [playerId, stimulus] of Object.entries(playerStimuli)) {
+      const player = room.players.get(playerId);
+      const entry = {
+        playerId,
+        name: player?.name || "Unknown",
+        stimulus,
+        input: round.playerAnswers?.[playerId] || null
+      };
+
+      if (stimulus === round.baseIcon) {
+        standardPlayers.push(entry);
+      } else {
+        alteredPlayers.push(entry);
+      }
+    }
+
+    return {
+      expectedAnswer: round.expectedAnswer || null,
+      deviationLabel: round.deviationLabel || null,
+      standardStimulus: round.baseIcon || null,
+      alteredStimulus: alteredPlayers[0]?.stimulus || null,
+      standardPlayers,
+      alteredPlayers
+    };
+  };
+
   const endWithGameOver = (room, roomId, round, evaluation, wasLastChanceActive) => {
     const decisivePlayerIds = evaluation.failingPlayers;
     const decisivePlayers = decisivePlayerIds.map((playerId) => {
@@ -383,7 +426,8 @@ function registerSocketHandlers(io) {
       correctAnswer: evaluation.correctAnswer,
       causeLabel: evaluation.causeLabel,
       wasLastChanceActive,
-      decisivePlayers
+      decisivePlayers,
+      realityCheck: buildKillScreenRealityCheck(room, round)
     };
 
     room.game.lastRoundResult = {

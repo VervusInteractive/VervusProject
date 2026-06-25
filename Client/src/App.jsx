@@ -1046,6 +1046,7 @@ function App() {
         shouldShowGamePage ? (
         <GlitchGamePage
             roomId={roomId}
+            playerId={playerId}
             players={players}
             myGame={me?.game ?? null}
             serverNow={serverOffsetMs === null ? null : serverNow}

@@ -10,6 +10,7 @@ import {
   stopTensionLoop
 } from "../audioEngine";
 import { CONNECTION_STATES, getConnectionStateLabel } from "../connectionState";
+import clearBackgroundLogo from "../assets/images/Logos/Logo_ClearBackground.svg";
 
 const GAME_ICON_IMAGES = {
   eye: { label: "Eye", src: new URL("../assets/images/GameIcons/Eye_Base.png", import.meta.url).href, aspect: "280 / 154", width: "78%" },
@@ -96,6 +97,55 @@ function getModeSubtitle(mode, modeId) {
   const cleanedTitle = title.replace(/^GLiTCH!\s*/i, "").trim();
   if (cleanedTitle) return cleanedTitle;
   return modeId === "standard" ? "Standard" : String(modeId || "standard");
+}
+
+const ANSWER_DISPLAY = {
+  sync: { label: "SYNC", className: "sync" },
+  glitch: { label: "GLiTCH!", className: "glitch" }
+};
+
+const STIMULUS_LABELS = {
+  eye: "Eye",
+  bolt: "Lightning",
+  skull: "Skull",
+  smiley: "Smiley",
+  star: "Star"
+};
+
+function getAnswerDisplay(answer) {
+  return ANSWER_DISPLAY[String(answer || "").toLowerCase()] || { label: "-", className: "unknown" };
+}
+
+function getStimulusBaseToken(token) {
+  return String(token || "")
+    .replace(/_(readable|doubt)_twin$/i, "")
+    .replace(/_partial_break$/i, "");
+}
+
+function getStimulusLabel(token) {
+  const baseToken = getStimulusBaseToken(token);
+  return STIMULUS_LABELS[baseToken] || (baseToken ? baseToken.replace(/_/g, " ") : "Screen");
+}
+
+function formatKillCause(causeLabel) {
+  const normalized = String(causeLabel || "").trim();
+  if (!normalized) return "Run ended";
+  if (normalized.toLowerCase() === "preview ended") return "Preview ended";
+  return normalized;
+}
+
+function formatKillPlayerNames(entries) {
+  const names = (entries || []).map((entry) => entry.name).filter(Boolean);
+  if (!names.length) return "-";
+  return names.join(", ");
+}
+
+function getKillScreenPlayerEntry(realityCheck, playerId) {
+  const groups = [
+    ...(realityCheck?.standardPlayers || []),
+    ...(realityCheck?.alteredPlayers || [])
+  ];
+  return groups.find((entry) => entry.playerId === playerId) || null;
 }
 
 const PRE_GAME_COUNTDOWN_MS = 3000;
@@ -204,7 +254,7 @@ function scheduleResultsTicks(combo, registerTimeout) {
 }
 
 
-function GlitchGamePage({ roomId, players, myGame, serverNow, onSubmitAnswer, onAssetsLoaded, onReturnRoom, onExit, connectionState = CONNECTION_STATES.CONNECTING, onUiButtonClick, isPreviewRoom = false, availableModes = [], selectedModeId = "standard" }) {
+function GlitchGamePage({ roomId, playerId, players, myGame, serverNow, onSubmitAnswer, onAssetsLoaded, onReturnRoom, onExit, connectionState = CONNECTION_STATES.CONNECTING, onUiButtonClick, isPreviewRoom = false, availableModes = [], selectedModeId = "standard" }) {
   const currentRound = myGame?.currentRound;
   const currentRoundCorruptionEffects = currentRound?.corruptionEffects ?? null;
   const currentRoundHeatSurgeActive = Boolean(currentRound?.heatSurgeActive);
@@ -530,18 +580,142 @@ function GlitchGamePage({ roomId, players, myGame, serverNow, onSubmitAnswer, on
   }
 
   if (myGame.status === "gameover") {
+    const killScreen = myGame.killScreen || {};
+    const realityCheck = killScreen.realityCheck || {};
+    const finalCombo = killScreen.combo ?? myGame.combo ?? 0;
+    const finalScore = killScreen.score ?? myGame.score ?? 0;
+    const causeLabel = formatKillCause(killScreen.causeLabel);
+    const decisivePlayers = killScreen.decisivePlayers || [];
+    const decisiveNames = formatKillPlayerNames(decisivePlayers);
+    const decisiveSummary = decisivePlayers.length
+      ? decisivePlayers.map((entry) => {
+        if (entry.reason === "missed_input") return `${entry.name} missed the input`;
+        return `${entry.name} tapped ${getAnswerDisplay(entry.input).label}`;
+      }).join(", ")
+      : (killScreen.causeLabel === "preview ended" ? "Preview limit reached" : "No decisive player recorded");
+    const correctAnswer = getAnswerDisplay(killScreen.correctAnswer || realityCheck.expectedAnswer);
+    const standardStimulus = realityCheck.standardStimulus || currentRound?.yourStimulus || null;
+    const alteredStimulus = realityCheck.alteredStimulus || null;
+    const fallbackRealityPlayers = alteredStimulus ? [] : players.filter((player) => !player.waitingForNextGame);
+    const standardPlayers = (realityCheck.standardPlayers || []).length ? realityCheck.standardPlayers : fallbackRealityPlayers;
+    const alteredPlayers = realityCheck.alteredPlayers || [];
+    const standardIcon = GAME_ICON_IMAGES[standardStimulus] || null;
+    const alteredIcon = GAME_ICON_IMAGES[alteredStimulus] || null;
+    const renderKillSymbol = (stimulus, fallbackLabel) => {
+      const icon = GAME_ICON_IMAGES[stimulus] || null;
+      if (!icon) return <span className="kill-symbol-fallback">{fallbackLabel || "?"}</span>;
+      return (
+        <span
+          className="kill-symbol-icon"
+          style={{
+            "--game-icon-image": `url(${icon.src})`,
+            "--game-icon-aspect": icon.aspect,
+            "--game-icon-width": icon.width
+          }}
+          aria-hidden="true"
+        />
+      );
+    };
+
     return (
-      <section className="panel">
-        <div className="kill-screen">
-          <h2>Game Over</h2>
-          {myGame.killScreen?.causeLabel === "preview ended" ? <p><strong>(preview ended)</strong></p> : null}
-          <p><strong>Final combo:</strong> {myGame.killScreen?.combo ?? 0}x</p>
-          <p><strong>Final score:</strong> {myGame.killScreen?.score ?? 0}</p>
-          <p><strong>Correct room answer:</strong> {(myGame.killScreen?.correctAnswer || "-").toUpperCase()}</p>
-          <p><strong>Cause:</strong> {myGame.killScreen?.causeLabel || "-"}</p>
-          <p><strong>Decisive player(s):</strong> {(myGame.killScreen?.decisivePlayers || []).map((entry) => `${entry.name} (${entry.reason === "missed_input" ? "No response" : (entry.input || "-")})`).join(", ") || "-"}</p>
-          <button className="btn btn-primary" onClick={() => { onUiButtonClick?.(); onReturnRoom(); }}>Back to Room</button>
+      <section className="kill-screen-page">
+        <span className="glitch-background-layers" aria-hidden="true" />
+
+        <div className="kill-screen-brand" aria-label="Vervus">
+          <img src={clearBackgroundLogo} alt="Vervus" />
         </div>
+
+        <header className="kill-screen-hero">
+          <h1>GLiTCH!</h1>
+          <strong>{finalCombo}</strong>
+          <span>COMBO</span>
+        </header>
+
+        <main className="kill-screen-content">
+          <section className="kill-card kill-culprit-card">
+            <div className="kill-card-header">
+              <span>Who broke the run</span>
+              <strong>{correctAnswer.label}</strong>
+            </div>
+            <div className="kill-culprit-row">
+              <span className={`kill-answer-orb ${correctAnswer.className}`} aria-hidden="true">{correctAnswer.label === "SYNC" ? "S" : "G"}</span>
+              <div>
+                <strong>{decisiveNames}</strong>
+                <span>{decisiveSummary}</span>
+              </div>
+            </div>
+            <p>{causeLabel}.</p>
+          </section>
+
+          <section className="kill-card kill-reality-card">
+            <div className="kill-card-header">
+              <span>Reality check</span>
+            </div>
+            <div className="kill-reality-row">
+              <div>
+                <strong>Standard {getStimulusLabel(standardStimulus)}</strong>
+                <span>{formatKillPlayerNames(standardPlayers)}</span>
+              </div>
+              <span className="kill-symbol-disc" aria-label={standardIcon?.label || "Standard screen"}>
+                {renderKillSymbol(standardStimulus, "S")}
+              </span>
+            </div>
+            <div className="kill-reality-row altered">
+              <div>
+                <strong>{alteredStimulus ? `Altered ${getStimulusLabel(alteredStimulus)}` : "Altered screen"}</strong>
+                <span>{formatKillPlayerNames(alteredPlayers)}</span>
+              </div>
+              <span className="kill-symbol-disc" aria-label={alteredIcon?.label || "Altered screen"}>
+                {renderKillSymbol(alteredStimulus, "G")}
+              </span>
+            </div>
+          </section>
+
+          <section className="kill-card kill-experience-card">
+            <div className="kill-card-header">
+              <span>Experience</span>
+            </div>
+            <div className="kill-mode-row">
+              <div>
+                <strong>GLiTCH!</strong>
+                <span>{getModeSubtitle(selectedMode, myGame.modeId || selectedModeId)}</span>
+              </div>
+              <span>{finalScore} pts</span>
+            </div>
+          </section>
+
+          <section className="kill-card kill-players-card">
+            <div className="kill-card-header">
+              <span>Players</span>
+            </div>
+            <ul className="kill-player-list">
+              {players.filter((player) => !player.waitingForNextGame).map((player) => {
+                const decisiveEntry = decisivePlayers.find((entry) => entry.playerId === player.playerId);
+                const realityEntry = getKillScreenPlayerEntry(realityCheck, player.playerId);
+                const answerDisplay = getAnswerDisplay(decisiveEntry?.input || realityEntry?.input);
+                const hasMissedInput = decisiveEntry?.reason === "missed_input";
+                const statusClassName = hasMissedInput ? "missed" : answerDisplay.className;
+                const statusLabel = hasMissedInput ? "No response" : answerDisplay.label;
+                return (
+                  <li key={player.playerId} className="kill-player-row">
+                    <span className="kill-player-avatar" style={{ "--player-color": player.color || "#8d5cff" }} aria-hidden="true">
+                      <span />
+                    </span>
+                    <strong>{player.playerId === playerId ? "You" : player.name}</strong>
+                    <div>
+                      <span className={`kill-mini-pill ${statusClassName}`}>{statusLabel}</span>
+                      <span className={`kill-mini-pill ${player.ready ? "ready" : "waiting"}`}>{player.ready ? "Ready" : "Waiting"}</span>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        </main>
+
+        <footer className="kill-screen-actions">
+          <button type="button" className="kill-return-button" onClick={() => { onUiButtonClick?.(); onReturnRoom(); }}>Return to room</button>
+        </footer>
       </section>
     );
   }

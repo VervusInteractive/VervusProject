@@ -18,9 +18,38 @@ function formatRoomCode(value) {
   return normalized.match(/.{1,2}/g)?.join("-") || "";
 }
 
+function formatRoomPreviewNames(playerNames = []) {
+  const names = playerNames
+    .map((playerName) => String(playerName || "").trim())
+    .filter(Boolean)
+    .map((playerName) => playerName.toUpperCase());
+
+  if (names.length === 0) return "";
+  if (names.length === 1) return `${names[0]} IS ALREADY IN`;
+  if (names.length === 2) return `${names[0]} & ${names[1]} ARE ALREADY IN`;
+
+  return `${names[0]}, ${names[1]} & ${names.length - 2} MORE ARE ALREADY IN`;
+}
+
+function getRoomPreviewModeTitle(roomPreview) {
+  const modeTitle = String(roomPreview?.selectedModeTitle || "GLiTCH!").trim();
+  if (roomPreview?.selectedModeId === "standard" && !/standard/i.test(modeTitle)) {
+    return `${modeTitle} Standard`;
+  }
+
+  return modeTitle;
+}
+
+function getRoomPreviewStatusLabel(roomPreview) {
+  if (roomPreview?.joinable) return "Room active";
+  if (roomPreview?.isFull) return "Room full";
+  return "Room closed";
+}
+
 function LobbyPage({
   name,
   roomIdInput,
+  roomPreview = null,
   onNameChange,
   onRoomIdInputChange,
   onCreateRoom,
@@ -161,6 +190,24 @@ function LobbyPage({
           onChange={handleRoomCodeChange}
         />
       </label>
+
+      {roomPreview ? (
+        <div className="lobby-room-preview" role="status" aria-live="polite">
+          <strong>
+            ROOM FOUND
+            {formatRoomPreviewNames(roomPreview.playerNames) ? (
+              <> &mdash; {formatRoomPreviewNames(roomPreview.playerNames)}</>
+            ) : null}
+          </strong>
+          <p>
+            {formatRoomCode(roomPreview.roomId)}
+            {" "}&middot;{" "}
+            {getRoomPreviewModeTitle(roomPreview)}
+            {" "}&middot;{" "}
+            {getRoomPreviewStatusLabel(roomPreview)}
+          </p>
+        </div>
+      ) : null}
 
       <div className="lobby-actions">
         <button className="lobby-primary-action" type="submit" disabled={!canJoin}>

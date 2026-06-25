@@ -106,7 +106,15 @@ const PENDING_PURCHASE_SOUND_STORAGE_KEY = "pendingPurchaseSoundEffect";
 const PENDING_PURCHASE_SESSION_STORAGE_KEY = "pendingPurchaseCheckoutSessionId";
 const PLAYER_COLORS = ["#ef4444", "#3b82f6", "#22c55e", "#eab308"];
 const initialSearchParams = new URLSearchParams(window.location.search);
-const initialRoomFromQuery = initialSearchParams.get("room")?.trim().toUpperCase() || "";
+const ROOM_PREVIEW_DEBOUNCE_MS = 250;
+const ROOM_PREVIEW_MIN_LENGTH = 4;
+function normalizeRoomCodeForLookup(value) {
+  return String(value || "")
+    .toUpperCase()
+    .replace(/[^A-Z2-9]/g, "")
+    .slice(0, 8);
+}
+const initialRoomFromQuery = normalizeRoomCodeForLookup(initialSearchParams.get("room"));
 const initialEntitlementTransferToken = initialSearchParams.get("entitlementTransfer")?.trim() || "";
 const ROOM_VIEW_PREFERENCE_KEY = "roomViewPreference";
 const LOBBY_MODE_OPTIONS = [
@@ -193,6 +201,7 @@ const playFailedPurchaseSound = () => playSoundWithUnlockRetry("purchaseFailed")
 function App() {
   const [name, setName] = useState(() => localStorage.getItem("playerName") || "");
   const [roomIdInput, setRoomIdInput] = useState(initialRoomFromQuery);
+  const [roomPreview, setRoomPreview] = useState({ status: "idle", roomId: "", room: null, error: "" });
   const [profileId, setProfileId] = useState("");
   const [profileEntitlementExpiresAtMs, setProfileEntitlementExpiresAtMs] = useState(null);
   const [profileEntitledModeKeys, setProfileEntitledModeKeys] = useState([]);
@@ -234,6 +243,7 @@ function App() {
   const previousRoomAudioSnapshotRef = useRef(null);
   const timeSyncSequenceRef = useRef(0);
   const timeSyncSamplesRef = useRef([]);
+  const roomPreviewRequestRef = useRef(0);
   const pendingAutoJoinRoomIdRef = useRef(initialRoomFromQuery);
   const pendingEntitlementTransferTokenRef = useRef(initialEntitlementTransferToken);
   const playPurchaseSoundWithFallback = useCallback((success) => {
@@ -309,6 +319,49 @@ function App() {
     emitIfConnected("player:register", { name }, applyProfileEntitlementResponse);
   }, [applyProfileEntitlementResponse, emitIfConnected, name]);
 
+  useEffect(() => {
+    const normalizedRoomId = normalizeRoomCodeForLookup(roomIdInput);
+    const requestId = roomPreviewRequestRef.current + 1;
+    roomPreviewRequestRef.current = requestId;
+
+    if (roomId || !isSocketConnected || normalizedRoomId.length < ROOM_PREVIEW_MIN_LENGTH) {
+      setRoomPreview({ status: "idle", roomId: normalizedRoomId, room: null, error: "" });
+      return undefined;
+    }
+
+    setRoomPreview((previous) => {
+      if (previous.roomId === normalizedRoomId && previous.status === "found") {
+        return previous;
+      }
+
+      return { status: "loading", roomId: normalizedRoomId, room: null, error: "" };
+    });
+
+    const timeoutId = window.setTimeout(() => {
+      const didEmit = emitIfConnected("room:preview", { roomId: normalizedRoomId }, (response) => {
+        if (roomPreviewRequestRef.current !== requestId) return;
+
+        if (response?.error) {
+          setRoomPreview({ status: "error", roomId: normalizedRoomId, room: null, error: response.error });
+          return;
+        }
+
+        if (response?.found && response.room) {
+          setRoomPreview({ status: "found", roomId: normalizedRoomId, room: response.room, error: "" });
+          return;
+        }
+
+        setRoomPreview({ status: "not_found", roomId: normalizedRoomId, room: null, error: "" });
+      });
+
+      if (!didEmit && roomPreviewRequestRef.current === requestId) {
+        setRoomPreview({ status: "idle", roomId: normalizedRoomId, room: null, error: "" });
+      }
+    }, ROOM_PREVIEW_DEBOUNCE_MS);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [emitIfConnected, isSocketConnected, roomId, roomIdInput]);
+
 
   const clearSessionState = useCallback(() => {
     localStorage.removeItem("roomId");
@@ -323,6 +376,7 @@ function App() {
     setIsViewingRoomPage(false);
   }, [roomId]);
   const applyJoinResponse = useCallback((response) => {
+    setRoomPreview({ status: "idle", roomId: "", room: null, error: "" });
     setRoomId(response.roomId);
     setPlayerId(response.playerId);
     setRoomState(response.state);
@@ -1115,6 +1169,7 @@ function App() {
           onRoomIdInputChange={setRoomIdInput}
           onCreateRoom={createRoom}
           onJoinRoom={joinRoom}
+          roomPreview={roomPreview.status === "found" ? roomPreview.room : null}
           onUiButtonClick={playClickSound}
           onSelectionChanged={playSelectionChangedSound}
           selectedModeId={selectedLobbyModeId}

@@ -163,6 +163,34 @@
     0 0 20px rgba(114, 48, 198, 0.16);
 }
 
+.lobby-room-preview {
+  margin-top: 14px;
+  border: 1px solid rgba(0, 178, 139, 0.48);
+  border-radius: 26px;
+  padding: 16px 16px;
+  background: rgba(0, 116, 91, 0.15);
+  color: rgba(229, 223, 242, 0.76);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    0 0 28px rgba(0, 178, 139, 0.12);
+}
+
+.lobby-room-preview strong {
+  display: block;
+  color: #00b28b;
+  font-size: 0.83rem;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.lobby-room-preview p {
+  margin: 10px 0 0;
+  color: rgba(229, 223, 242, 0.78);
+  font-size: 0.91rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
 .lobby-actions {
   display: grid;
   gap: 12px;

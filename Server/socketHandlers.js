@@ -157,6 +157,25 @@ function registerSocketHandlers(io) {
     return room.phase === "lobby" || isPlayableRoom;
   };
 
+  const buildRoomPreview = (roomId, room) => {
+    const selectedModeId = room.selectedModeId || "standard";
+    const selectedMode = (room.availableModes || []).find((mode) => mode.id === selectedModeId);
+    const players = Array.from(room.players.values());
+
+    return {
+      roomId,
+      phase: room.phase,
+      status: room.status || room.phase,
+      currentPlayerCount: players.length,
+      maxPlayers: MAX_PLAYERS_PER_ROOM,
+      playerNames: players.map((player) => player.name).filter(Boolean),
+      selectedModeId,
+      selectedModeTitle: selectedMode?.title || "GLiTCH!",
+      joinable: isRoomOpenForJoin(room) && players.length < MAX_PLAYERS_PER_ROOM,
+      isFull: players.length >= MAX_PLAYERS_PER_ROOM
+    };
+  };
+
   const registerTimer = (room, timerId) => {
     room.gameTimers = room.gameTimers || [];
     room.gameTimers.push(timerId);
@@ -694,13 +713,20 @@ function registerSocketHandlers(io) {
         return;
       }
 
-      if (["room:join", "room:rejoin"].includes(eventName)) {
+      if (["room:preview", "room:join", "room:rejoin"].includes(eventName)) {
         const normalizedRoomId = normalizeRoomCode(payload.roomId);
-        const joinLimit = socketJoinLimiter(socket, eventName);
+        const isJoinAttempt = ["room:join", "room:rejoin"].includes(eventName);
+        const joinLimit = isJoinAttempt
+          ? socketJoinLimiter(socket, eventName)
+          : { allowed: true, retryAfterMs: 0 };
         const probeLimit = roomCodeProbeLimiter(socket, isValidRoomCode(normalizedRoomId) ? normalizedRoomId : "invalid");
         if (!joinLimit.allowed || !probeLimit.allowed) {
           const retryAfterMs = Math.max(joinLimit.retryAfterMs, probeLimit.retryAfterMs);
-          const response = { error: "Too many room join attempts", code: "RATE_LIMITED", retryAfterMs };
+          const response = {
+            error: isJoinAttempt ? "Too many room join attempts" : "Too many room lookup attempts",
+            code: "RATE_LIMITED",
+            retryAfterMs
+          };
           socket.emit("rate_limit", { event: eventName, retryAfterMs });
           callback?.(response);
           return;
@@ -725,6 +751,23 @@ function registerSocketHandlers(io) {
       } catch (error) {
         callback?.({ error: "Failed to register player" });
       }
+    });
+
+    socket.on("room:preview", (payload = {}, callback) => {
+      payload = normalizeSocketPayload(payload);
+      const normalizedRoomId = normalizeRoomCode(payload.roomId);
+      if (!isValidRoomCode(normalizedRoomId)) {
+        callback?.({ found: false });
+        return;
+      }
+
+      const room = rooms.get(normalizedRoomId);
+      if (!room) {
+        callback?.({ found: false });
+        return;
+      }
+
+      callback?.({ found: true, room: buildRoomPreview(normalizedRoomId, room) });
     });
 
     socket.on("room:create", async (payload = {}, callback) => {

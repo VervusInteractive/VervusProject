@@ -33,6 +33,16 @@ const GAME_ICON_IMAGES = {
 };
 
 const GAME_ICON_IMAGE_SOURCES = Array.from(new Set(Object.values(GAME_ICON_IMAGES).map((icon) => icon.src)));
+const GLITCH_BACKGROUND_IMAGE_SOURCES = [
+  new URL("../assets/images/GlitchBackgrounds/subtle_noise_scanlines_white_transparent.png", import.meta.url).href,
+  new URL("../assets/images/GlitchBackgrounds/horizontal_glitch_streaks_white_transparent.png", import.meta.url).href,
+  new URL("../assets/images/GlitchBackgrounds/glitch_grunge_frame_white_transparent.png", import.meta.url).href,
+  new URL("../assets/images/GlitchBackgrounds/energy_burst_glitch_white_transparent.png", import.meta.url).href
+];
+const GAME_IMAGE_SOURCES = Array.from(new Set([
+  ...GAME_ICON_IMAGE_SOURCES,
+  ...GLITCH_BACKGROUND_IMAGE_SOURCES
+]));
 const imagePreloadCache = new Map();
 
 function isPartialBreakToken(token) {
@@ -654,7 +664,7 @@ function GlitchGamePage({ roomId, playerId, players, myGame, serverNow, onSubmit
     const preloadAllAssets = async () => {
       await Promise.all([
         preloadAudioFiles(PRELOAD_AUDIO_FILES),
-        preloadImageFiles(GAME_ICON_IMAGE_SOURCES)
+        preloadImageFiles(GAME_IMAGE_SOURCES)
       ]);
       if (!cancelled) {
         hasNotifiedLoadedRef.current = true;
@@ -865,6 +875,27 @@ function GlitchGamePage({ roomId, playerId, players, myGame, serverNow, onSubmit
   const isLastChanceTheme = Boolean(currentRound?.isLastChanceReplay || isSaveItActive);
   const isDangerTheme = Boolean(isLastChanceTheme || isHeatSurgeEnabled);
   const modeSubtitle = getModeSubtitle(selectedMode, myGame.modeId);
+  const comboIntensity = clamp01((Number(myGame.combo) || 0) / 40);
+  const backgroundIntensity = isDangerTheme ? 1 : comboIntensity;
+  const backgroundMotionDurationMs = Math.round(1700 - (backgroundIntensity * 1120));
+  const backgroundShiftX = Math.round(1 + (backgroundIntensity * 5));
+  const backgroundShiftY = Math.round(1 + (backgroundIntensity * 4));
+  const gameScreenStyle = {
+    "--glitch-bg-motion-opacity": isDangerTheme
+      ? "0.86"
+      : (0.46 + (backgroundIntensity * 0.26)).toFixed(2),
+    "--glitch-bg-structure-opacity": isDangerTheme
+      ? "0.72"
+      : (0.4 + (backgroundIntensity * 0.18)).toFixed(2),
+    "--glitch-bg-motion-duration": `${backgroundMotionDurationMs}ms`,
+    "--glitch-bg-shift-x": `${backgroundShiftX}px`,
+    "--glitch-bg-shift-y": `${backgroundShiftY}px`,
+    "--glitch-bg-shift-x-neg": `${-backgroundShiftX}px`,
+    "--glitch-bg-shift-y-neg": `${-backgroundShiftY}px`,
+    "--glitch-bg-motion-peak-opacity": isDangerTheme
+      ? "0.98"
+      : (0.58 + (backgroundIntensity * 0.24)).toFixed(2)
+  };
   const gameScreenClassName = [
     "glitch-game-screen",
     isDangerTheme ? "danger" : "standard",
@@ -892,7 +923,9 @@ function GlitchGamePage({ roomId, playerId, players, myGame, serverNow, onSubmit
     && connectionState !== CONNECTION_STATES.RECONNECTING;
 
   return (
-    <section className={gameScreenClassName}>
+    <section className={gameScreenClassName} style={gameScreenStyle}>
+      <span className="glitch-background-layers" aria-hidden="true" />
+
       {isWrongOrientation ? (
         <div className="orientation-warning-overlay" role="alert">
           <div className="orientation-warning-card">

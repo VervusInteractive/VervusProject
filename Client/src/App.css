@@ -1628,6 +1628,24 @@
   --game-bg-bottom: #09145b;
   --game-noise: rgba(48, 117, 255, 0.3);
   --game-text-glow: rgba(74, 152, 255, 0.7);
+  --glitch-stage-width: min(100vw, 430px);
+  --glitch-bg-primary: #050816;
+  --glitch-bg-secondary: #07194d;
+  --glitch-bg-layer-color: #1658ff;
+  --glitch-bg-noise-layer: url("./assets/images/GlitchBackgrounds/subtle_noise_scanlines_white_transparent.png");
+  --glitch-bg-streaks-layer: url("./assets/images/GlitchBackgrounds/horizontal_glitch_streaks_white_transparent.png");
+  --glitch-bg-frame-layer: url("./assets/images/GlitchBackgrounds/glitch_grunge_frame_white_transparent.png");
+  --glitch-bg-burst-layer: url("./assets/images/GlitchBackgrounds/energy_burst_glitch_white_transparent.png");
+  --glitch-bg-motion-mask: var(--glitch-bg-streaks-layer);
+  --glitch-bg-structure-opacity: 0.42;
+  --glitch-bg-motion-opacity: 0.52;
+  --glitch-bg-filter: saturate(1.06) brightness(0.88);
+  --glitch-bg-motion-duration: 1700ms;
+  --glitch-bg-shift-x: 1px;
+  --glitch-bg-shift-y: 1px;
+  --glitch-bg-shift-x-neg: -1px;
+  --glitch-bg-shift-y-neg: -1px;
+  --glitch-bg-motion-peak-opacity: 0.58;
   width: 100vw;
   min-height: 100vh;
   min-height: 100dvh;
@@ -1636,15 +1654,14 @@
   z-index: 10;
   display: flex;
   flex-direction: column;
+  align-items: center;
   margin-inline: auto;
   overflow: hidden;
   padding:
-    max(7px, env(safe-area-inset-top))
+    max(8px, env(safe-area-inset-top))
     max(20px, calc((100vw - 430px) / 2 + 20px))
     max(16px, env(safe-area-inset-bottom));
-  background:
-    radial-gradient(circle at 50% 44%, rgba(40, 95, 255, 0.2), transparent 36%),
-    linear-gradient(180deg, var(--game-bg-top) 0%, var(--game-bg-mid) 56%, var(--game-bg-bottom) 100%);
+  background: #02030a;
   color: #ffffff;
   isolation: isolate;
 }
@@ -1663,6 +1680,34 @@
   --game-bg-bottom: #190000;
   --game-noise: rgba(255, 31, 31, 0.36);
   --game-text-glow: rgba(255, 40, 40, 0.9);
+  --glitch-bg-primary: #100100;
+  --glitch-bg-secondary: #350706;
+  --glitch-bg-layer-color: #ff1f1f;
+  --glitch-bg-motion-mask: var(--glitch-bg-streaks-layer);
+  --glitch-bg-structure-opacity: 0.52;
+  --glitch-bg-motion-opacity: 0.62;
+  --glitch-bg-filter: saturate(1.18) brightness(0.9);
+}
+
+.glitch-game-screen.corruption-intensity-medium {
+  --glitch-bg-motion-opacity: 0.62;
+}
+
+.glitch-game-screen.corruption-intensity-high {
+  --glitch-bg-motion-opacity: 0.72;
+}
+
+.glitch-game-screen.heat-surge-state {
+  --glitch-bg-motion-mask: var(--glitch-bg-streaks-layer), var(--glitch-bg-burst-layer);
+  --glitch-bg-structure-opacity: 0.62;
+  --glitch-bg-motion-opacity: 0.78;
+  --glitch-bg-filter: saturate(1.28) brightness(1);
+}
+
+.glitch-game-screen.save-it-state,
+.glitch-game-screen.last-chance-state {
+  --glitch-bg-motion-mask: var(--glitch-bg-streaks-layer);
+  --glitch-bg-filter: saturate(1.34) brightness(1.06);
 }
 
 .glitch-game-screen::before,
@@ -1675,13 +1720,14 @@
 }
 
 .glitch-game-screen::before {
+  left: 50%;
+  width: var(--glitch-stage-width);
+  transform: translateX(-50%);
   background:
-    linear-gradient(180deg, rgba(0, 0, 0, 0.16), transparent 24%, rgba(0, 0, 0, 0.16)),
-    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.035) 0 1px, transparent 1px 4px),
-    linear-gradient(90deg, transparent 0 8%, var(--game-noise) 8.4% 9.5%, transparent 10% 56%, rgba(255, 255, 255, 0.06) 56.5% 58%, transparent 59%),
-    radial-gradient(circle at 50% 82%, rgba(255, 255, 255, 0.08), transparent 42%);
-  mix-blend-mode: screen;
-  opacity: 0.76;
+    radial-gradient(circle at 50% 45%, color-mix(in srgb, var(--glitch-bg-layer-color) 34%, transparent), transparent 41%),
+    radial-gradient(circle at 50% 82%, color-mix(in srgb, var(--glitch-bg-layer-color) 18%, transparent), transparent 44%),
+    linear-gradient(180deg, #02030a 0%, var(--glitch-bg-primary) 18%, var(--glitch-bg-secondary) 62%, #010207 100%);
+  opacity: 1;
 }
 
 .glitch-game-screen::after {
@@ -1690,8 +1736,65 @@
     linear-gradient(92deg, transparent 0 14%, var(--game-noise) 14.4% 15.4%, transparent 16% 100%),
     linear-gradient(88deg, transparent 0 65%, var(--game-noise) 65.5% 68%, transparent 69%),
     repeating-linear-gradient(180deg, transparent 0 42px, rgba(255, 255, 255, 0.08) 43px 44px, transparent 45px 74px);
-  opacity: 0.7;
-  animation: glitch-background-scan 1200ms steps(2, end) infinite;
+  left: 50%;
+  width: var(--glitch-stage-width);
+  opacity: 0.16;
+  transform: translateX(-50%);
+  animation: none;
+}
+
+.glitch-background-layers {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: var(--glitch-stage-width);
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  transform: translateX(-50%);
+  filter: var(--glitch-bg-filter);
+}
+
+.glitch-background-layers::before,
+.glitch-background-layers::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--glitch-bg-layer-color);
+  pointer-events: none;
+}
+
+.glitch-background-layers::before {
+  opacity: var(--glitch-bg-structure-opacity);
+  -webkit-mask-image: var(--glitch-bg-frame-layer), var(--glitch-bg-noise-layer);
+  mask-image: var(--glitch-bg-frame-layer), var(--glitch-bg-noise-layer);
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-size: cover;
+  mask-size: cover;
+}
+
+.glitch-background-layers::after {
+  opacity: var(--glitch-bg-motion-opacity);
+  -webkit-mask-image: var(--glitch-bg-motion-mask);
+  mask-image: var(--glitch-bg-motion-mask);
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-size: cover;
+  mask-size: cover;
+  animation: glitch-background-layer-jitter var(--glitch-bg-motion-duration) steps(2, end) infinite;
+  will-change: opacity, transform;
+}
+
+.glitch-game-screen > :not(.glitch-background-layers):not(.orientation-warning-overlay) {
+  position: relative;
+  z-index: 1;
+  width: min(100%, 390px);
 }
 
 .glitch-connection-slot {
@@ -1710,14 +1813,14 @@
   display: grid;
   justify-items: center;
   gap: 1px;
-  margin-top: clamp(20px, 6vh, 42px);
+  margin-top: clamp(62px, 10.5vh, 96px);
   text-align: center;
 }
 
 .glitch-game-heading h1 {
   margin: 0;
   color: #ffffff;
-  font-size: clamp(1.22rem, 6vw, 1.72rem);
+  font-size: clamp(1.24rem, 5.6vw, 1.62rem);
   line-height: 0.9;
   font-weight: 1000;
   letter-spacing: 0.01em;
@@ -1740,14 +1843,14 @@
   display: grid;
   justify-items: center;
   gap: 1px;
-  margin-top: clamp(9px, 2vh, 18px);
+  margin-top: clamp(9px, 1.8vh, 15px);
   color: var(--game-accent);
   text-align: center;
   text-shadow: 0 0 20px var(--game-text-glow);
 }
 
 .glitch-combo-stack strong {
-  font-size: clamp(3.25rem, 18vw, 5.2rem);
+  font-size: clamp(3.35rem, 18vw, 5rem);
   line-height: 0.78;
   font-weight: 1000;
 }
@@ -1761,11 +1864,11 @@
 .glitch-timer-stage {
   display: grid;
   place-items: center;
-  margin-top: clamp(16px, 3.3vh, 30px);
+  margin-top: clamp(18px, 3.2vh, 30px);
 }
 
 .glitch-timer-ring {
-  width: clamp(150px, 48vw, 214px);
+  width: clamp(220px, 68vw, 286px);
   aspect-ratio: 1 / 1;
   position: relative;
   display: grid;
@@ -1774,19 +1877,19 @@
   background:
     conic-gradient(from -90deg, var(--game-ring-start) 0deg, var(--game-ring-end) var(--timer-progress), var(--game-ring-track) var(--timer-progress) 360deg);
   box-shadow:
-    0 16px 34px rgba(0, 0, 0, 0.5),
-    0 0 0 1px rgba(255, 255, 255, 0.08),
-    0 0 24px color-mix(in srgb, var(--game-accent) 45%, transparent);
+    0 18px 30px rgba(0, 0, 0, 0.56),
+    0 0 0 1px rgba(255, 255, 255, 0.04),
+    0 0 22px color-mix(in srgb, var(--game-accent) 34%, transparent);
 }
 
 .glitch-timer-ring::before {
   content: "";
   position: absolute;
-  inset: 12px;
+  inset: clamp(18px, 5.5vw, 24px);
   border-radius: inherit;
   background:
-    radial-gradient(circle at 50% 39%, rgba(255, 255, 255, 0.06), transparent 42%),
-    linear-gradient(180deg, #142033, #07101e 72%, #050b14);
+    radial-gradient(circle at 50% 39%, color-mix(in srgb, var(--game-accent) 12%, transparent), transparent 42%),
+    linear-gradient(180deg, #162033, #07101c 72%, #040912);
   box-shadow:
     inset 0 10px 20px rgba(255, 255, 255, 0.04),
     inset 0 -15px 28px rgba(0, 0, 0, 0.58);
@@ -1802,8 +1905,8 @@
 }
 
 .glitch-timer-marker span {
-  width: 13px;
-  height: 13px;
+  width: clamp(16px, 4.8vw, 20px);
+  height: clamp(16px, 4.8vw, 20px);
   position: absolute;
   top: 50%;
   right: 0;
@@ -1818,7 +1921,7 @@
 
 .glitch-symbol-disc {
   position: absolute;
-  inset: 28px;
+  inset: clamp(44px, 14vw, 58px);
   z-index: 2;
   display: grid;
   place-items: center;
@@ -1888,7 +1991,7 @@
 }
 
 .glitch-vote-strip {
-  display: flex;
+  display: none;
   justify-content: center;
   gap: 8px;
   min-height: 10px;
@@ -1913,8 +2016,9 @@
 
 .glitch-game-footer {
   display: grid;
-  gap: 15px;
+  gap: clamp(15px, 2.8vh, 20px);
   margin-top: auto;
+  padding-bottom: clamp(7px, 1.7vh, 16px);
 }
 
 .glitch-time-pill {
@@ -1938,16 +2042,16 @@
 .glitch-answer-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 11px;
+  gap: 10px;
 }
 
 .glitch-answer-button {
-  min-height: 54px;
+  min-height: clamp(58px, 8vh, 72px);
   border: 1px solid transparent;
-  border-radius: 9px;
+  border-radius: 11px;
   color: #ffffff;
   font: inherit;
-  font-size: 0.72rem;
+  font-size: clamp(0.62rem, 2.4vw, 0.78rem);
   font-weight: 1000;
   letter-spacing: 0.02em;
   text-transform: uppercase;
@@ -2025,11 +2129,31 @@
   animation: last-chance-ring-pulse 740ms ease-in-out infinite;
 }
 
-@keyframes glitch-background-scan {
-  0% { transform: translate3d(0, 0, 0); opacity: 0.58; }
-  35% { transform: translate3d(-2px, 3px, 0); opacity: 0.82; }
-  70% { transform: translate3d(2px, -2px, 0); opacity: 0.68; }
-  100% { transform: translate3d(0, 0, 0); opacity: 0.74; }
+@keyframes glitch-background-layer-jitter {
+  0%, 100% {
+    opacity: var(--glitch-bg-motion-opacity);
+    transform: translate3d(0, 0, 0);
+  }
+
+  18% {
+    opacity: var(--glitch-bg-motion-peak-opacity);
+    transform: translate3d(var(--glitch-bg-shift-x), var(--glitch-bg-shift-y-neg), 0);
+  }
+
+  36% {
+    opacity: var(--glitch-bg-motion-opacity);
+    transform: translate3d(var(--glitch-bg-shift-x-neg), var(--glitch-bg-shift-y), 0);
+  }
+
+  57% {
+    opacity: var(--glitch-bg-motion-peak-opacity);
+    transform: translate3d(var(--glitch-bg-shift-x), var(--glitch-bg-shift-y), 0);
+  }
+
+  74% {
+    opacity: var(--glitch-bg-motion-opacity);
+    transform: translate3d(var(--glitch-bg-shift-x-neg), var(--glitch-bg-shift-y-neg), 0);
+  }
 }
 
 @keyframes save-it-title-glitch {
@@ -2041,6 +2165,18 @@
 @keyframes last-chance-ring-pulse {
   0%, 100% { opacity: 0.45; transform: scale(1); }
   50% { opacity: 1; transform: scale(1.035); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .glitch-background-layers::after {
+    animation: none;
+    opacity: var(--glitch-bg-motion-opacity);
+    transform: none;
+  }
+
+  .glitch-game-screen::after {
+    animation: none;
+  }
 }
 
 @media (max-height: 620px) {

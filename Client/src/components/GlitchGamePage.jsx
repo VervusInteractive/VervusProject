@@ -863,7 +863,7 @@ function GlitchGamePage({ roomId, playerId, players, myGame, serverNow, onSubmit
   const timerProgress = roundTimerMs > 0 ? clamp01(boundedTimeRemainingMs / roundTimerMs) : 0;
   const displayTimeMs = isSaveItActive ? Math.min(3000, roundTimerMs || 3000) : boundedTimeRemainingMs;
   const isLastChanceTheme = Boolean(currentRound?.isLastChanceReplay || isSaveItActive);
-  const isDangerTheme = isSaveItActive;
+  const isDangerTheme = Boolean(isLastChanceTheme || isHeatSurgeEnabled);
   const modeSubtitle = getModeSubtitle(selectedMode, myGame.modeId);
   const gameScreenClassName = [
     "glitch-game-screen",

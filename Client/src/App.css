@@ -1614,6 +1614,410 @@
   100% { opacity: 1; transform: scale(1); }
 }
 
+.glitch-game-screen {
+  --game-accent: #4a98ff;
+  --game-accent-strong: #2d73ff;
+  --game-bg-top: #040817;
+  --game-bg-mid: #071a56;
+  --game-bg-bottom: #09145b;
+  --game-noise: rgba(48, 117, 255, 0.3);
+  --game-text-glow: rgba(74, 152, 255, 0.7);
+  width: min(100vw, 430px);
+  min-height: 100vh;
+  min-height: 100dvh;
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  margin-inline: auto;
+  overflow: hidden;
+  padding: max(7px, env(safe-area-inset-top)) 20px max(16px, env(safe-area-inset-bottom));
+  background:
+    radial-gradient(circle at 50% 44%, rgba(40, 95, 255, 0.2), transparent 36%),
+    linear-gradient(180deg, var(--game-bg-top) 0%, var(--game-bg-mid) 56%, var(--game-bg-bottom) 100%);
+  color: #ffffff;
+  isolation: isolate;
+}
+
+.glitch-game-screen.danger {
+  --game-accent: #ee2d2d;
+  --game-accent-strong: #ff1414;
+  --game-bg-top: #100000;
+  --game-bg-mid: #330306;
+  --game-bg-bottom: #190000;
+  --game-noise: rgba(255, 31, 31, 0.36);
+  --game-text-glow: rgba(255, 40, 40, 0.9);
+}
+
+.glitch-game-screen::before,
+.glitch-game-screen::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  pointer-events: none;
+}
+
+.glitch-game-screen::before {
+  background:
+    linear-gradient(180deg, rgba(0, 0, 0, 0.16), transparent 24%, rgba(0, 0, 0, 0.16)),
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.035) 0 1px, transparent 1px 4px),
+    linear-gradient(90deg, transparent 0 8%, var(--game-noise) 8.4% 9.5%, transparent 10% 56%, rgba(255, 255, 255, 0.06) 56.5% 58%, transparent 59%),
+    radial-gradient(circle at 50% 82%, rgba(255, 255, 255, 0.08), transparent 42%);
+  mix-blend-mode: screen;
+  opacity: 0.76;
+}
+
+.glitch-game-screen::after {
+  z-index: -1;
+  background:
+    linear-gradient(92deg, transparent 0 14%, var(--game-noise) 14.4% 15.4%, transparent 16% 100%),
+    linear-gradient(88deg, transparent 0 65%, var(--game-noise) 65.5% 68%, transparent 69%),
+    repeating-linear-gradient(180deg, transparent 0 42px, rgba(255, 255, 255, 0.08) 43px 44px, transparent 45px 74px);
+  opacity: 0.7;
+  animation: glitch-background-scan 1200ms steps(2, end) infinite;
+}
+
+.glitch-connection-slot {
+  margin-top: 8px;
+}
+
+.glitch-connection-slot .connection-banner {
+  margin: 0;
+  border-color: rgba(255, 255, 255, 0.24);
+  background: rgba(0, 0, 0, 0.46);
+  color: #ffffff;
+  font-size: 0.72rem;
+}
+
+.glitch-game-heading {
+  display: grid;
+  justify-items: center;
+  gap: 1px;
+  margin-top: clamp(20px, 6vh, 42px);
+  text-align: center;
+}
+
+.glitch-game-heading h1 {
+  margin: 0;
+  color: #ffffff;
+  font-size: clamp(1.22rem, 6vw, 1.72rem);
+  line-height: 0.9;
+  font-weight: 1000;
+  letter-spacing: 0.01em;
+  text-shadow:
+    1px 0 0 var(--game-accent),
+    -1px 0 0 rgba(255, 0, 74, 0.55),
+    0 0 12px rgba(255, 255, 255, 0.34);
+}
+
+.glitch-game-heading p,
+.glitch-game-heading span {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.58);
+  font-size: 0.55rem;
+  line-height: 1.15;
+  font-weight: 700;
+}
+
+.glitch-combo-stack {
+  display: grid;
+  justify-items: center;
+  gap: 1px;
+  margin-top: clamp(9px, 2vh, 18px);
+  color: var(--game-accent);
+  text-align: center;
+  text-shadow: 0 0 20px var(--game-text-glow);
+}
+
+.glitch-combo-stack strong {
+  font-size: clamp(3.25rem, 18vw, 5.2rem);
+  line-height: 0.78;
+  font-weight: 1000;
+}
+
+.glitch-combo-stack span {
+  font-size: 0.5rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+
+.glitch-timer-stage {
+  display: grid;
+  place-items: center;
+  margin-top: clamp(16px, 3.3vh, 30px);
+}
+
+.glitch-timer-ring {
+  width: clamp(150px, 48vw, 214px);
+  aspect-ratio: 1 / 1;
+  position: relative;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background:
+    conic-gradient(from -90deg, var(--game-accent) 0 var(--timer-progress), rgba(18, 26, 41, 0.96) var(--timer-progress) 360deg);
+  box-shadow:
+    0 16px 34px rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(255, 255, 255, 0.08),
+    0 0 24px color-mix(in srgb, var(--game-accent) 45%, transparent);
+}
+
+.glitch-timer-ring::before {
+  content: "";
+  position: absolute;
+  inset: 12px;
+  border-radius: inherit;
+  background:
+    radial-gradient(circle at 50% 39%, rgba(255, 255, 255, 0.06), transparent 42%),
+    linear-gradient(180deg, #142033, #07101e 72%, #050b14);
+  box-shadow:
+    inset 0 10px 20px rgba(255, 255, 255, 0.04),
+    inset 0 -15px 28px rgba(0, 0, 0, 0.58);
+}
+
+.glitch-timer-marker {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  border-radius: inherit;
+  transform: rotate(var(--timer-marker-angle));
+  pointer-events: none;
+}
+
+.glitch-timer-marker span {
+  width: 13px;
+  height: 13px;
+  position: absolute;
+  top: 50%;
+  right: 0;
+  display: block;
+  border-radius: 999px;
+  background: #ffffff;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.7),
+    0 0 12px rgba(255, 255, 255, 0.95);
+  transform: translateY(-50%);
+}
+
+.glitch-symbol-disc {
+  position: absolute;
+  inset: 28px;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  background:
+    radial-gradient(circle at 50% 44%, rgba(255, 255, 255, 0.06), transparent 35%),
+    #080f1b;
+  box-shadow:
+    inset 0 0 0 1px rgba(0, 0, 0, 0.78),
+    0 0 18px rgba(0, 0, 0, 0.34);
+}
+
+.glitch-symbol-disc::before,
+.glitch-symbol-disc::after {
+  display: none;
+}
+
+.glitch-symbol-disc .glitch-icon {
+  position: relative;
+  z-index: 1;
+  font-size: clamp(2.4rem, 13vw, 4.1rem);
+  line-height: 1;
+  filter: drop-shadow(0 0 9px rgba(255, 255, 255, 0.36));
+}
+
+.glitch-state-callout,
+.glitch-state-meta {
+  margin: 9px 0 0;
+  color: rgba(255, 255, 255, 0.68);
+  font-size: 0.64rem;
+  font-weight: 800;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.glitch-vote-strip {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  min-height: 10px;
+  margin-top: 12px;
+}
+
+.glitch-vote-strip .vote-indicator {
+  width: 7px;
+  height: 7px;
+  border-color: rgba(255, 255, 255, 0.6);
+  box-shadow: 0 0 8px currentColor;
+}
+
+.glitch-vote-strip .vote-indicator.pending {
+  opacity: 0.22;
+}
+
+.glitch-vote-strip .vote-indicator.voted {
+  opacity: 1;
+  transform: scale(1.12);
+}
+
+.glitch-game-footer {
+  display: grid;
+  gap: 15px;
+  margin-top: auto;
+}
+
+.glitch-time-pill {
+  justify-self: center;
+  min-width: 64px;
+  min-height: 18px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 999px;
+  padding: 2px 10px;
+  background: rgba(5, 10, 24, 0.74);
+  color: rgba(255, 255, 255, 0.84);
+  font-size: 0.58rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 0 12px rgba(0, 0, 0, 0.28);
+}
+
+.glitch-answer-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 11px;
+}
+
+.glitch-answer-button {
+  min-height: 54px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  color: #ffffff;
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 1000;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  cursor: pointer;
+  text-shadow: 0 1px 8px rgba(255, 255, 255, 0.28);
+}
+
+.glitch-answer-button.sync {
+  border-color: rgba(37, 255, 119, 0.74);
+  background:
+    linear-gradient(180deg, rgba(13, 92, 54, 0.96), rgba(7, 52, 34, 0.98)),
+    #07351f;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 0 15px rgba(37, 255, 119, 0.48);
+}
+
+.glitch-answer-button.glitch {
+  border-color: rgba(255, 58, 72, 0.74);
+  background:
+    linear-gradient(180deg, rgba(82, 15, 23, 0.96), rgba(42, 7, 14, 0.98)),
+    #2b0710;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 0 15px rgba(255, 58, 72, 0.48);
+}
+
+.glitch-answer-button:not(:disabled):active {
+  transform: translateY(1px) scale(0.99);
+}
+
+.glitch-answer-button:disabled {
+  cursor: not-allowed;
+  filter: grayscale(0.6);
+  opacity: 0.48;
+}
+
+.save-it-splash {
+  flex: 1;
+  display: grid;
+  place-items: center;
+  min-height: 230px;
+  text-align: center;
+}
+
+.save-it-splash span {
+  color: #ffffff;
+  font-size: clamp(2.05rem, 13vw, 4.2rem);
+  line-height: 0.86;
+  font-weight: 1000;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  text-shadow:
+    2px 0 0 #ff2d2d,
+    -2px 0 0 rgba(64, 152, 255, 0.55),
+    0 0 24px rgba(255, 20, 20, 0.9);
+  animation: save-it-title-glitch 170ms steps(2, end) infinite;
+}
+
+.glitch-game-screen.last-chance-state .glitch-timer-ring {
+  box-shadow:
+    0 16px 34px rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(255, 255, 255, 0.08),
+    0 0 18px rgba(255, 18, 18, 0.9),
+    0 0 34px rgba(255, 18, 18, 0.54);
+}
+
+.glitch-game-screen.last-chance-state .glitch-timer-ring::after {
+  content: "";
+  position: absolute;
+  inset: 5px;
+  border: 2px solid rgba(255, 53, 53, 0.8);
+  border-radius: inherit;
+  filter: drop-shadow(0 0 8px #ff2424);
+  animation: last-chance-ring-pulse 740ms ease-in-out infinite;
+}
+
+@keyframes glitch-background-scan {
+  0% { transform: translate3d(0, 0, 0); opacity: 0.58; }
+  35% { transform: translate3d(-2px, 3px, 0); opacity: 0.82; }
+  70% { transform: translate3d(2px, -2px, 0); opacity: 0.68; }
+  100% { transform: translate3d(0, 0, 0); opacity: 0.74; }
+}
+
+@keyframes save-it-title-glitch {
+  0%, 100% { transform: translateX(0) skewX(0deg); }
+  40% { transform: translateX(-3px) skewX(-7deg); }
+  70% { transform: translateX(3px) skewX(6deg); }
+}
+
+@keyframes last-chance-ring-pulse {
+  0%, 100% { opacity: 0.45; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.035); }
+}
+
+@media (max-height: 620px) {
+  .glitch-game-screen {
+    padding-inline: 16px;
+  }
+
+  .glitch-game-heading {
+    margin-top: 12px;
+  }
+
+  .glitch-combo-stack strong {
+    font-size: clamp(2.7rem, 15vw, 4rem);
+  }
+
+  .glitch-timer-ring {
+    width: clamp(128px, 39vh, 180px);
+  }
+
+  .glitch-answer-button {
+    min-height: 46px;
+  }
+}
+
 .pregame-countdown {
   position: fixed;
   inset: 0;

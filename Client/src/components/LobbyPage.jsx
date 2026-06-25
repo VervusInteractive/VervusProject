@@ -3,8 +3,6 @@ import clearBackgroundLogo from "../assets/images/Logos/Logo_ClearBackground.svg
 import {
   DEFAULT_LOBBY_CONTENT
 } from "../storyblok/lobbyContent.js";
-import StoryblokLobbyContent from "../storyblok/StoryblokLobbyContent.jsx";
-import { STORYBLOK_IS_ENABLED } from "../storyblok/config.js";
 
 const ROOM_CODE_MAX_LENGTH = 6;
 
@@ -28,7 +26,8 @@ function LobbyPage({
   onCreateRoom,
   onJoinRoom,
   onUiButtonClick,
-  actionsLocked = false
+  actionsLocked = false,
+  lobbyContent = DEFAULT_LOBBY_CONTENT
 }) {
   const [lobbyStep, setLobbyStep] = useState(() => (roomIdInput ? "play" : "choice"));
   const [isQrNoticeOpen, setIsQrNoticeOpen] = useState(false);
@@ -208,11 +207,7 @@ function LobbyPage({
         <img src={clearBackgroundLogo} alt="Vervus" />
       </div>
 
-      {STORYBLOK_IS_ENABLED ? (
-        <StoryblokLobbyContent>
-          {(lobbyContent) => renderLobbySteps(lobbyContent)}
-        </StoryblokLobbyContent>
-      ) : renderLobbySteps()}
+      {renderLobbySteps(lobbyContent)}
     </section>
   );
 }

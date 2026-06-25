@@ -1,9 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import ModeDebugOverlay from "./ModeDebugOverlay";
 import { CONNECTION_STATES, getConnectionStateLabel } from "../connectionState";
+import { DEFAULT_LOBBY_CONTENT } from "../storyblok/lobbyContent.js";
 import clearBackgroundLogo from "../assets/images/Logos/Logo_ClearBackground.svg";
 import copyButtonImage from "../assets/images/Buttons/Button_Copy.png";
 import sendButtonImage from "../assets/images/Buttons/Button_Send.png";
+
+const renderTemplate = (template, values) => String(template || "").replace(/\{([a-zA-Z0-9_]+)\}/g, (match, key) => (
+  values[key] ?? match
+));
 
 function RoomPage({
   roomId,
@@ -38,12 +43,18 @@ function RoomPage({
   entitledModeExpiriesMs = {},
   onSetMode,
   onKickPlayer,
-  modeDebugConfigs = []
+  modeDebugConfigs = [],
+  roomContent = DEFAULT_LOBBY_CONTENT.room
 }) {
   const [showQrCode, setShowQrCode] = useState(false);
   const [showDebug, setShowDebug] = useState(false);
   const [copyStatus, setCopyStatus] = useState("");
   const [currentTimeMs, setCurrentTimeMs] = useState(() => Date.now());
+  const content = {
+    ...DEFAULT_LOBBY_CONTENT.room,
+    ...roomContent,
+    editableAttributes: roomContent?.editableAttributes || DEFAULT_LOBBY_CONTENT.room.editableAttributes
+  };
   const currentPlayer = useMemo(
     () => players.find((player) => player.playerId === playerId),
     [players, playerId]
@@ -53,6 +64,7 @@ function RoomPage({
   const roomInviteUrl = `${clientUrl}/?room=${encodeURIComponent(roomId)}`;
   const roomInviteQrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&color=9F4DFF&bgcolor=FFFFFF&data=${encodeURIComponent(roomInviteUrl)}`;
   const hostPlayer = players.find((player) => player.isHost) || players[0] || null;
+  const hostDisplayName = hostPlayer?.name || content.fallbackHostName;
   const isHost = Boolean(currentPlayer?.isHost);
   const connectedPlayers = players.filter((player) => player.connected);
   const readyCount = players.filter((player) => player.ready).length;
@@ -106,13 +118,13 @@ function RoomPage({
   const isWrongOrientation = isMobileDevice && selectedModeOrientationLock !== "both" && selectedModeOrientationLock !== deviceOrientation;
   const unlockingProductLabel = unlockingProductName || "selected product";
   const roomStatusLabels = {
-    lobby: "Lobby",
-    preview: "Preview",
-    payment_pending: "Payment pending",
-    premium: "Premium",
-    reconnecting: "Reconnecting",
-    ended: "Ended",
-    expired: "Expired"
+    lobby: content.statusLabelLobby,
+    preview: content.statusLabelPreview,
+    payment_pending: content.statusLabelPaymentPending,
+    premium: content.statusLabelPremium,
+    reconnecting: content.statusLabelReconnecting,
+    ended: content.statusLabelEnded,
+    expired: content.statusLabelExpired
   };
   const roomStatusLabel = roomStatusLabels[roomStatus] || roomStatus;
   const canShowDebug = modeDebugConfigs.length > 0
@@ -124,7 +136,7 @@ function RoomPage({
     ? "Standard"
     : (selectedModeTitle.replace(/^GLiTCH!\s*/i, "").trim() || selectedModeId);
   const isSelectedModePreview = isPreviewRoom || !hostPlayer?.hasEntitlement;
-  const hostStartLabel = isSelectedModePreview ? "Start free preview" : "Start game";
+  const hostStartLabel = isSelectedModePreview ? content.hostStartPreviewLabel : content.hostStartGameLabel;
   const canHostStart = canManageReady
     && isHost
     && !currentPlayer?.ready
@@ -172,9 +184,9 @@ function RoomPage({
     onUiButtonClick?.();
     try {
       await copyInviteWithFallback();
-      setCopyStatus("Copied");
+      setCopyStatus(content.copySuccessLabel);
     } catch {
-      setCopyStatus("Copy failed");
+      setCopyStatus(content.copyErrorLabel);
     }
   };
 
@@ -233,8 +245,8 @@ function RoomPage({
       <button
         type="button"
         className="room-player-avatar-button"
-        title="Change color"
-        aria-label="Change your player color"
+        title={content.changeColorLabel}
+        aria-label={content.changeColorLabel}
         onClick={handleCycleColor}
       >
         {avatar}
@@ -248,7 +260,7 @@ function RoomPage({
       && player.game?.status === "active"
       && Boolean(player.currentGameParticipant)
       && !isWaitingForNextGame;
-    const label = isActivelyInGame ? "In Game" : (player.ready ? "Ready" : "Waiting...");
+    const label = isActivelyInGame ? content.playerInGameLabel : (player.ready ? content.playerReadyLabel : content.playerWaitingLabel);
     const className = isActivelyInGame || player.ready ? "ready" : "waiting";
 
     return (
@@ -262,14 +274,16 @@ function RoomPage({
   const renderPlayerRow = (player) => {
     const isCurrentPlayer = player.playerId === playerId;
     const canRemovePlayer = isHost || isCurrentPlayer;
-    const removeLabel = isCurrentPlayer ? "Leave room" : `Remove ${player.name}`;
+    const removeLabel = isCurrentPlayer
+      ? content.leaveRoomLabel
+      : renderTemplate(content.removePlayerTemplate, { player: player.name });
 
     return (
       <li key={player.playerId} className={`room-player-row${isCurrentPlayer ? " current" : ""}`}>
         {renderPlayerAvatar(player)}
         <div className="room-player-copy">
-          <strong>{isCurrentPlayer ? "You" : player.name}</strong>
-          {player.isHost && !isCurrentPlayer ? <span>Host</span> : null}
+          <strong>{isCurrentPlayer ? content.currentPlayerLabel : player.name}</strong>
+          {player.isHost && !isCurrentPlayer ? <span>{content.playerHostLabel}</span> : null}
         </div>
         <div className="room-player-actions">
           {renderReadyPill(player)}
@@ -292,8 +306,8 @@ function RoomPage({
   const renderPlayersPanel = (variant) => (
     <section className={`room-card room-players-card ${variant}`}>
       <div className="room-card-header">
-        <span>{variant === "host" ? "Players" : formattedRoomCode}</span>
-        <strong>{variant === "host" ? `${readyCount} / ${maxPlayers} Ready` : `${players.length} / ${maxPlayers} joined`}</strong>
+        <span>{variant === "host" ? content.playersLabel : formattedRoomCode}</span>
+        <strong>{variant === "host" ? `${readyCount} / ${maxPlayers} ${content.readyCountLabel}` : `${players.length} / ${maxPlayers} ${content.joinedCountLabel}`}</strong>
       </div>
       <ul className="room-player-list">
         {players.map(renderPlayerRow)}
@@ -305,14 +319,17 @@ function RoomPage({
     <section className="room-card room-preview-card">
       <div className="room-preview-kicker">
         {renderModeIcon()}
-        <span>{isSelectedModePreview ? "Free preview" : "Experience"} selected by {hostPlayer?.name || "Host"}</span>
+        <span>
+          {isSelectedModePreview ? content.previewLabel : content.experienceLabel}{" "}
+          {renderTemplate(content.selectedByTemplate, { host: hostDisplayName })}
+        </span>
       </div>
       <div className="room-selected-mode">
         <div>
           <strong>{selectedModeLabel}</strong>
           <span>{selectedModeVariant}</span>
         </div>
-        <button type="button" className="room-help-button" aria-label="About this experience">?</button>
+        <button type="button" className="room-help-button" aria-label={content.aboutExperienceLabel}>?</button>
       </div>
     </section>
   );
@@ -320,7 +337,7 @@ function RoomPage({
   const renderExperiencePanel = () => (
     <section className="room-card room-experience-card">
       <div className="room-card-header">
-        <span>Experience</span>
+        <span>{content.experienceLabel}</span>
       </div>
       <div className="room-mode-carousel" aria-hidden="true">
         <div className="room-mode-side-card">{visibleModeOptions[1]?.title || "Blitz"}</div>
@@ -348,17 +365,17 @@ function RoomPage({
       </div>
       {canOpenStore ? (
         <button type="button" className="room-unlock-button" onClick={() => { onUiButtonClick?.(); onOpenStore?.(); }}>
-          Unlock Vervus
+          {content.unlockButtonLabel}
         </button>
       ) : null}
-      {!canSelectMode && !canOpenStore ? <span className="room-mode-note">Preview rooms are locked to GLiTCH!.</span> : null}
+      {!canSelectMode && !canOpenStore ? <span className="room-mode-note">{content.modeNote}</span> : null}
     </section>
   );
 
   const renderQrModal = () => (showQrCode ? (
     <div className="qr-modal-backdrop" onClick={() => { onUiButtonClick?.(); setShowQrCode(false); }}>
       <div className="qr-modal" onClick={(event) => event.stopPropagation()}>
-        <h2 className="qr-modal-title">Scan to join room {roomId}</h2>
+        <h2 className="qr-modal-title">{renderTemplate(content.qrModalTitleTemplate, { room: roomId })}</h2>
         <img className="qr-image" src={roomInviteQrUrl} alt={`QR code to join room ${roomId}`} />
         <p className="qr-link">{roomInviteUrl}</p>
         <button
@@ -366,14 +383,14 @@ function RoomPage({
           className="btn btn-primary"
           onClick={() => { onUiButtonClick?.(); setShowQrCode(false); }}
         >
-          Close
+          {content.qrModalCloseLabel}
         </button>
       </div>
     </div>
   ) : null);
 
   return (
-    <section className={`room-lobby-page ${isHost ? "room-lobby-page-host" : "room-lobby-page-join"}`}>
+    <section className={`room-lobby-page ${isHost ? "room-lobby-page-host" : "room-lobby-page-join"}`} {...content.editableAttributes}>
       {isWrongOrientation ? (
         <div className="orientation-warning-overlay" role="alert">
           <div className="orientation-warning-card">
@@ -402,8 +419,8 @@ function RoomPage({
       {isHost ? (
         <>
           <div className="room-host-hero">
-            <span className="room-status-chip">{roomStatusLabel === "Lobby" ? "Room active" : roomStatusLabel}</span>
-            <h1><span>Send it.</span><span>Get everyone in.</span></h1>
+            <span className="room-status-chip">{roomStatusLabel === content.statusLabelLobby ? content.statusActiveLabel : roomStatusLabel}</span>
+            <h1><span>{content.hostHeadlinePrimary}</span><span>{content.hostHeadlineSecondary}</span></h1>
           </div>
 
           <section className="room-card room-invite-card">
@@ -412,7 +429,7 @@ function RoomPage({
               <button
                 type="button"
                 className="room-icon-button"
-                aria-label="Open QR code"
+                aria-label={content.qrOpenLabel}
                 onClick={() => { onUiButtonClick?.(); setShowQrCode(true); }}
               >
                 <img src={copyButtonImage} alt="" aria-hidden="true" />
@@ -421,10 +438,10 @@ function RoomPage({
             <div className="room-qr-frame">
               <img src={roomInviteQrUrl} alt={`QR code to join room ${roomId}`} />
             </div>
-            <span className="room-share-label">Share with your group</span>
+            <span className="room-share-label">{content.inviteShareLabel}</span>
             <button type="button" className="room-copy-button" onClick={handleCopyInvite}>
               <img src={sendButtonImage} alt="" aria-hidden="true" />
-              {copyStatus || "Copy join link"}
+              {copyStatus || content.copyInviteLabel}
             </button>
           </section>
 
@@ -434,21 +451,21 @@ function RoomPage({
       ) : (
         <>
           <div className="room-join-hero">
-            <span className="room-status-chip"><span aria-hidden="true" />Room {roomId}</span>
-            <h1>Waiting for everyone.</h1>
-            <p>{hostPlayer?.name || "The host"} will start once everyone is ready.</p>
+            <span className="room-status-chip"><span aria-hidden="true" />{content.joinStatusPrefix} {roomId}</span>
+            <h1>{content.joinHeadline}</h1>
+            <p>{renderTemplate(content.joinDescriptionTemplate, { host: hostDisplayName })}</p>
           </div>
 
           {hostUnlockingPending ? (
             <section className="room-card room-preview-card">
               <div className="room-preview-kicker">
                 {renderModeIcon()}
-                <span>{hostPlayer?.name || "Host"} is unlocking {unlockingProductLabel}</span>
+                <span>{renderTemplate(content.unlockingTemplate, { host: hostDisplayName, product: unlockingProductLabel })}</span>
               </div>
               <div className="room-selected-mode">
                 <div>
-                  <strong>Payment pending</strong>
-                  <span>Stay here for the premium game and mode teasers.</span>
+                  <strong>{content.paymentPendingTitle}</strong>
+                  <span>{content.paymentPendingDescription}</span>
                 </div>
               </div>
             </section>
@@ -460,7 +477,7 @@ function RoomPage({
 
       {waitingForNextGame ? (
         <p className="room-waiting-note">
-          A game is currently active. You are queued for the next game and can ready up once this round ends.
+          {content.waitingForNextGameNote}
         </p>
       ) : null}
 
@@ -481,7 +498,7 @@ function RoomPage({
             disabled={hostUnlockingPending && !currentPlayer?.isHost}
             onClick={handleReadyToggle}
           >
-            {currentPlayer?.ready ? "I'm not ready" : "I'm ready"}
+            {currentPlayer?.ready ? content.notReadyButtonLabel : content.readyButtonLabel}
           </button>
         ) : null
       )}

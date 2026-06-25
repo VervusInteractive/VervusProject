@@ -4,6 +4,9 @@ import LobbyPage from "./components/LobbyPage";
 import RoomPage from "./components/RoomPage";
 import GlitchGamePage from "./components/GlitchGamePage";
 import SoloChaosLabPage from "./components/SoloChaosLabPage";
+import StoryblokLobbyContent from "./storyblok/StoryblokLobbyContent";
+import { DEFAULT_LOBBY_CONTENT } from "./storyblok/lobbyContent";
+import { STORYBLOK_IS_ENABLED } from "./storyblok/config";
 import "./App.css";
 import { CONNECTION_STATES, deriveSocketConnectionState } from "./connectionState";
 import voteSendSoundFile from "./assets/audio/Sound_VoteSend.mp3";
@@ -1128,7 +1131,7 @@ function App() {
 
   const usesDarkLobbyShell = (!roomId && !isSoloChaosLabOpen) || (roomId && !shouldShowGamePage);
 
-  return (
+  const renderApp = (lobbyContent = DEFAULT_LOBBY_CONTENT) => (
     <main className={`app-page${usesDarkLobbyShell ? " app-page-lobby" : ""}`}>
       {roomId ? (
         shouldShowGamePage ? (
@@ -1183,6 +1186,7 @@ function App() {
             onSetMode={setRoomMode}
             onKickPlayer={kickPlayer}
             modeDebugConfigs={modeDebugConfigs}
+            roomContent={lobbyContent.room}
           />
         )
       ) : isSoloChaosLabOpen ? (
@@ -1212,6 +1216,7 @@ function App() {
           onSelectedModeChange={setSelectedLobbyModeId}
           onCreateEntitlementTransfer={createEntitlementTransfer}
           modeDebugConfigs={modeDebugConfigs}
+          lobbyContent={lobbyContent}
         />
       )}
       {showStore ? (
@@ -1244,6 +1249,12 @@ function App() {
       ) : null}
     </main>
   );
+
+  return STORYBLOK_IS_ENABLED ? (
+    <StoryblokLobbyContent>
+      {(lobbyContent) => renderApp(lobbyContent)}
+    </StoryblokLobbyContent>
+  ) : renderApp();
 }
 
 export default App;

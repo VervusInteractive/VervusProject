@@ -1,0 +1,3 @@
+#< CLIXML
+[local-db-shim] Running without PostgreSQL. Persistence, analytics, and payment records are in-memory only.
+Stripe payments are disabled because PAYMENTS_REQUIRED=false or Stripe configuration is incomplete.

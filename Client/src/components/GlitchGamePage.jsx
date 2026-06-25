@@ -45,6 +45,25 @@ function formatTimeLeft(ms) {
   return `${Math.max(0, Math.ceil(ms / 100) / 10).toFixed(1)}s`;
 }
 
+function clamp01(value) {
+  return Math.min(1, Math.max(0, value));
+}
+
+function formatDigitalTime(ms) {
+  if (typeof ms !== "number") return "00 : 00";
+  const totalSeconds = Math.max(0, Math.ceil(ms / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${String(minutes).padStart(2, "0")} : ${String(seconds).padStart(2, "0")}`;
+}
+
+function getModeSubtitle(mode, modeId) {
+  const title = mode?.title || modeId || "standard";
+  const cleanedTitle = title.replace(/^GLiTCH!\s*/i, "").trim();
+  if (cleanedTitle) return cleanedTitle;
+  return modeId === "standard" ? "Standard" : String(modeId || "standard");
+}
+
 const PRE_GAME_COUNTDOWN_MS = 3000;
 const ICON_SHAKE_BEFORE_SWAP_MS = 220;
 const ICON_SHAKE_AFTER_SWAP_MS = 90;
@@ -813,9 +832,36 @@ function GlitchGamePage({ roomId, playerId, players, myGame, serverNow, onSubmit
   const isHeatSurgeEnabled = Boolean(currentRound?.heatSurgeActive);
   const corruptionEffects = currentRound?.corruptionEffects;
   const corruptionClasses = getCorruptionVisualClasses(corruptionEffects).join(" ");
+  const roundTimerMs = Number(currentRound?.timerMs) || 0;
+  const safeTimeRemainingMs = typeof timeRemainingMs === "number" ? Math.max(0, timeRemainingMs) : 0;
+  const boundedTimeRemainingMs = roundTimerMs > 0 ? Math.min(roundTimerMs, safeTimeRemainingMs) : safeTimeRemainingMs;
+  const timerProgress = roundTimerMs > 0 ? clamp01(boundedTimeRemainingMs / roundTimerMs) : 0;
+  const displayTimeMs = isSaveItActive ? Math.min(3000, roundTimerMs || 3000) : boundedTimeRemainingMs;
+  const isLowTime = Boolean(currentRound && timerProgress <= 0.34);
+  const isLastChanceTheme = Boolean(currentRound?.isLastChanceReplay || isSaveItActive);
+  const isDangerTheme = Boolean(isLowTime || isLastChanceTheme || isHeatSurgeEnabled);
+  const modeSubtitle = getModeSubtitle(selectedMode, myGame.modeId);
+  const gameScreenClassName = [
+    "glitch-game-screen",
+    isDangerTheme ? "danger" : "standard",
+    isSaveItActive ? "save-it-state" : "",
+    currentRound?.isLastChanceReplay ? "last-chance-state" : "",
+    isHeatSurgeEnabled ? "heat-surge-state" : "",
+    corruptionClasses
+  ].filter(Boolean).join(" ");
+  const timerRingStyle = {
+    "--timer-progress": `${Math.round(timerProgress * 360)}deg`,
+    "--timer-marker-angle": `${Math.round((timerProgress * 360) - 180)}deg`
+  };
+  const canSubmitAnswer = !answered
+    && myGame.status === "active"
+    && currentRound
+    && !isSaveItActive
+    && connectionState !== CONNECTION_STATES.DISCONNECTED
+    && connectionState !== CONNECTION_STATES.RECONNECTING;
 
   return (
-    <section className="panel">
+    <section className={gameScreenClassName}>
       {isWrongOrientation ? (
         <div className="orientation-warning-overlay" role="alert">
           <div className="orientation-warning-card">
@@ -823,29 +869,45 @@ function GlitchGamePage({ roomId, playerId, players, myGame, serverNow, onSubmit
           </div>
         </div>
       ) : null}
-      <div className="room-header">
-        <div>
-          <h1 className="panel-title">GLiTCH! · Room {roomId}</h1>
-          <p className="panel-subtitle">Do all screens match? Press SYNC. If one differs, press GLiTCH!</p>
-          {isPreviewRoom ? <p className="panel-subtitle"><strong>Preview:</strong> This room ends after combo {myGame.previewComboLimit ?? "X"}.</p> : null}
+
+      {connectionState !== CONNECTION_STATES.CONNECTED ? (
+        <div className="glitch-connection-slot">{connectionBanner}</div>
+      ) : null}
+
+      <header className="glitch-game-heading">
+        <h1>GLiTCH!</h1>
+        <p>{isLastChanceTheme ? "Last Chance" : modeSubtitle}</p>
+        {isPreviewRoom ? <span>Preview ends at {myGame.previewComboLimit ?? "X"} combo</span> : null}
+      </header>
+
+      {isSaveItActive ? (
+        <div className="save-it-splash" role="status" aria-live="assertive">
+          <span>SAVE IT!</span>
         </div>
-        <button className="btn btn-secondary" onClick={() => { onUiButtonClick?.(); onExit(); }}>Exit Room</button>
-      </div>
+      ) : (
+        <>
+          <div className="glitch-combo-stack" aria-label={`${myGame.combo} combo`}>
+            <strong>{myGame.combo}</strong>
+            <span>COMBO</span>
+          </div>
 
-      {connectionBanner}
+          <div className="glitch-timer-stage" aria-label={`Time left ${formatTimeLeft(boundedTimeRemainingMs)}`}>
+            <div className="glitch-timer-ring" style={timerRingStyle}>
+              <div className="glitch-timer-marker"><span /></div>
+              <div className="glitch-symbol-disc">
+                <div className={`glitch-icon ${stimulusClassName} ${isRoundTransitionShaking ? "round-transition-shake" : ""}`} role="img" aria-label="Current symbol">
+                  {iconLabel}
+                </div>
+              </div>
+            </div>
+          </div>
 
-      <div className="glitch-hud">
-        <span>Mode: {myGame.modeId}</span>
-        <span>Score: {myGame.score}</span>
-        <span>Combo: {myGame.combo}x{isPreviewRoom && myGame.previewComboLimit ? ` / ${myGame.previewComboLimit}x preview` : ""}</span>
-        <span>Round: {currentRound ? (currentRound.timerMs / 1000).toFixed(2) : "-"}s</span>
-        <span>{currentRound?.isLastChanceReplay ? "LAST CHANCE" : "LIVE"}</span>
-        <span className={isHeatSurgeEnabled ? "heat-surge-pill active" : "heat-surge-pill"}>{isHeatSurgeEnabled ? "HEAT SURGE ACTIVE" : "HEAT SURGE OFF"}</span>
-        {corruptionEffects ? <span>Corruption Lv: {corruptionEffects.intensityLevel}</span> : null}
-      </div>
+          {isHeatSurgeEnabled ? <p className="glitch-state-callout" role="status" aria-live="assertive">Heat Surge active</p> : null}
+          {corruptionEffects ? (
+            <p className="glitch-state-meta">Corruption Lv {corruptionEffects.intensityLevel}</p>
+          ) : null}
 
-      <div className={`glitch-icon-card ${isSaveItActive ? "save-it-freeze" : ""} ${isHeatSurgeEnabled ? "heat-surge-enabled" : ""} ${corruptionClasses}`} aria-live="polite">
-          <div className="vote-indicator-row" aria-label="Players who have voted">
+          <div className="glitch-vote-strip" aria-label="Players who have voted">
             {players.filter((player) => !player.waitingForNextGame).map((player) => {
               const hasVoted = answeredPlayerIds.has(player.playerId);
               return (
@@ -858,24 +920,18 @@ function GlitchGamePage({ roomId, playerId, players, myGame, serverNow, onSubmit
               );
             })}
           </div>
-          <div className={`glitch-icon ${stimulusClassName} ${isRoundTransitionShaking ? "round-transition-shake" : ""}`}>{iconLabel}</div>
-          {isHeatSurgeEnabled ? <p className="heat-surge-callout" role="status" aria-live="assertive">🔥 Heat Surge active</p> : null}
-          {corruptionEffects ? (
-            <p className="panel-meta">
-              Corruption: V[{(corruptionEffects.visualEffects || []).join(", ")}] · A[{(corruptionEffects.audioEffects || []).join(", ")}]
-            </p>
-          ) : null}
-          <p className="panel-meta">Time left: {formatTimeLeft(timeRemainingMs)}</p>
-        </div>
+        </>
+      )}
 
-      <div className="answer-row">
-          <button className="btn btn-primary answer-btn" disabled={answered || myGame.status !== "active" || !currentRound || connectionState === CONNECTION_STATES.DISCONNECTED || connectionState === CONNECTION_STATES.RECONNECTING} onClick={() => onSubmitAnswer("sync")}>SYNC</button>
-          <button className="btn btn-secondary answer-btn" disabled={answered || myGame.status !== "active" || !currentRound || connectionState === CONNECTION_STATES.DISCONNECTED || connectionState === CONNECTION_STATES.RECONNECTING} onClick={() => onSubmitAnswer("glitch")}>GLiTCH!</button>
-        </div>
-
-      {saveItLabel ? (
-        <p className="save-it-callout">{saveItLabel}</p>
-      ) : null}
+      <footer className="glitch-game-footer">
+        <div className="glitch-time-pill">{formatDigitalTime(displayTimeMs)}</div>
+        {!isSaveItActive ? (
+          <div className="glitch-answer-row">
+            <button className="glitch-answer-button sync" disabled={!canSubmitAnswer} onClick={() => onSubmitAnswer("sync")}>SYNC</button>
+            <button className="glitch-answer-button glitch" disabled={!canSubmitAnswer} onClick={() => onSubmitAnswer("glitch")}>GLiTCH!</button>
+          </div>
+        ) : null}
+      </footer>
     </section>
   );
 }

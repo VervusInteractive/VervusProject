@@ -9,28 +9,31 @@ import tickSoundFile from "../assets/audio/Sound_Tick.mp3";
 import { preloadAudioElement, preloadAudioFiles } from "../audioPreload";
 import { CONNECTION_STATES, getConnectionStateLabel } from "../connectionState";
 
-const ICON_LABELS = {
-  eye: "👁️",
-  bolt: "⚡",
-  skull: "💀",
-  smiley: "🙂",
-  star: "⭐",
-  eye_readable_twin: "👁️◔",
-  eye_doubt_twin: "👁️◕",
-  bolt_readable_twin: "⚡~",
-  bolt_doubt_twin: "⚡≈",
-  skull_readable_twin: "💀·",
-  skull_doubt_twin: "💀:",
-  smiley_readable_twin: "🙂◡",
-  smiley_doubt_twin: "🙂◠",
-  star_readable_twin: "⭐✦",
-  star_doubt_twin: "⭐✧",
-  eye_partial_break: "👁️╱",
-  bolt_partial_break: "⚡╳",
-  skull_partial_break: "💀◞",
-  smiley_partial_break: "🙂⌁",
-  star_partial_break: "⭐✂"
+const GAME_ICON_IMAGES = {
+  eye: { label: "Eye", src: new URL("../assets/images/GameIcons/Eye_Base.png", import.meta.url).href, aspect: "280 / 154", width: "78%" },
+  bolt: { label: "Lightning bolt", src: new URL("../assets/images/GameIcons/Lightning_Base.png", import.meta.url).href, aspect: "200 / 202", width: "58%" },
+  skull: { label: "Skull", src: new URL("../assets/images/GameIcons/Skull_Base.png", import.meta.url).href, aspect: "241 / 254", width: "62%" },
+  smiley: { label: "Smiley", src: new URL("../assets/images/GameIcons/Smile_Base.png", import.meta.url).href, aspect: "1 / 1", width: "58%" },
+  star: { label: "Star", src: new URL("../assets/images/GameIcons/Star_base.png", import.meta.url).href, aspect: "1 / 1", width: "64%" },
+  eye_readable_twin: { label: "Eye readable twin", src: new URL("../assets/images/GameIcons/Eye_RT.png", import.meta.url).href, aspect: "280 / 154", width: "78%" },
+  eye_doubt_twin: { label: "Eye doubt twin", src: new URL("../assets/images/GameIcons/Eye_DT.png", import.meta.url).href, aspect: "280 / 154", width: "78%" },
+  bolt_readable_twin: { label: "Lightning readable twin", src: new URL("../assets/images/GameIcons/Lightning_RT.png", import.meta.url).href, aspect: "193 / 188", width: "58%" },
+  bolt_doubt_twin: { label: "Lightning doubt twin", src: new URL("../assets/images/GameIcons/Light_DT.png", import.meta.url).href, aspect: "200 / 202", width: "58%" },
+  skull_readable_twin: { label: "Skull readable twin", src: new URL("../assets/images/GameIcons/Skull_RT.png", import.meta.url).href, aspect: "240 / 254", width: "62%" },
+  skull_doubt_twin: { label: "Skull doubt twin", src: new URL("../assets/images/GameIcons/Skull_DT.png", import.meta.url).href, aspect: "240 / 254", width: "62%" },
+  smiley_readable_twin: { label: "Smiley readable twin", src: new URL("../assets/images/GameIcons/Smile_RT.png", import.meta.url).href, aspect: "1 / 1", width: "58%" },
+  smiley_doubt_twin: { label: "Smiley doubt twin", src: new URL("../assets/images/GameIcons/Smile_DT.png", import.meta.url).href, aspect: "1 / 1", width: "58%" },
+  star_readable_twin: { label: "Star readable twin", src: new URL("../assets/images/GameIcons/Star_RT.png", import.meta.url).href, aspect: "242 / 259", width: "64%" },
+  star_doubt_twin: { label: "Star doubt twin", src: new URL("../assets/images/GameIcons/Star_DT.png", import.meta.url).href, aspect: "1 / 1", width: "64%" },
+  eye_partial_break: { label: "Eye partial break", src: new URL("../assets/images/GameIcons/Eye_PB.png", import.meta.url).href, aspect: "303 / 170", width: "80%" },
+  bolt_partial_break: { label: "Lightning partial break", src: new URL("../assets/images/GameIcons/Light_PB.png", import.meta.url).href, aspect: "200 / 204", width: "58%" },
+  skull_partial_break: { label: "Skull partial break", src: new URL("../assets/images/GameIcons/Skull_PB.png", import.meta.url).href, aspect: "254 / 286", width: "64%" },
+  smiley_partial_break: { label: "Smiley partial break", src: new URL("../assets/images/GameIcons/Smile_PB.png", import.meta.url).href, aspect: "227 / 234", width: "60%" },
+  star_partial_break: { label: "Star partial break", src: new URL("../assets/images/GameIcons/Star_PB.png", import.meta.url).href, aspect: "239 / 247", width: "64%" }
 };
+
+const GAME_ICON_IMAGE_SOURCES = Array.from(new Set(Object.values(GAME_ICON_IMAGES).map((icon) => icon.src)));
+const imagePreloadCache = new Map();
 
 function isPartialBreakToken(token) {
   return typeof token === "string" && token.endsWith("_partial_break");
@@ -38,6 +41,25 @@ function isPartialBreakToken(token) {
 
 function getStimulusClassName(token) {
   return isPartialBreakToken(token) ? "partial-break-stimulus" : "";
+}
+
+function preloadImageFiles(sources) {
+  if (typeof Image === "undefined") return Promise.resolve([]);
+
+  return Promise.all(sources.map((src) => {
+    if (imagePreloadCache.has(src)) return imagePreloadCache.get(src);
+
+    const promise = new Promise((resolve) => {
+      const image = new Image();
+      const finish = () => resolve();
+      image.addEventListener("load", finish, { once: true });
+      image.addEventListener("error", finish, { once: true });
+      image.src = src;
+    });
+
+    imagePreloadCache.set(src, promise);
+    return promise;
+  }));
 }
 
 function formatTimeLeft(ms) {
@@ -630,7 +652,10 @@ function GlitchGamePage({ roomId, playerId, players, myGame, serverNow, onSubmit
 
     let cancelled = false;
     const preloadAllAssets = async () => {
-      await preloadAudioFiles(PRELOAD_AUDIO_FILES);
+      await Promise.all([
+        preloadAudioFiles(PRELOAD_AUDIO_FILES),
+        preloadImageFiles(GAME_ICON_IMAGE_SOURCES)
+      ]);
       if (!cancelled) {
         hasNotifiedLoadedRef.current = true;
         onAssetsLoaded?.();
@@ -827,7 +852,7 @@ function GlitchGamePage({ roomId, playerId, players, myGame, serverNow, onSubmit
   }
 
   const iconToken = displayedIconToken;
-  const iconLabel = iconToken ? (ICON_LABELS[iconToken] || "❔") : "";
+  const stimulusIcon = iconToken ? GAME_ICON_IMAGES[iconToken] : null;
   const stimulusClassName = getStimulusClassName(iconToken);
   const isHeatSurgeEnabled = Boolean(currentRound?.heatSurgeActive);
   const corruptionEffects = currentRound?.corruptionEffects;
@@ -853,6 +878,13 @@ function GlitchGamePage({ roomId, playerId, players, myGame, serverNow, onSubmit
     "--timer-progress": `${Math.round(timerProgress * 360)}deg`,
     "--timer-marker-angle": `${Math.round((timerProgress * 360) - 180)}deg`
   };
+  const stimulusIconStyle = stimulusIcon
+    ? {
+      "--game-icon-image": `url(${stimulusIcon.src})`,
+      "--game-icon-aspect": stimulusIcon.aspect,
+      "--game-icon-width": stimulusIcon.width
+    }
+    : undefined;
   const canSubmitAnswer = !answered
     && myGame.status === "active"
     && currentRound
@@ -895,8 +927,12 @@ function GlitchGamePage({ roomId, playerId, players, myGame, serverNow, onSubmit
             <div className="glitch-timer-ring" style={timerRingStyle}>
               <div className="glitch-timer-marker"><span /></div>
               <div className="glitch-symbol-disc">
-                <div className={`glitch-icon ${stimulusClassName} ${isRoundTransitionShaking ? "round-transition-shake" : ""}`} role="img" aria-label="Current symbol">
-                  {iconLabel}
+                <div className={`glitch-icon ${stimulusClassName} ${isRoundTransitionShaking ? "round-transition-shake" : ""}`} role="img" aria-label={stimulusIcon?.label || "Current symbol"}>
+                  {stimulusIcon ? (
+                    <span className="glitch-icon-mask" style={stimulusIconStyle} aria-hidden="true" />
+                  ) : (
+                    <span className="glitch-icon-fallback" aria-hidden="true">?</span>
+                  )}
                 </div>
               </div>
             </div>

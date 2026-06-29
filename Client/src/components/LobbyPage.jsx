@@ -1,6 +1,13 @@
 import { useState } from "react";
 import clearBackgroundLogo from "../assets/images/Logos/Logo_ClearBackground.svg";
 import {
+  ContactPage,
+  FaqPage,
+  LandingHome,
+  LandingMenu,
+  LegalPage
+} from "./VervusPublicPages.jsx";
+import {
   DEFAULT_LOBBY_CONTENT
 } from "../storyblok/lobbyContent.js";
 
@@ -54,11 +61,13 @@ function LobbyPage({
   onRoomIdInputChange,
   onCreateRoom,
   onJoinRoom,
+  onOpenStore,
   onUiButtonClick,
   actionsLocked = false,
   lobbyContent = DEFAULT_LOBBY_CONTENT
 }) {
-  const [lobbyStep, setLobbyStep] = useState(() => (roomIdInput ? "play" : "choice"));
+  const [lobbyStep, setLobbyStep] = useState(() => (roomIdInput ? "play" : "landing"));
+  const [publicPage, setPublicPage] = useState("landing");
   const [isQrNoticeOpen, setIsQrNoticeOpen] = useState(false);
   const formattedRoomCode = formatRoomCode(roomIdInput);
   const canJoin = !actionsLocked && name.trim().length > 0 && normalizeRoomCodeInput(roomIdInput).length >= 4;
@@ -84,7 +93,37 @@ function LobbyPage({
 
   const handleSelectStep = (nextStep) => {
     onUiButtonClick?.();
+    setPublicPage("landing");
     setLobbyStep(nextStep);
+  };
+
+  const handleOpenMenu = () => {
+    onUiButtonClick?.();
+    setLobbyStep("landing");
+    setPublicPage("menu");
+    window.scrollTo({ top: 0 });
+  };
+
+  const handleCloseMenu = () => {
+    onUiButtonClick?.();
+    setPublicPage("landing");
+    window.scrollTo({ top: 0 });
+  };
+
+  const handleNavigatePublicPage = (nextPage) => {
+    onUiButtonClick?.();
+    setPublicPage(nextPage);
+    window.scrollTo({ top: 0 });
+  };
+
+  const handleBackToMenu = () => {
+    onUiButtonClick?.();
+    setPublicPage("menu");
+    window.scrollTo({ top: 0 });
+  };
+
+  const handleUnlockVervus = () => {
+    onOpenStore?.("landing");
   };
 
   const handleOpenQrNotice = () => {
@@ -101,28 +140,22 @@ function LobbyPage({
       </span>
     ));
 
-  const renderChoiceStep = (startPageContent = DEFAULT_LOBBY_CONTENT.start) => (
-    <div className="lobby-start-form" {...startPageContent.editableAttributes}>
-      <div className="lobby-heading-block">
-        <p className="lobby-kicker">{startPageContent.kicker}</p>
-        <h1>{startPageContent.headline}</h1>
-        <p>{renderTextWithBreaks(startPageContent.description)}</p>
-      </div>
-
-      <div className="lobby-actions">
-        <button className="lobby-primary-action" type="button" onClick={() => handleSelectStep("host")}>
-          {startPageContent.hostLabel}
-        </button>
-        <button className="lobby-secondary-action" type="button" onClick={() => handleSelectStep("play")}>
-          {startPageContent.playLabel}
-        </button>
-      </div>
+  const renderLandingStep = (startPageContent = DEFAULT_LOBBY_CONTENT.start) => (
+    <div {...startPageContent.editableAttributes}>
+      <LandingHome
+        startPageContent={startPageContent}
+        onHost={() => handleSelectStep("host")}
+        onJoin={() => handleSelectStep("play")}
+        onOpenMenu={handleOpenMenu}
+        onStartPreview={() => handleSelectStep("host")}
+        onUnlock={handleUnlockVervus}
+      />
     </div>
   );
 
   const renderHostStep = (hostPageContent = DEFAULT_LOBBY_CONTENT.host) => (
     <form className="lobby-start-form" onSubmit={handleHostSubmit} {...hostPageContent.editableAttributes}>
-      <button className="lobby-back-button" type="button" onClick={() => handleSelectStep("choice")}>
+      <button className="lobby-back-button" type="button" onClick={() => handleSelectStep("landing")}>
         {hostPageContent.backLabel}
       </button>
 
@@ -154,7 +187,7 @@ function LobbyPage({
 
   const renderPlayStep = (playPageContent = DEFAULT_LOBBY_CONTENT.play) => (
     <form className="lobby-start-form" onSubmit={handleJoinSubmit} {...playPageContent.editableAttributes}>
-      <button className="lobby-back-button" type="button" onClick={() => handleSelectStep("choice")}>
+      <button className="lobby-back-button" type="button" onClick={() => handleSelectStep("landing")}>
         {playPageContent.backLabel}
       </button>
 
@@ -239,20 +272,46 @@ function LobbyPage({
     </div>
   );
 
-  const renderLobbySteps = (lobbyContent = DEFAULT_LOBBY_CONTENT) => (
-    <>
-      {lobbyStep === "choice" ? renderChoiceStep(lobbyContent.start) : null}
-      {lobbyStep === "host" ? renderHostStep(lobbyContent.host) : null}
-      {lobbyStep === "play" ? renderPlayStep(lobbyContent.play) : null}
-      {isQrNoticeOpen ? renderQrNotice(lobbyContent.play) : null}
-    </>
-  );
+  const renderLobbySteps = (lobbyContent = DEFAULT_LOBBY_CONTENT) => {
+    if (publicPage === "menu") {
+      return <LandingMenu onClose={handleCloseMenu} onNavigate={handleNavigatePublicPage} />;
+    }
+
+    if (publicPage === "faq") {
+      return <FaqPage onBack={handleBackToMenu} />;
+    }
+
+    if (publicPage === "terms") {
+      return <LegalPage kind="terms" onBack={handleBackToMenu} />;
+    }
+
+    if (publicPage === "privacy") {
+      return <LegalPage kind="privacy" onBack={handleBackToMenu} />;
+    }
+
+    if (publicPage === "contact") {
+      return <ContactPage onBack={handleBackToMenu} />;
+    }
+
+    return (
+      <>
+        {lobbyStep === "host" ? renderHostStep(lobbyContent.host) : null}
+        {lobbyStep === "play" ? renderPlayStep(lobbyContent.play) : null}
+        {lobbyStep === "landing" ? renderLandingStep(lobbyContent.start) : null}
+        {isQrNoticeOpen ? renderQrNotice(lobbyContent.play) : null}
+      </>
+    );
+  };
+
+  const shouldShowLegacyBrand = publicPage === "landing" && (lobbyStep === "host" || lobbyStep === "play");
 
   return (
     <section className="lobby-start-page" aria-label="Vervus lobby">
-      <div className="lobby-brand" aria-label="Vervus">
-        <img src={clearBackgroundLogo} alt="Vervus" />
-      </div>
+      {shouldShowLegacyBrand ? (
+        <div className="lobby-brand" aria-label="Vervus">
+          <img src={clearBackgroundLogo} alt="Vervus" />
+        </div>
+      ) : null}
 
       {renderLobbySteps(lobbyContent)}
     </section>

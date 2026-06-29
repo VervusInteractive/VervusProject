@@ -4,11 +4,11 @@ const editableFallback = {};
 
 export const DEFAULT_LOBBY_CONTENT = Object.freeze({
   start: {
-    kicker: "Vervus Interactive",
-    headline: "Host or Play",
-    description: "Create a room for others, or join with a room code.",
-    hostLabel: "Host",
-    playLabel: "Play",
+    kicker: "",
+    headline: "One Room.\nTotal Chaos.",
+    description: "Play together in seconds.",
+    hostLabel: "Host a room",
+    playLabel: "Join a room",
     editableAttributes: editableFallback
   },
   host: {

@@ -325,17 +325,33 @@ function App() {
     roomPreviewRequestRef.current = requestId;
 
     if (roomId || !isSocketConnected || normalizedRoomId.length < ROOM_PREVIEW_MIN_LENGTH) {
-      setRoomPreview({ status: "idle", roomId: normalizedRoomId, room: null, error: "" });
-      return undefined;
+      const resetTimeoutId = window.setTimeout(() => {
+        setRoomPreview((previous) => {
+          if (
+            previous.status === "idle"
+            && previous.roomId === normalizedRoomId
+            && previous.room === null
+            && previous.error === ""
+          ) {
+            return previous;
+          }
+
+          return { status: "idle", roomId: normalizedRoomId, room: null, error: "" };
+        });
+      }, 0);
+
+      return () => window.clearTimeout(resetTimeoutId);
     }
 
-    setRoomPreview((previous) => {
-      if (previous.roomId === normalizedRoomId && previous.status === "found") {
-        return previous;
-      }
+    const loadingTimeoutId = window.setTimeout(() => {
+      setRoomPreview((previous) => {
+        if (previous.roomId === normalizedRoomId && previous.status === "found") {
+          return previous;
+        }
 
-      return { status: "loading", roomId: normalizedRoomId, room: null, error: "" };
-    });
+        return { status: "loading", roomId: normalizedRoomId, room: null, error: "" };
+      });
+    }, 0);
 
     const timeoutId = window.setTimeout(() => {
       const didEmit = emitIfConnected("room:preview", { roomId: normalizedRoomId }, (response) => {
@@ -359,7 +375,10 @@ function App() {
       }
     }, ROOM_PREVIEW_DEBOUNCE_MS);
 
-    return () => window.clearTimeout(timeoutId);
+    return () => {
+      window.clearTimeout(loadingTimeoutId);
+      window.clearTimeout(timeoutId);
+    };
   }, [emitIfConnected, isSocketConnected, roomId, roomIdInput]);
 
 

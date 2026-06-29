@@ -784,7 +784,7 @@ function GlitchGamePage({ roomId, playerId, players, myGame, serverNow, onSubmit
   ].filter(Boolean).join(" ");
   const timerRingStyle = {
     "--timer-progress": `${Math.round(timerProgress * 360)}deg`,
-    "--timer-marker-angle": `${Math.round((timerProgress * 360) - 90)}deg`
+    "--timer-marker-angle": `${Math.round((timerProgress * 360) - 180)}deg`
   };
   const stimulusIconStyle = stimulusIcon
     ? {

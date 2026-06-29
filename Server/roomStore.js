@@ -10,6 +10,8 @@ const { getModeDebugConfig } = require("./gameModes");
 const { CONNECTION_STATE_LABELS, getRoomConnectionState, normalizeConnectionState } = require("./connectionState");
 const CREATOR_TIMEOUT_NOTICE_TTL_MS = 10 * 60 * 1000;
 const creatorTimeoutNotices = new Map();
+const ROOM_EXPIRED_NOTICE_TTL_MS = 10 * 60 * 1000;
+const expiredRoomNotices = new Map();
 const MODE_DEBUG_ENABLED = process.env.MODE_DEBUG_ENABLED === "true";
 
 function markCreatorTimedOut(sessionToken) {
@@ -26,6 +28,27 @@ function consumeCreatorTimeoutNotice(sessionToken) {
 
   creatorTimeoutNotices.delete(sessionToken);
   return expiresAt > Date.now();
+}
+
+function markRoomExpired(roomId) {
+  if (!roomId) return;
+
+  expiredRoomNotices.set(String(roomId).toUpperCase(), Date.now() + ROOM_EXPIRED_NOTICE_TTL_MS);
+}
+
+function hasExpiredRoomNotice(roomId) {
+  if (!roomId) return false;
+
+  const normalizedRoomId = String(roomId).toUpperCase();
+  const expiresAt = expiredRoomNotices.get(normalizedRoomId);
+  if (!expiresAt) return false;
+
+  if (expiresAt <= Date.now()) {
+    expiredRoomNotices.delete(normalizedRoomId);
+    return false;
+  }
+
+  return true;
 }
 
 function getAvailableColor(room) {
@@ -194,6 +217,8 @@ module.exports = {
   PLAYER_COLORS,
   markCreatorTimedOut,
   consumeCreatorTimeoutNotice,
+  markRoomExpired,
+  hasExpiredRoomNotice,
   getAvailableColor,
   getSpawnPosition,
   getRoomState,

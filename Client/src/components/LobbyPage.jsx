@@ -1,5 +1,7 @@
 import { useState } from "react";
 import clearBackgroundLogo from "../assets/images/Logos/Logo_ClearBackground.svg";
+import warningIcon from "../assets/images/VervusIcons/Icons_Warning.png";
+import timerIcon from "../assets/images/VervusIcons/Icons_Timer.png";
 import {
   ContactPage,
   FaqPage,
@@ -12,6 +14,26 @@ import {
 } from "../storyblok/lobbyContent.js";
 
 const ROOM_CODE_MAX_LENGTH = 6;
+const ROOM_CODE_NOTICE_CONFIG = {
+  not_found: {
+    title: "Room not found",
+    body: "Check the code with your host — it may have changed.",
+    icon: warningIcon,
+    variant: "warning"
+  },
+  full: {
+    title: "Room is full",
+    body: "This run already has 4 players.",
+    icon: warningIcon,
+    variant: "warning"
+  },
+  expired: {
+    title: "Room expired",
+    body: "This room has closed. Start a new run with your friends anytime.",
+    icon: timerIcon,
+    variant: "expired"
+  }
+};
 
 function normalizeRoomCodeInput(value) {
   return String(value || "")
@@ -53,10 +75,30 @@ function getRoomPreviewStatusLabel(roomPreview) {
   return "Room closed";
 }
 
+function RoomCodeNotice({ notice }) {
+  const config = ROOM_CODE_NOTICE_CONFIG[notice?.type];
+  if (!config) return null;
+
+  return (
+    <div className={`lobby-room-code-message ${config.variant}`} role="status" aria-live="polite">
+      <div className="lobby-room-code-message-content">
+        <div className="lobby-room-code-message-header">
+          <span className="lobby-room-code-message-icon" aria-hidden="true">
+            <img src={config.icon} alt="" />
+          </span>
+          <strong>{config.title}</strong>
+        </div>
+        <p>{config.body}</p>
+      </div>
+    </div>
+  );
+}
+
 function LobbyPage({
   name,
   roomIdInput,
   roomPreview = null,
+  roomCodeNotice = null,
   onNameChange,
   onRoomIdInputChange,
   onCreateRoom,
@@ -75,7 +117,8 @@ function LobbyPage({
   const [publicPage, setPublicPage] = useState("landing");
   const [isQrNoticeOpen, setIsQrNoticeOpen] = useState(false);
   const formattedRoomCode = formatRoomCode(roomIdInput);
-  const canJoin = !actionsLocked && name.trim().length > 0 && normalizeRoomCodeInput(roomIdInput).length >= 4;
+  const hasBlockingRoomCodeNotice = ["not_found", "full", "expired"].includes(roomCodeNotice?.type);
+  const canJoin = !actionsLocked && !hasBlockingRoomCodeNotice && name.trim().length > 0 && normalizeRoomCodeInput(roomIdInput).length >= 4;
   const canHost = !actionsLocked && name.trim().length > 0;
 
   const handleJoinSubmit = (event) => {
@@ -260,6 +303,8 @@ function LobbyPage({
           </p>
         </div>
       ) : null}
+
+      <RoomCodeNotice notice={roomCodeNotice} />
 
       <div className="lobby-actions">
         <button className="lobby-primary-action" type="submit" disabled={!canJoin}>

@@ -108,11 +108,38 @@ const PLAYER_COLORS = ["#ef4444", "#3b82f6", "#22c55e", "#eab308"];
 const initialSearchParams = new URLSearchParams(window.location.search);
 const ROOM_PREVIEW_DEBOUNCE_MS = 250;
 const ROOM_PREVIEW_MIN_LENGTH = 4;
+const ROOM_CODE_NOTICE_TYPES_BY_ERROR_CODE = {
+  ROOM_NOT_FOUND: "not_found",
+  ROOM_FULL: "full",
+  ROOM_EXPIRED: "expired"
+};
 function normalizeRoomCodeForLookup(value) {
   return String(value || "")
     .toUpperCase()
     .replace(/[^A-Z2-9]/g, "")
     .slice(0, 8);
+}
+function getRoomCodeNoticeType(response = {}) {
+  if (ROOM_CODE_NOTICE_TYPES_BY_ERROR_CODE[response.code]) {
+    return ROOM_CODE_NOTICE_TYPES_BY_ERROR_CODE[response.code];
+  }
+
+  const message = String(response.error || "").toLowerCase();
+  if (message.includes("not found")) return "not_found";
+  if (message.includes("full")) return "full";
+  if (message.includes("expired")) return "expired";
+  return null;
+}
+function getRoomPreviewStatus(room) {
+  const status = String(room?.status || "").toLowerCase();
+  if (status === "expired" || status === "ended") return "expired";
+  if (room?.isFull) return "full";
+  return "found";
+}
+function getRoomCodeNotice(roomPreview) {
+  return ["not_found", "full", "expired"].includes(roomPreview?.status)
+    ? { type: roomPreview.status }
+    : null;
 }
 const initialRoomFromQuery = normalizeRoomCodeForLookup(initialSearchParams.get("room"));
 const initialEntitlementTransferToken = initialSearchParams.get("entitlementTransfer")?.trim() || "";
@@ -358,16 +385,18 @@ function App() {
         if (roomPreviewRequestRef.current !== requestId) return;
 
         if (response?.error) {
-          setRoomPreview({ status: "error", roomId: normalizedRoomId, room: null, error: response.error });
+          const noticeType = getRoomCodeNoticeType(response);
+          setRoomPreview({ status: noticeType || "error", roomId: normalizedRoomId, room: null, error: response.error });
           return;
         }
 
         if (response?.found && response.room) {
-          setRoomPreview({ status: "found", roomId: normalizedRoomId, room: response.room, error: "" });
+          const previewStatus = getRoomPreviewStatus(response.room);
+          setRoomPreview({ status: previewStatus, roomId: normalizedRoomId, room: response.room, error: "" });
           return;
         }
 
-        setRoomPreview({ status: "not_found", roomId: normalizedRoomId, room: null, error: "" });
+        setRoomPreview({ status: getRoomCodeNoticeType(response) || "not_found", roomId: normalizedRoomId, room: null, error: "" });
       });
 
       if (!didEmit && roomPreviewRequestRef.current === requestId) {
@@ -862,8 +891,15 @@ function App() {
   };
 
   const joinRoomWithCode = useCallback((nextRoomId, nextName) => {
-    emitIfConnected("room:join", { roomId: nextRoomId.toUpperCase(), name: nextName }, (response) => {
+    const normalizedRoomId = normalizeRoomCodeForLookup(nextRoomId);
+    emitIfConnected("room:join", { roomId: normalizedRoomId, name: nextName }, (response) => {
       if (response?.error) {
+        const noticeType = getRoomCodeNoticeType(response);
+        if (noticeType) {
+          setRoomPreview({ status: noticeType, roomId: normalizedRoomId, room: null, error: response.error });
+          return;
+        }
+
         alert(response.error);
         return;
       }
@@ -1182,6 +1218,7 @@ function App() {
           onOpenStore={() => openStore("lobby")}
           name={name}
           roomIdInput={roomIdInput}
+          roomCodeNotice={getRoomCodeNotice(roomPreview)}
           pingMs={pingMs}
           timeSyncStatus={timeSyncStatus}
           onNameChange={setName}

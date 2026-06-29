@@ -8,6 +8,7 @@ const {
   MAX_PLAYERS_PER_ROOM,
   PLAYER_COLORS,
   consumeCreatorTimeoutNotice,
+  hasExpiredRoomNotice,
   getAvailableColor,
   getSpawnPosition
 } = require("./roomStore");
@@ -62,6 +63,12 @@ const {
   isValidRoomCode
 } = require("./validation");
 const { createSocketRateLimitGuard, getClientIp, parsePositiveInt } = require("./rateLimit");
+
+const ROOM_JOIN_ERROR_CODES = Object.freeze({
+  NOT_FOUND: "ROOM_NOT_FOUND",
+  FULL: "ROOM_FULL",
+  EXPIRED: "ROOM_EXPIRED"
+});
 
 function registerSocketHandlers(io) {
   startRoomCleanupScheduler(io);
@@ -175,6 +182,7 @@ function registerSocketHandlers(io) {
       isFull: players.length >= MAX_PLAYERS_PER_ROOM
     };
   };
+  const isRoomExpiredOrEnded = (room) => [ROOM_STATUSES.ENDED, ROOM_STATUSES.EXPIRED].includes(room?.status);
 
   const registerTimer = (room, timerId) => {
     room.gameTimers = room.gameTimers || [];
@@ -763,7 +771,12 @@ function registerSocketHandlers(io) {
 
       const room = rooms.get(normalizedRoomId);
       if (!room) {
-        callback?.({ found: false });
+        callback?.({
+          found: false,
+          code: hasExpiredRoomNotice(normalizedRoomId)
+            ? ROOM_JOIN_ERROR_CODES.EXPIRED
+            : ROOM_JOIN_ERROR_CODES.NOT_FOUND
+        });
         return;
       }
 
@@ -876,7 +889,16 @@ function registerSocketHandlers(io) {
       const room = rooms.get(normalizedRoomId);
 
       if (!room) {
-        if (callback) callback({ error: "Room not found" });
+        if (callback) {
+          callback(hasExpiredRoomNotice(normalizedRoomId)
+            ? { error: "Room expired", code: ROOM_JOIN_ERROR_CODES.EXPIRED }
+            : { error: "Room not found", code: ROOM_JOIN_ERROR_CODES.NOT_FOUND });
+        }
+        return;
+      }
+
+      if (isRoomExpiredOrEnded(room)) {
+        if (callback) callback({ error: "Room expired", code: ROOM_JOIN_ERROR_CODES.EXPIRED });
         return;
       }
 
@@ -886,7 +908,7 @@ function registerSocketHandlers(io) {
       }
 
       if (room.players.size >= MAX_PLAYERS_PER_ROOM) {
-        if (callback) callback({ error: "Room full" });
+        if (callback) callback({ error: "Room full", code: ROOM_JOIN_ERROR_CODES.FULL });
         return;
       }
 

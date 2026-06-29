@@ -2,7 +2,8 @@ const {
   rooms,
   CREATOR_RECONNECT_GRACE_MS,
   CREATOR_UNLOCK_RECONNECT_GRACE_MS,
-  markCreatorTimedOut
+  markCreatorTimedOut,
+  markRoomExpired
 } = require("./roomStore");
 const { deleteRoomRecord, updateRoomStatus, logRoomHistoryEvent, logErrorEntry } = require("./db");
 
@@ -153,6 +154,7 @@ function scheduleCreatorDisband(io, roomId, { extendedGraceMs = false } = {}) {
         eventType: "room_expired",
         metadata: { reason: "creator_timeout" }
       });
+      markRoomExpired(roomId);
       disbandRoom(io, roomId, "Room disbanded");
     }
   }, extendedGraceMs ? CREATOR_UNLOCK_RECONNECT_GRACE_MS : CREATOR_RECONNECT_GRACE_MS);
@@ -167,6 +169,7 @@ function expireAndDisbandRoom(io, room, roomId, reason, metadata = {}) {
     eventType: "room_expired",
     metadata: { reason, ...metadata }
   });
+  markRoomExpired(roomId);
   io.to(roomId).emit("room:expired", { roomId, reason });
   disbandRoom(io, roomId, reason);
 }

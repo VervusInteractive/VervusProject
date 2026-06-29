@@ -5436,18 +5436,12 @@
     linear-gradient(135deg, #2f8dff 0%, #edf6ff 72%, #ffffff 100%);
   --game-noise: rgba(35, 104, 255, 0.36);
   --game-text-glow: rgba(53, 102, 255, 0.45);
-  --glitch-stage-width: min(100vw, 390px);
   --glitch-bg-layer-color: #1b65ff;
   --glitch-bg-base-image: url("./assets/images/GlitchBackgrounds/blitz_blue_streaks.png");
   --glitch-bg-motion-opacity: 0.42;
   --glitch-bg-structure-opacity: 0.38;
   --glitch-bg-filter: saturate(1.08) brightness(1.03);
-  padding:
-    max(0px, env(safe-area-inset-top))
-    max(16px, calc((100vw - 390px) / 2 + 16px))
-    max(24px, env(safe-area-inset-bottom));
   background: #01030b;
-  font-family: Geist, Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
 }
 
 .glitch-game-screen.blitz-mode::before {
@@ -5483,67 +5477,27 @@
   animation-duration: var(--glitch-bg-motion-duration);
 }
 
-.glitch-game-screen.blitz-mode > :not(.glitch-background-layers):not(.orientation-warning-overlay) {
-  width: min(100%, 358px);
-}
-
-.glitch-game-screen.blitz-mode .glitch-game-heading {
-  gap: 5px;
-  margin-top: clamp(58px, 8.6vh, 72px);
-}
-
 .glitch-game-screen.blitz-mode .glitch-game-heading h1 {
-  font-size: clamp(2rem, 9.2vw, 2.3rem);
-  line-height: 1;
-  font-weight: 900;
-  letter-spacing: 0;
   text-shadow: none;
 }
 
 .glitch-game-screen.blitz-mode .glitch-game-heading p,
 .glitch-game-screen.blitz-mode .glitch-game-heading span {
   color: #b9b8c8;
-  font-size: 0.875rem;
-  font-weight: 400;
-  line-height: 1.5;
-}
-
-.glitch-game-screen.blitz-mode .glitch-combo-stack {
-  gap: 0;
-  margin-top: clamp(21px, 3.2vh, 28px);
-  color: #7c95fd;
-  text-shadow: none;
 }
 
 .glitch-game-screen.blitz-mode .glitch-combo-stack strong {
-  width: 100%;
-  min-height: 100px;
-  display: grid;
-  place-items: center;
   background: linear-gradient(163deg, #002cda 40%, #ffffff 75%);
   background-clip: text;
   -webkit-background-clip: text;
   color: transparent;
-  font-size: clamp(5.7rem, 28vw, 6.875rem);
-  line-height: 1;
-  font-weight: 800;
 }
 
 .glitch-game-screen.blitz-mode .glitch-combo-stack span {
   color: #7c95fd;
-  font-size: 0.875rem;
-  font-weight: 400;
-  letter-spacing: 0;
-}
-
-.glitch-game-screen.blitz-mode .glitch-timer-stage {
-  margin-top: clamp(18px, 2.9vh, 25px);
 }
 
 .glitch-game-screen.blitz-mode .glitch-timer-ring {
-  --timer-ring-inset: clamp(42px, 12.8vw, 50px);
-  --timer-marker-size: 30px;
-  width: min(300px, calc(100vw - 70px));
   background:
     conic-gradient(from -90deg, #11151e 0 var(--timer-progress), #343945 var(--timer-progress) 360deg);
   box-shadow:
@@ -5552,7 +5506,6 @@
 }
 
 .glitch-game-screen.blitz-mode .glitch-timer-ring::before {
-  inset: var(--timer-ring-inset);
   background:
     radial-gradient(circle at 50% 46%, rgba(7, 31, 67, 0.58), transparent 56%),
     linear-gradient(180deg, #071221 0%, #050b15 100%);
@@ -5567,7 +5520,6 @@
 }
 
 .glitch-game-screen.blitz-mode .glitch-symbol-disc {
-  inset: clamp(42px, 12.8vw, 50px);
   border: 0;
   background:
     radial-gradient(circle at 50% 50%, rgba(15, 50, 96, 0.4), transparent 42%),
@@ -5583,53 +5535,20 @@
     drop-shadow(0 0 18px rgba(0, 44, 218, 0.28));
 }
 
-.glitch-game-screen.blitz-mode .glitch-icon-mask {
-  width: var(--game-icon-width, 78%);
-  max-height: 74%;
-}
-
-.glitch-game-screen.blitz-mode .glitch-symbol-disc .glitch-icon.stimulus-eye .glitch-icon-mask {
-  width: min(68%, 126px);
-}
-
 .glitch-game-screen.blitz-mode .glitch-state-callout,
 .glitch-game-screen.blitz-mode .glitch-state-meta {
-  margin-top: 8px;
   color: rgba(255, 255, 255, 0.78);
-  font-size: 0.75rem;
-}
-
-.glitch-game-screen.blitz-mode .glitch-game-footer {
-  gap: 36px;
-  padding-bottom: 0;
 }
 
 .glitch-game-screen.blitz-mode .glitch-time-pill {
-  min-width: 120px;
-  min-height: 40px;
   border: 1px solid #1834e0;
-  padding: 6px 20px;
   background: rgba(0, 0, 0, 0.5);
   color: #ffffff;
-  font-size: 1.125rem;
-  font-weight: 400;
-  letter-spacing: 0;
   box-shadow: none;
   backdrop-filter: blur(0.5px);
 }
 
-.glitch-game-screen.blitz-mode .glitch-answer-row {
-  gap: 12px;
-}
-
 .glitch-game-screen.blitz-mode .glitch-answer-button {
-  min-height: 100px;
-  border-radius: 24px;
-  padding: 12px 24px;
-  font-size: 1.25rem;
-  line-height: 1;
-  font-weight: 800;
-  letter-spacing: 0;
   text-shadow: 0 -1px 0 rgba(255, 255, 255, 0.18);
 }
 
@@ -5643,10 +5562,6 @@
   border-color: #ca0a0d;
   background: #200809;
   box-shadow: inset 0 1px 12px #dc3d40;
-}
-
-.glitch-game-screen.blitz-mode .save-it-splash {
-  min-height: 385px;
 }
 
 .save-it-splash {

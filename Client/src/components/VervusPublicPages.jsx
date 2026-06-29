@@ -1,11 +1,22 @@
 import { useState } from "react";
 import clearBackgroundLogo from "../assets/images/Logos/Logo_ClearBackground.svg";
+import discordIcon from "../assets/images/SocialIcons/SocialIcon_Discord.png";
+import instagramIcon from "../assets/images/SocialIcons/SocialIcon_Instagram.png";
+import tiktokIcon from "../assets/images/SocialIcons/SocialIcon_TikTok.png";
+import xIcon from "../assets/images/SocialIcons/SocialIcon_x.png";
 import {
   COMPANY_DETAILS,
   FAQ_ITEMS,
   PRIVACY_SECTIONS,
   TERMS_SECTIONS
 } from "../data/publicPageContent.js";
+
+const SOCIAL_LINKS = Object.freeze([
+  { label: "TikTok", href: "https://www.tiktok.com", icon: tiktokIcon },
+  { label: "Discord", href: "https://discord.com", icon: discordIcon },
+  { label: "Instagram", href: "https://www.instagram.com", icon: instagramIcon },
+  { label: "X", href: "https://x.com/PlayVervus", icon: xIcon }
+]);
 
 const EXPERIENCE_MODES = Object.freeze([
   {
@@ -68,10 +79,18 @@ function Footer() {
   return (
     <footer className="landing-footer">
       <div className="social-icon-row" aria-label="Vervus social links">
-        <span className="social-icon" aria-label="TikTok">t</span>
-        <span className="social-icon" aria-label="Discord">d</span>
-        <span className="social-icon social-icon-camera" aria-label="Instagram">ig</span>
-        <span className="social-icon" aria-label="X">x</span>
+        {SOCIAL_LINKS.map((link) => (
+          <a
+            key={link.label}
+            className="social-icon"
+            href={link.href}
+            target="_blank"
+            rel="noreferrer"
+            aria-label={link.label}
+          >
+            <img src={link.icon} alt="" aria-hidden="true" />
+          </a>
+        ))}
       </div>
       <div className="landing-footer-rule" />
       <p>&copy; 2026 Vervus Interactive. Built for chaos.</p>

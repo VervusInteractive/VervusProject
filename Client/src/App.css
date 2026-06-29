@@ -768,16 +768,33 @@
   border: 1px solid rgba(255, 255, 255, 0.025);
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.035);
-  color: rgba(226, 220, 238, 0.42);
-  font-size: 1.55rem;
-  font-weight: 900;
-  line-height: 1;
-  text-transform: uppercase;
+  text-decoration: none;
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease,
+    transform 160ms ease;
 }
 
-.social-icon-camera {
-  font-size: 0.8rem;
-  letter-spacing: 0;
+.social-icon:hover {
+  border-color: rgba(176, 109, 255, 0.28);
+  background: rgba(255, 255, 255, 0.06);
+  transform: translateY(-1px);
+}
+
+.social-icon:focus {
+  outline: none;
+}
+
+.social-icon:focus-visible {
+  outline: 2px solid rgba(176, 109, 255, 0.82);
+  outline-offset: 3px;
+}
+
+.social-icon img {
+  width: 24px;
+  height: 24px;
+  display: block;
+  object-fit: contain;
 }
 
 .landing-footer-rule {

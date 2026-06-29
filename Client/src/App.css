@@ -5197,6 +5197,8 @@
 }
 
 .glitch-timer-ring {
+  --timer-ring-inset: clamp(18px, 5.5vw, 24px);
+  --timer-marker-size: clamp(16px, 4.8vw, 20px);
   width: clamp(220px, 68vw, 286px);
   aspect-ratio: 1 / 1;
   position: relative;
@@ -5214,7 +5216,7 @@
 .glitch-timer-ring::before {
   content: "";
   position: absolute;
-  inset: clamp(18px, 5.5vw, 24px);
+  inset: var(--timer-ring-inset);
   border-radius: inherit;
   background:
     radial-gradient(circle at 50% 39%, color-mix(in srgb, var(--game-accent) 12%, transparent), transparent 42%),
@@ -5234,11 +5236,11 @@
 }
 
 .glitch-timer-marker span {
-  width: clamp(16px, 4.8vw, 20px);
-  height: clamp(16px, 4.8vw, 20px);
+  width: var(--timer-marker-size);
+  height: var(--timer-marker-size);
   position: absolute;
   top: 50%;
-  right: 0;
+  right: calc((var(--timer-ring-inset) - var(--timer-marker-size)) / 2);
   display: block;
   border-radius: 999px;
   background: #ffffff;
@@ -5535,6 +5537,8 @@
 }
 
 .glitch-game-screen.blitz-mode .glitch-timer-ring {
+  --timer-ring-inset: clamp(42px, 12.8vw, 50px);
+  --timer-marker-size: 30px;
   width: min(300px, calc(100vw - 70px));
   background:
     conic-gradient(from -90deg, #11151e 0 var(--timer-progress), #343945 var(--timer-progress) 360deg);
@@ -5544,7 +5548,7 @@
 }
 
 .glitch-game-screen.blitz-mode .glitch-timer-ring::before {
-  inset: clamp(42px, 12.8vw, 50px);
+  inset: var(--timer-ring-inset);
   background:
     radial-gradient(circle at 50% 46%, rgba(7, 31, 67, 0.58), transparent 56%),
     linear-gradient(180deg, #071221 0%, #050b15 100%);
@@ -5554,9 +5558,6 @@
 }
 
 .glitch-game-screen.blitz-mode .glitch-timer-marker span {
-  width: 30px;
-  height: 30px;
-  right: -15px;
   background: #ffffff;
   box-shadow: 0 0 12px rgba(255, 255, 255, 0.62);
 }

@@ -6,6 +6,17 @@ import { DEFAULT_LOBBY_CONTENT } from "../storyblok/lobbyContent.js";
 import clearBackgroundLogo from "../assets/images/Logos/Logo_ClearBackground.svg";
 import copyButtonImage from "../assets/images/Buttons/Button_Copy.png";
 import sendButtonImage from "../assets/images/Buttons/Button_Send.png";
+import discordIcon from "../assets/images/SocialIcons/SocialIcon_Discord.png";
+import instagramIcon from "../assets/images/SocialIcons/SocialIcon_Instagram.png";
+import tiktokIcon from "../assets/images/SocialIcons/SocialIcon_TikTok.png";
+import xIcon from "../assets/images/SocialIcons/SocialIcon_x.png";
+
+const ROOM_SOCIAL_LINKS = Object.freeze([
+  { label: "TikTok", href: "https://www.tiktok.com", icon: tiktokIcon },
+  { label: "Discord", href: "https://discord.com", icon: discordIcon },
+  { label: "Instagram", href: "https://www.instagram.com", icon: instagramIcon },
+  { label: "X", href: "https://x.com/PlayVervus", icon: xIcon }
+]);
 
 const renderTemplate = (template, values) => String(template || "").replace(/\{([a-zA-Z0-9_]+)\}/g, (match, key) => (
   values[key] ?? match
@@ -140,7 +151,7 @@ function RoomPage({
   const roomStatusLabel = roomStatusLabels[roomStatus] || roomStatus;
   const canShowDebug = modeDebugConfigs.length > 0
     && new URLSearchParams(window.location.search).get("modeDebug") === "1";
-  const formattedRoomCode = String(roomId || "").match(/.{1,2}/g)?.join(" - ") || roomId;
+  const formattedRoomCode = String(roomId || "").match(/.{1,2}/g)?.join(" · ") || roomId;
   const selectedModeTitle = selectedMode?.title || "GLiTCH!";
   const selectedModeLabel = selectedModeTitle.toLowerCase().startsWith("glitch") ? "GLiTCH!" : selectedModeTitle;
   const selectedModeVariant = selectedModeId === "standard"
@@ -468,6 +479,19 @@ function RoomPage({
         <img src={clearBackgroundLogo} alt="Vervus" />
       </div>
 
+      <header className="room-desktop-header" aria-label="Room navigation">
+        <div className="room-desktop-brand" aria-label="Vervus">
+          <img src={clearBackgroundLogo} alt="Vervus" />
+        </div>
+        <nav className="room-desktop-nav" aria-label="Vervus sections">
+          <span>How Vervus works</span>
+          <span>Experiences</span>
+          <span>Unlock</span>
+          <span>FAQ</span>
+        </nav>
+        <span className="room-desktop-host-pill">Host a room</span>
+      </header>
+
       {connectionState !== CONNECTION_STATES.CONNECTED ? (
         <div className={`connection-banner ${connectionState}`} role="status" aria-live="polite">
           <strong>Connection:</strong> {getConnectionStateLabel(connectionState)}
@@ -480,34 +504,36 @@ function RoomPage({
       {isHost ? (
         <>
           <div className="room-host-hero">
-            <span className="room-status-chip">{roomStatusLabel === content.statusLabelLobby ? content.statusActiveLabel : roomStatusLabel}</span>
+            <span className="room-status-chip"><span aria-hidden="true" />{roomStatusLabel === content.statusLabelLobby ? content.statusActiveLabel : roomStatusLabel}</span>
             <h1><span>{content.hostHeadlinePrimary}</span><span>{content.hostHeadlineSecondary}</span></h1>
           </div>
 
-          <section className="room-card room-invite-card">
-            <div className="room-invite-code-row">
-              <strong>{formattedRoomCode}</strong>
-              <button
-                type="button"
-                className="room-icon-button"
-                aria-label={content.qrOpenLabel}
-                onClick={() => { onUiButtonClick?.(); setShowQrCode(true); }}
-              >
-                <img src={copyButtonImage} alt="" aria-hidden="true" />
+          <div className="room-host-content-grid">
+            <section className="room-card room-invite-card">
+              <div className="room-invite-code-row">
+                <strong>{formattedRoomCode}</strong>
+                <button
+                  type="button"
+                  className="room-icon-button"
+                  aria-label={content.qrOpenLabel}
+                  onClick={() => { onUiButtonClick?.(); setShowQrCode(true); }}
+                >
+                  <img src={copyButtonImage} alt="" aria-hidden="true" />
+                </button>
+              </div>
+              <div className="room-qr-frame">
+                <img src={roomInviteQrUrl} alt={`QR code to join room ${roomId}`} />
+              </div>
+              <span className="room-share-label">{content.inviteShareLabel}</span>
+              <button type="button" className="room-copy-button" onClick={handleCopyInvite}>
+                <img src={sendButtonImage} alt="" aria-hidden="true" />
+                {copyStatus || content.copyInviteLabel}
               </button>
-            </div>
-            <div className="room-qr-frame">
-              <img src={roomInviteQrUrl} alt={`QR code to join room ${roomId}`} />
-            </div>
-            <span className="room-share-label">{content.inviteShareLabel}</span>
-            <button type="button" className="room-copy-button" onClick={handleCopyInvite}>
-              <img src={sendButtonImage} alt="" aria-hidden="true" />
-              {copyStatus || content.copyInviteLabel}
-            </button>
-          </section>
+            </section>
 
-          {renderPlayersPanel("host")}
-          {renderExperiencePanel()}
+            {renderPlayersPanel("host")}
+            {renderExperiencePanel()}
+          </div>
         </>
       ) : (
         <>
@@ -547,6 +573,7 @@ function RoomPage({
           type="button"
           className="room-bottom-action"
           disabled={!canHostStart}
+          data-desktop-disabled-reason={!canHostStart ? "Play on your phone to start" : undefined}
           onClick={handleHostStart}
         >
           {hostStartLabel}
@@ -563,6 +590,30 @@ function RoomPage({
           </button>
         ) : null
       )}
+
+      {!isHost ? (
+        <footer className="room-desktop-footer">
+          <div className="room-desktop-socials" aria-label="Vervus social links">
+            {ROOM_SOCIAL_LINKS.map((link) => (
+              <a
+                key={link.label}
+                href={link.href}
+                target="_blank"
+                rel="noreferrer"
+                aria-label={link.label}
+              >
+                <img src={link.icon} alt="" aria-hidden="true" />
+              </a>
+            ))}
+          </div>
+          <nav className="room-desktop-footer-nav" aria-label="Vervus legal pages">
+            <span>Terms of Service</span>
+            <span>Privacy Policy</span>
+            <span>Contact</span>
+          </nav>
+          <p>&copy; 2026 Vervus Interactive. Built for chaos.</p>
+        </footer>
+      ) : null}
 
       <div className="room-technical-meta" aria-label="Room diagnostics">
         <span>Phase: {phase}</span>

@@ -35,8 +35,6 @@ const ROOM_CODE_NOTICE_CONFIG = {
   }
 };
 
-const DESKTOP_QUERY = "(min-width: 1024px) and (pointer: fine)";
-
 function normalizeRoomCodeInput(value) {
   return String(value || "")
     .toUpperCase()
@@ -96,40 +94,6 @@ function RoomCodeNotice({ notice }) {
   );
 }
 
-function isDesktopExperience() {
-  if (typeof window === "undefined" || !window.matchMedia) return false;
-  return window.matchMedia(DESKTOP_QUERY).matches;
-}
-
-function DesktopPhoneNotice({ onClose }) {
-  return (
-    <div className="desktop-phone-notice-backdrop" role="presentation" onClick={onClose}>
-      <section
-        className="desktop-phone-notice"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="desktop-phone-notice-title"
-        onClick={(event) => event.stopPropagation()}
-      >
-        <button type="button" className="desktop-phone-notice-close" aria-label="Close" onClick={onClose}>
-          <span aria-hidden="true" />
-        </button>
-        <span className="desktop-phone-notice-icon" aria-hidden="true" />
-        <h2 id="desktop-phone-notice-title">Vervus is designed for phones.</h2>
-        <p>
-          Vervus is built around fast, touch-based multiplayer gameplay and is optimized for smartphones.
-        </p>
-        <p>
-          You can continue exploring on desktop, but gameplay requires a mobile device.
-        </p>
-        <button type="button" className="desktop-phone-notice-action" onClick={onClose}>
-          Explore on desktop
-        </button>
-      </section>
-    </div>
-  );
-}
-
 function LobbyPage({
   name,
   roomIdInput,
@@ -152,7 +116,6 @@ function LobbyPage({
   const [lobbyStep, setLobbyStep] = useState(() => (roomIdInput ? "play" : "landing"));
   const [publicPage, setPublicPage] = useState("landing");
   const [isQrNoticeOpen, setIsQrNoticeOpen] = useState(false);
-  const [isDesktopPhoneNoticeOpen, setIsDesktopPhoneNoticeOpen] = useState(false);
   const formattedRoomCode = formatRoomCode(roomIdInput);
   const hasBlockingRoomCodeNotice = ["not_found", "full", "expired"].includes(roomCodeNotice?.type);
   const canJoin = !actionsLocked && !hasBlockingRoomCodeNotice && name.trim().length > 0 && normalizeRoomCodeInput(roomIdInput).length >= 4;
@@ -178,11 +141,6 @@ function LobbyPage({
 
   const handleSelectStep = (nextStep) => {
     onUiButtonClick?.();
-    if (isDesktopExperience()) {
-      setIsDesktopPhoneNoticeOpen(true);
-      return;
-    }
-
     setPublicPage("landing");
     setLobbyStep(nextStep);
   };
@@ -406,14 +364,6 @@ function LobbyPage({
         {lobbyStep === "play" ? renderPlayStep(lobbyContent.play) : null}
         {lobbyStep === "landing" ? renderLandingStep(lobbyContent.start) : null}
         {isQrNoticeOpen ? renderQrNotice(lobbyContent.play) : null}
-        {isDesktopPhoneNoticeOpen ? (
-          <DesktopPhoneNotice
-            onClose={() => {
-              onUiButtonClick?.();
-              setIsDesktopPhoneNoticeOpen(false);
-            }}
-          />
-        ) : null}
       </>
     );
   };

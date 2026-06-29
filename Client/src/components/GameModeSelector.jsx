@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import lockIcon from "../assets/images/Buttons/Button_Lock.png";
 import questionIcon from "../assets/images/Buttons/Button_Question.png";
 
@@ -174,14 +174,7 @@ function GameModeSelector({
     return sourceModes.map(normalizeMode).filter((mode) => mode.id);
   }, [modes]);
   const selectedMode = normalizedModes.find((mode) => mode.id === selectedModeId) || normalizedModes[0] || FALLBACK_MODES[0];
-  const [selectedGameId, setSelectedGameId] = useState(selectedMode?.gameKey || "glitch");
   const [descriptionMode, setDescriptionMode] = useState(null);
-
-  useEffect(() => {
-    if (selectedMode?.gameKey) {
-      setSelectedGameId(selectedMode.gameKey);
-    }
-  }, [selectedMode?.gameKey]);
 
   const games = useMemo(() => {
     const discoveredGames = new Map(DEFAULT_GAME_OPTIONS.map((game) => [game.id, { ...game, hasModes: false }]));
@@ -199,14 +192,13 @@ function GameModeSelector({
     return Array.from(discoveredGames.values());
   }, [normalizedModes]);
 
-  const activeGame = games.find((game) => game.id === selectedGameId) || games.find((game) => game.id === selectedMode?.gameKey) || games[0];
+  const activeGame = games.find((game) => game.id === selectedMode?.gameKey) || games[0];
   const modesForGame = normalizedModes.filter((mode) => mode.gameKey === activeGame.id);
   const activeMode = modesForGame.find((mode) => mode.id === selectedModeId) || modesForGame[0] || selectedMode;
   const visibleGames = rotateGames(games, activeGame.id);
 
   const handleSelectGame = (game) => {
     if (!game.hasModes || game.id === activeGame.id) return;
-    setSelectedGameId(game.id);
     const nextMode = normalizedModes.find((mode) => mode.gameKey === game.id && !mode.disabled)
       || normalizedModes.find((mode) => mode.gameKey === game.id);
     if (nextMode) onSelectMode?.(nextMode.id);

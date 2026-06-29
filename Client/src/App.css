@@ -617,7 +617,8 @@
 
 .landing-info-card ul,
 .legal-section ul,
-.faq-answer ul {
+.faq-answer ul,
+.faq-answer ol {
   margin: 0;
   padding-left: 17px;
 }
@@ -1083,12 +1084,18 @@
   margin-top: 12px;
 }
 
-.faq-answer ul {
+.faq-answer ul,
+.faq-answer ol {
   margin-top: 13px;
 }
 
 .faq-answer li + li {
   margin-top: 7px;
+}
+
+.faq-answer ul + p,
+.faq-answer ol + p {
+  margin-top: 13px;
 }
 
 .faq-page .landing-footer,

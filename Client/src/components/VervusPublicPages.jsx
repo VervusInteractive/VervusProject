@@ -276,6 +276,17 @@ function FaqAnswer({ item }) {
           ))}
         </ul>
       ) : null}
+      {item.steps?.length ? (
+        <ol>
+          {item.steps.map((step) => (
+            <li key={step}>{step}</li>
+          ))}
+        </ol>
+      ) : null}
+      {item.outroParagraphs?.map((paragraph) => (
+        <p key={paragraph}>{paragraph}</p>
+      ))}
+      {item.outro ? <p>{item.outro}</p> : null}
     </div>
   );
 }

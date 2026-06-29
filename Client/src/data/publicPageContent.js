@@ -20,67 +20,121 @@ export const FAQ_ITEMS = Object.freeze([
   },
   {
     question: "Do I need to download an app?",
-    paragraphs: ["No. Vervus runs in a supported browser, so players can join from a link, QR code, or room code."]
+    paragraphs: [
+      "No.",
+      "Vervus runs directly in your browser on mobile devices. Just open a link and join instantly."
+    ]
   },
   {
     question: "Do I need an account?",
-    paragraphs: ["No permanent account is required for normal play. Vervus may use temporary session data so rooms, reconnects, and purchases work correctly."]
+    paragraphs: [
+      "No.",
+      "Just join and play. Sessions are designed to work instantly without requiring account creation."
+    ]
   },
   {
     question: "How does it work?",
-    paragraphs: ["One player hosts a room. Other players join on their own phones, ready up, and play synchronized real-time games together."]
+    paragraphs: ["Built for real-time social play."],
+    steps: ["Start a room.", "Friends join instantly.", "Try a free preview", "Keep playing."]
   },
   {
     question: "How much does Vervus cost?",
-    paragraphs: ["GLiTCH! can be tried with a free preview. Paid unlocks may provide access to premium modes, experiences, or party packs for the stated duration."]
+    paragraphs: [
+      "One player pays. Everyone joins.",
+      "€3.99 — 1 experience",
+      "Unlock 1 experience and all included modes for 24 hours.",
+      "€5.99 — 2 experiences",
+      "Unlock 2 experiences and all included modes for 24 hours.",
+      "€6.99 — All experiences",
+      "Unlock all experiences and modes for 24 hours.",
+      "Current experiences include:"
+    ],
+    bullets: [
+      "GLiTCH! — reaction pressure and escalating chaos",
+      "Ghost — suspense, timing and rising tension",
+      "Curse — ritual panic, blame and social chaos"
+    ],
+    outro: "3 modes per experience. 9 ways to play."
   },
   {
     question: "Do all players need to pay?",
-    paragraphs: ["No. The host can unlock the room, and everyone else joins the same session for free."]
+    paragraphs: [
+      "No.",
+      "Only the host purchases access for the room/session. Friends can join the active room without needing separate purchases."
+    ]
   },
   {
     question: "Is Vervus a subscription?",
-    paragraphs: ["Vervus is designed around time-limited digital access, such as 24-hour unlocks. If subscription products are added later, they will be shown clearly before purchase."]
+    paragraphs: [
+      "No.",
+      "Vervus uses temporary access unlocks."
+    ]
   },
   {
     question: "What devices are supported?",
-    paragraphs: ["Vervus supports modern mobile browsers on compatible phones. Performance depends on browser version, device performance, network quality, and settings."]
+    paragraphs: ["Vervus is designed for smartphones and mobile browsers, including iPhone and Android devices."]
   },
   {
-    question: "What is the minimum number of players?",
-    paragraphs: ["Most Vervus rooms are built for 2-4 players. Some modes may have their own player limits."]
+    question: "How many players do I need?",
+    paragraphs: ["Vervus works best with 2-4 players, depending on the game and mode."]
   },
   {
     question: "Can I play with people remotely?",
-    paragraphs: ["Yes, if everyone has a stable connection and joins the same room. Vervus is optimized for quick social play, whether players are together or remote."]
+    paragraphs: [
+      "Yes.",
+      "While Vervus is primarily designed around people playing together in the same room, players can also join remotely through platforms like Discord or other voice chat services."
+    ]
   },
   {
-    question: "What happens if someone disconnects?",
-    paragraphs: ["Vervus tries to reconnect players where possible. A session may continue, pause, or end depending on the room state and the current game."]
+    question: "What if someone disconnects?",
+    paragraphs: ["Vervus includes reconnect and session recovery systems where possible, depending on the game and mode."]
   },
   {
     question: "What makes Vervus different?",
-    paragraphs: ["Vervus focuses on instant phone-first social multiplayer: one room, no downloads, synchronized tension, and modes built for a group experience."]
+    paragraphs: ["Vervus is designed around:"],
+    bullets: ["pressure", "hesitation", "timing", "social tension", "fast decisions", "group chaos"],
+    outroParagraphs: [
+      "Some games are competitive.",
+      "Some are cooperative.",
+      "Some are both at the same time.",
+      "Blaming your friends is part of the experience."
+    ]
   },
   {
     question: "Can I stream or record Vervus?",
-    paragraphs: ["You may capture your own gameplay where allowed by law and platform rules, but you are responsible for any names, messages, or shared content shown in your recording."]
+    paragraphs: [
+      "Yes, personal and non-commercial sharing is allowed.",
+      "You can:"
+    ],
+    bullets: ["stream gameplay", "record clips", "share screenshots", "post reactions/content online"]
   },
   {
-    question: "Can games and modes change over time?",
-    paragraphs: ["Yes. Vervus may rebalance, update, add, or remove games, modes, timers, visuals, rewards, access models, and platform functionality over time."]
+    question: "Does Vervus change over time?",
+    paragraphs: [
+      "Yes. Vervus is a live platform. Experiences, modes, balancing, timers, visuals, features and pricing may change over time as the platform develops.",
+      "New experiences will be added regularly as Vervus expands."
+    ]
   },
   {
     question: "Is Vervus safe for children?",
-    paragraphs: ["Vervus is not intended for children below the minimum age required under applicable law. Parents or guardians should supervise minors where required."]
+    paragraphs: ["Yes, but purchases should only be made by adults or with permission from a parent or guardian."]
   },
   {
     question: "How do refunds work?",
-    paragraphs: ["Refunds are generally not provided after digital access has been activated or used. We may issue refunds at our reasonable discretion for duplicate payments, failed delivery, major technical failures caused by Vervus, or legal obligations."]
+    paragraphs: [
+      "Because Vervus delivers digital access immediately after activation, refunds are generally not available once access has been used.",
+      "However, we may review refund requests in cases such as:"
+    ],
+    bullets: ["duplicate payments", "failed purchases", "major technical issues"],
+    outro: "For help, contact support."
   },
   {
     question: "How do I contact Vervus?",
-    paragraphs: ["For support, email support@vervus.live. For general inquiries, email info@vervus.live."]
+    paragraphs: [
+      "General inquiries: info@vervus.live",
+      "Support: support@vervus.live",
+      "Or use our contact form."
+    ]
   }
 ]);
 

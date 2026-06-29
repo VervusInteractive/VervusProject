@@ -56,7 +56,11 @@ function isPartialBreakToken(token) {
 }
 
 function getStimulusClassName(token) {
-  return isPartialBreakToken(token) ? "partial-break-stimulus" : "";
+  const baseToken = getStimulusBaseToken(token);
+  return [
+    baseToken ? `stimulus-${baseToken}` : "",
+    isPartialBreakToken(token) ? "partial-break-stimulus" : ""
+  ].filter(Boolean).join(" ");
 }
 
 function preloadImageFiles(sources) {

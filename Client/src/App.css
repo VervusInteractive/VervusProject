@@ -5289,6 +5289,10 @@
     drop-shadow(0 0 10px color-mix(in srgb, var(--game-accent) 55%, transparent));
 }
 
+.glitch-symbol-disc .glitch-icon.stimulus-eye .glitch-icon-mask {
+  width: min(68%, 124px);
+}
+
 .glitch-icon-mask {
   width: var(--game-icon-width, 66%);
   max-height: 78%;
@@ -5582,6 +5586,10 @@
 .glitch-game-screen.blitz-mode .glitch-icon-mask {
   width: var(--game-icon-width, 78%);
   max-height: 74%;
+}
+
+.glitch-game-screen.blitz-mode .glitch-symbol-disc .glitch-icon.stimulus-eye .glitch-icon-mask {
+  width: min(68%, 126px);
 }
 
 .glitch-game-screen.blitz-mode .glitch-state-callout,

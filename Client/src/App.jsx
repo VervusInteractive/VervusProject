@@ -114,6 +114,11 @@ const PENDING_PURCHASE_SOUND_STORAGE_KEY = "pendingPurchaseSoundEffect";
 const PENDING_PURCHASE_SESSION_STORAGE_KEY = "pendingPurchaseCheckoutSessionId";
 const PLAYER_COLORS = ["#ef4444", "#3b82f6", "#22c55e", "#eab308"];
 const initialSearchParams = new URLSearchParams(window.location.search);
+const DEBUG_QUERY_VALUES = new Set(["1", "true", "yes", "on"]);
+const isQueryFlagEnabled = (key) => DEBUG_QUERY_VALUES.has(String(initialSearchParams.get(key) || "").trim().toLowerCase());
+const debugUnlockAllModes = isQueryFlagEnabled("modeDebug")
+  || isQueryFlagEnabled("debugMode")
+  || isQueryFlagEnabled("debugUnlockAllModes");
 const ROOM_PREVIEW_DEBOUNCE_MS = 250;
 const ROOM_PREVIEW_MIN_LENGTH = 4;
 const ROOM_CODE_NOTICE_TYPES_BY_ERROR_CODE = {
@@ -252,7 +257,7 @@ function App() {
   const [roomState, setRoomState] = useState(null);
   const modeDebugConfigs = roomState?.modeDebugConfigs?.length
     ? roomState.modeDebugConfigs
-    : (import.meta.env.DEV ? DEFAULT_MODE_DEBUG_CONFIGS : []);
+    : ((import.meta.env.DEV || debugUnlockAllModes) ? DEFAULT_MODE_DEBUG_CONFIGS : []);
   const [isViewingRoomPage, setIsViewingRoomPage] = useState(false);
   const [serverNow, setServerNow] = useState(null);
   const [serverOffsetMs, setServerOffsetMs] = useState(null);
@@ -901,7 +906,7 @@ function App() {
       modeKey: selectedLobbyModeId,
       metadata: { selectedModeId: selectedLobbyModeId }
     });
-    emitIfConnected("room:create", { name, selectedModeId: selectedLobbyModeId }, (response) => {
+    emitIfConnected("room:create", { name, selectedModeId: selectedLobbyModeId, debugUnlockAllModes }, (response) => {
       if (response?.error) {
         alert(response.error);
         return;
@@ -955,7 +960,7 @@ function App() {
   };
 
   const setRoomMode = (modeId) => {
-    emitIfConnected("room:setMode", { roomId, playerId, modeId }, (response) => {
+    emitIfConnected("room:setMode", { roomId, playerId, modeId, debugUnlockAllModes }, (response) => {
       if (response?.error) alert(response.error);
     });
   };
@@ -1064,7 +1069,16 @@ function App() {
     setShowStore(true);
   }, [roomId]);
 
+  const debugLobbyModeIds = useMemo(
+    () => lobbyModeOptions.map((mode) => mode.id).filter(Boolean),
+    [lobbyModeOptions]
+  );
+  const effectiveProfileEntitledModeKeys = debugUnlockAllModes ? debugLobbyModeIds : profileEntitledModeKeys;
   const ownedLobbyModeIds = useMemo(() => {
+    if (debugUnlockAllModes) {
+      return lobbyModeOptions.map((mode) => mode.id).filter(Boolean);
+    }
+
     const entitlementKeys = new Set(profileEntitledModeKeys || []);
     return lobbyModeOptions
       .filter((mode) => entitlementKeys.has(mode.id))
@@ -1105,6 +1119,9 @@ function App() {
 
   const players = (roomState?.players ?? []).filter(Boolean);
   const me = players.find((player) => player.playerId === playerId);
+  const roomAvailableModes = roomState?.availableModes ?? [];
+  const debugRoomModeIds = roomAvailableModes.map((mode) => mode.id).filter(Boolean);
+  const effectiveRoomEntitledModeKeys = debugUnlockAllModes ? debugRoomModeIds : (me?.entitledModeKeys ?? []);
   const hostPlayer = players.find((player) => player.isHost);
   const isPreviewRoom = Boolean(roomState?.game?.isPreview)
     || (roomState?.phase === "lobby" && Boolean(hostPlayer) && !hostPlayer.hasEntitlement);
@@ -1186,7 +1203,7 @@ function App() {
             connectionState={connectionState}
             onUiButtonClick={playClickSound}
             isPreviewRoom={isPreviewRoom}
-            availableModes={roomState?.availableModes ?? []}
+            availableModes={roomAvailableModes}
             selectedModeId={roomState?.selectedModeId ?? "standard"}
           />
         ) : (
@@ -1217,10 +1234,10 @@ function App() {
             hostUnlockingPending={Boolean(roomState?.hostUnlockingPending)}
             unlockingProductName={roomState?.unlockingProductName ?? null}
             selectedModeId={roomState?.selectedModeId ?? "standard"}
-            availableModes={roomState?.availableModes ?? []}
-            canSelectMode={Boolean(!actionsLocked && me?.isHost && me?.hasEntitlement && (roomState?.phase === "lobby" || (isViewingRoomPage && me?.game?.status === "gameover")))}
+            availableModes={roomAvailableModes}
+            canSelectMode={Boolean(!actionsLocked && me?.isHost && (debugUnlockAllModes || me?.hasEntitlement) && (roomState?.phase === "lobby" || (isViewingRoomPage && me?.game?.status === "gameover")))}
             entitlementExpiresAtMs={me?.entitlementExpiresAtMs ?? null}
-            entitledModeKeys={me?.entitledModeKeys ?? []}
+            entitledModeKeys={effectiveRoomEntitledModeKeys}
             entitledModeExpiriesMs={me?.entitledModeExpiriesMs ?? {}}
             onSetMode={setRoomMode}
             onKickPlayer={kickPlayer}
@@ -1250,10 +1267,10 @@ function App() {
           onSelectionChanged={playSelectionChangedSound}
           selectedModeId={selectedLobbyModeId}
           availableModes={lobbyModeOptions}
-          canSelectMode={Boolean(!actionsLocked && profileEntitledModeKeys.length)}
+          canSelectMode={Boolean(!actionsLocked && effectiveProfileEntitledModeKeys.length)}
           actionsLocked={actionsLocked}
           profileEntitlementExpiresAtMs={profileEntitlementExpiresAtMs}
-          entitledModeKeys={profileEntitledModeKeys}
+          entitledModeKeys={effectiveProfileEntitledModeKeys}
           entitledModeExpiriesMs={profileEntitledModeExpiriesMs}
           onSelectedModeChange={setSelectedLobbyModeId}
           onCreateEntitlementTransfer={createEntitlementTransfer}

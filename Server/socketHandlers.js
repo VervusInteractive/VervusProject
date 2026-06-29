@@ -574,7 +574,7 @@ function registerSocketHandlers(io) {
       const host = room.players.get(room.creatorPlayerId);
       const requestedModeId = room.selectedModeId || "standard";
       const hostModeExpiryMs = host?.entitledModeExpiriesMs?.[requestedModeId] ?? null;
-      const hasSelectedModeEntitlement = Boolean(
+      const hasSelectedModeEntitlement = Boolean(room.debugUnlockAllModes) || Boolean(
         hostModeExpiryMs &&
         hostModeExpiryMs > Date.now() &&
         (host?.entitledModeKeys || []).includes(requestedModeId)
@@ -796,6 +796,7 @@ function registerSocketHandlers(io) {
       const displayName = normalizePlayerName(payload.name, "Host");
       if (!playerId) return callback?.({ error: "Session required" });
       const selectedModeId = payload.selectedModeId;
+      const debugUnlockAllModes = normalizeBoolean(payload.debugUnlockAllModes);
       const sessionToken = createSessionToken();
 
       const room = {
@@ -806,6 +807,7 @@ function registerSocketHandlers(io) {
         creatorDisconnectTimer: null,
         game: null,
         gameTimers: [],
+        debugUnlockAllModes,
         selectedModeId: "standard",
         availableModes: []
       };
@@ -861,7 +863,13 @@ function registerSocketHandlers(io) {
         }
 
         const normalizedSelectedModeId = normalizeModeId(selectedModeId);
-        room.selectedModeId = (normalizedSelectedModeId && entitledModeKeys.includes(normalizedSelectedModeId)) ? normalizedSelectedModeId : "standard";
+        const debugEntitledModeKeys = debugUnlockAllModes ? (room.availableModes || []).map((mode) => mode.id).filter(Boolean) : [];
+        if (debugUnlockAllModes && debugEntitledModeKeys.length) {
+          room.players.get(playerId).entitledModeKeys = debugEntitledModeKeys;
+          room.players.get(playerId).entitlementExpiresAtMs = Date.now() + (24 * 60 * 60 * 1000);
+        }
+        const selectableModeKeys = debugUnlockAllModes ? debugEntitledModeKeys : entitledModeKeys;
+        room.selectedModeId = (normalizedSelectedModeId && selectableModeKeys.includes(normalizedSelectedModeId)) ? normalizedSelectedModeId : "standard";
         await createRoomRecord({ roomCode: roomId, selectedModeId: room.selectedModeId });
         await addPlayerRecord({ roomCode: roomId, playerId, displayName, isHost: true, slot: 1 });
         await logRoomHistoryEvent({ roomCode: roomId, eventType: "room_created", actorPlayerId: playerId, toStatus: "lobby", metadata: { selectedModeId: room.selectedModeId } });
@@ -1235,10 +1243,16 @@ function registerSocketHandlers(io) {
       if (room.creatorPlayerId !== playerId) return callback?.({ error: "Only host can change mode" });
 
       const normalizedModeId = normalizeModeId(modeId);
-      const entitledModeKeys = new Set(player.entitledModeKeys || []);
-      if (!entitledModeKeys.has(normalizedModeId)) return callback?.({ error: "Store purchase required for this mode" });
-
       const allowedModeIds = new Set((room.availableModes || []).map((mode) => mode.id));
+      if (normalizeBoolean(payload.debugUnlockAllModes)) {
+        room.debugUnlockAllModes = true;
+        player.entitledModeKeys = Array.from(allowedModeIds);
+        player.entitlementExpiresAtMs = Date.now() + (24 * 60 * 60 * 1000);
+      }
+
+      const entitledModeKeys = new Set(player.entitledModeKeys || []);
+      if (!room.debugUnlockAllModes && !entitledModeKeys.has(normalizedModeId)) return callback?.({ error: "Store purchase required for this mode" });
+
       if (!allowedModeIds.has(normalizedModeId)) return callback?.({ error: "Invalid mode" });
 
       const previousModeId = room.selectedModeId || "standard";

@@ -22,6 +22,8 @@ const GAME_MODES = {
   standard: {
     id: "standard",
     title: "GLiTCH!",
+    description: "Work together to decide whether every screen is in sync or one player sees a GLiTCH!.",
+    shortExplanation: "Stay in sync. Until reality diverges.",
     roundResultLockMs: 500,
     transitionBeatMs: 300,
     goodRunRound: 50,
@@ -32,6 +34,8 @@ const GAME_MODES = {
   blitz: {
     id: "blitz",
     title: "GLiTCH! Blitz",
+    description: "The same core GLiTCH! rules at a faster, harsher pace.",
+    shortExplanation: "Full speed immediately.",
     roundResultLockMs: 400,
     transitionBeatMs: 350,
     goodRunRound: 50,
@@ -47,6 +51,8 @@ const GAME_MODES = {
   chaos: {
     id: "chaos",
     title: "GLiTCH! Chaos",
+    description: "The GLiTCH! run gradually corrupts as the combo climbs.",
+    shortExplanation: "Rules bend. The room keeps moving.",
     roundResultLockMs: 500,
     transitionBeatMs: 300,
     goodRunRound: 50,
@@ -163,7 +169,7 @@ function getDefaultModeTemplate(modeKey = "standard") {
 
 async function hydrateGameModesFromDb() {
   const modeResult = await pool.query(
-    `SELECT id, mode_key, display_name
+    `SELECT id, mode_key, display_name, description, short_explanation
      FROM vervus_data.game_modes
      WHERE is_enabled = true
      ORDER BY display_name ASC`
@@ -267,6 +273,8 @@ async function hydrateGameModesFromDb() {
     GAME_MODES[modeRow.mode_key] = {
       ...mode,
       title: modeRow.display_name || mode.title,
+      description: modeRow.description || mode.description || null,
+      shortExplanation: modeRow.short_explanation || mode.shortExplanation || null,
       hasLastChance: config?.has_last_chance ?? mode.hasLastChance,
       roundResultLockMs: config?.result_lock_ms ?? mode.roundResultLockMs,
       transitionBeatMs: config?.transition_beat_ms ?? mode.transitionBeatMs,
@@ -359,7 +367,7 @@ async function getGameModesFromDb() {
   await hydrateHeatSurgeConfigsFromDb();
   await hydrateModeCorruptionBandsFromDb();
 
-  const result = await pool.query(`SELECT gm.id, gm.mode_key, gm.display_name, mc.orientation_lock
+  const result = await pool.query(`SELECT gm.id, gm.mode_key, gm.display_name, gm.description, gm.short_explanation, mc.orientation_lock
      FROM vervus_data.game_modes gm
      LEFT JOIN vervus_data.mode_configs mc ON mc.mode_id = gm.id
      WHERE gm.is_enabled = true
@@ -374,6 +382,8 @@ async function getGameModesFromDb() {
     .map((row) => ({
       id: row.mode_key,
       title: row.display_name || row.mode_key,
+      description: row.description || GAME_MODES[row.mode_key]?.description || null,
+      shortExplanation: row.short_explanation || GAME_MODES[row.mode_key]?.shortExplanation || null,
       orientationLock: normalizeOrientationLock(row.orientation_lock || GAME_MODES[row.mode_key]?.orientationLock)
     }));
 }
@@ -391,6 +401,8 @@ function getGameModesFallback() {
   return Object.values(GAME_MODES).map((mode) => ({
     id: mode.id,
     title: mode.title,
+    description: mode.description || null,
+    shortExplanation: mode.shortExplanation || null,
     orientationLock: normalizeOrientationLock(mode.orientationLock)
   }));
 }

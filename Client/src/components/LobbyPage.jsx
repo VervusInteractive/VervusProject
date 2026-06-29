@@ -63,6 +63,11 @@ function LobbyPage({
   onJoinRoom,
   onOpenStore,
   onUiButtonClick,
+  onSelectionChanged,
+  selectedModeId = "standard",
+  availableModes = [],
+  entitledModeKeys = [],
+  onSelectedModeChange,
   actionsLocked = false,
   lobbyContent = DEFAULT_LOBBY_CONTENT
 }) {
@@ -126,6 +131,16 @@ function LobbyPage({
     onOpenStore?.("landing");
   };
 
+  const visibleLandingModes = (availableModes || []).map((mode) => ({
+    ...mode,
+    disabled: mode.id !== "standard" && !entitledModeKeys.includes(mode.id)
+  }));
+
+  const handleLandingModeChange = (modeId) => {
+    onSelectionChanged?.();
+    onSelectedModeChange?.(modeId);
+  };
+
   const handleOpenQrNotice = () => {
     onUiButtonClick?.();
     setIsQrNoticeOpen(true);
@@ -149,6 +164,10 @@ function LobbyPage({
         onOpenMenu={handleOpenMenu}
         onStartPreview={() => handleSelectStep("host")}
         onUnlock={handleUnlockVervus}
+        availableModes={visibleLandingModes}
+        selectedModeId={selectedModeId}
+        onSelectedModeChange={handleLandingModeChange}
+        canSelectMode={!actionsLocked}
       />
     </div>
   );

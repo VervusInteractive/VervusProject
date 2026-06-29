@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import GameModeSelector, { ModeDescriptionDialog } from "./GameModeSelector.jsx";
 import ModeDebugOverlay from "./ModeDebugOverlay";
 import { CONNECTION_STATES, getConnectionStateLabel } from "../connectionState";
 import { DEFAULT_LOBBY_CONTENT } from "../storyblok/lobbyContent.js";
@@ -52,6 +53,7 @@ function RoomPage({
   const [showQrCode, setShowQrCode] = useState(false);
   const [showDebug, setShowDebug] = useState(false);
   const [copyStatus, setCopyStatus] = useState("");
+  const [descriptionMode, setDescriptionMode] = useState(null);
   const [currentTimeMs, setCurrentTimeMs] = useState(() => Date.now());
   const content = {
     ...DEFAULT_LOBBY_CONTENT.room,
@@ -77,7 +79,13 @@ function RoomPage({
     const availableMode = availableModes.find((mode) => mode.id === selectedModeId) || null;
     if (!debugMode) return availableMode;
     if (!availableMode) return debugMode;
-    return { ...debugMode, orientationLock: availableMode.orientationLock || debugMode.orientationLock || "both" };
+    return {
+      ...availableMode,
+      ...debugMode,
+      description: availableMode.description || debugMode.description,
+      shortExplanation: availableMode.shortExplanation || debugMode.shortExplanation,
+      orientationLock: availableMode.orientationLock || debugMode.orientationLock || "both"
+    };
   }, [modeDebugConfigs, availableModes, selectedModeId]);
 
   const formatRemainingTime = (remainingMs) => {
@@ -158,7 +166,7 @@ function RoomPage({
       : (mode.id === "standard" ? "Preview" : "Purchase Mode");
     return {
       ...mode,
-      disabled: canSelectMode && !hasActiveEntitlement,
+      disabled: mode.id !== "standard" && !hasActiveEntitlement,
       label: `${mode.title} - ${entitlementStatus}`
     };
   });
@@ -387,44 +395,35 @@ function RoomPage({
           <strong>{selectedModeLabel}</strong>
           <span>{selectedModeVariant}</span>
         </div>
-        <button type="button" className="room-help-button" aria-label={content.aboutExperienceLabel}>?</button>
+        <button
+          type="button"
+          className="room-help-button"
+          aria-label={content.aboutExperienceLabel}
+          onClick={() => {
+            onUiButtonClick?.();
+            setDescriptionMode(selectedMode);
+          }}
+        >
+          ?
+        </button>
       </div>
     </section>
   );
 
   const renderExperiencePanel = () => (
-    <section className="room-card room-experience-card">
-      <div className="room-card-header">
-        <span>{content.experienceLabel}</span>
-      </div>
-      <div className="room-mode-carousel" aria-hidden="true">
-        <div className="room-mode-side-card">{visibleModeOptions[1]?.title || "Blitz"}</div>
-        <div className="room-mode-main-card">
-          <strong>{selectedModeLabel}</strong>
-        </div>
-        <div className="room-mode-side-card">{visibleModeOptions[2]?.title || "Chaos"}</div>
-      </div>
-      <div className="room-carousel-dots" aria-hidden="true">
-        <span className="active" />
-        <span />
-      </div>
-      <div className="room-mode-tabs" role="group" aria-label="Choose experience">
-        {visibleModeOptions.map((mode) => (
-          <button
-            key={mode.id}
-            type="button"
-            className={mode.id === selectedModeId ? "active" : ""}
-            disabled={!canSelectMode || mode.disabled}
-            onClick={() => {
-              if (mode.id === selectedModeId) return;
-              onSelectionChanged?.();
-              onSetMode?.(mode.id);
-            }}
-          >
-            {mode.id === "standard" ? "Standard" : mode.title.replace(/^GLiTCH!\s*/i, "")}
-          </button>
-        ))}
-      </div>
+    <section className="room-experience-card">
+      <GameModeSelector
+        modes={visibleModeOptions}
+        selectedModeId={selectedModeId}
+        canSelectMode={canSelectMode}
+        label={content.experienceLabel}
+        onSelectMode={(modeId) => {
+          if (modeId === selectedModeId) return;
+          onSelectionChanged?.();
+          onSetMode?.(modeId);
+        }}
+        className="room"
+      />
       {canOpenStore ? (
         <button type="button" className="room-unlock-button" onClick={() => { onUiButtonClick?.(); onOpenStore?.(); }}>
           {content.unlockButtonLabel}
@@ -575,6 +574,11 @@ function RoomPage({
       </div>
 
       {renderQrModal()}
+      <ModeDescriptionDialog
+        mode={descriptionMode}
+        gameTitle={selectedMode?.gameTitle || "GLiTCH!"}
+        onClose={() => setDescriptionMode(null)}
+      />
     </section>
   );
 }

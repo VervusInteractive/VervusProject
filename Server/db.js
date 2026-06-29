@@ -4,11 +4,127 @@ const fs = require("fs");
 const path = require("path");
 
 const DATABASE_URL = process.env.DATABASE_URL;
+const USE_LOCAL_DB_SHIM = String(DATABASE_URL || "").includes("local-db-shim");
 
-const pool = new Pool({
-  connectionString: DATABASE_URL,
-  ssl: process.env.DB_SSL === 'false' ? false : { rejectUnauthorized: false }
-});
+const localDbShimState = {
+  profileSessionsByHash: new Map()
+};
+
+function createLocalDbShimPool() {
+  console.warn("[local-db-shim] Running without PostgreSQL. Persistence, analytics, and payment records are in-memory only.");
+
+  const query = async (sql = "", params = []) => {
+    const normalizedSql = String(sql || "").replace(/\s+/g, " ").trim().toLowerCase();
+
+    if (normalizedSql === "select 1") {
+      return { rows: [{ "?column?": 1 }], rowCount: 1 };
+    }
+
+    if (normalizedSql.includes("from vervus_data.game_modes")) {
+      if (normalizedSql.includes("join vervus_data.mode_heat_surge_configs")
+        || normalizedSql.includes("from vervus_data.mode_configs")
+        || normalizedSql.includes("from vervus_data.mode_difficulty_bands")
+        || normalizedSql.includes("from vervus_data.mode_deviation_mix")
+        || normalizedSql.includes("from vervus_data.mode_false_twin_mix")
+        || normalizedSql.includes("from vervus_data.mode_corruption_bands")) {
+        return { rows: [], rowCount: 0 };
+      }
+
+      const rows = [
+        {
+          id: "00000000-0000-0000-0000-000000000001",
+          mode_key: "standard",
+          display_name: "GLiTCH!",
+          description: "Work together to decide whether every screen is in sync or one player sees a GLiTCH!.",
+          short_explanation: "Stay in sync. Until reality diverges.",
+          orientation_lock: "both",
+          is_enabled: true
+        },
+        {
+          id: "00000000-0000-0000-0000-000000000002",
+          mode_key: "blitz",
+          display_name: "GLiTCH! Blitz",
+          description: "The same core GLiTCH! rules at a faster, harsher pace.",
+          short_explanation: "Full speed immediately.",
+          orientation_lock: "both",
+          is_enabled: true
+        },
+        {
+          id: "00000000-0000-0000-0000-000000000003",
+          mode_key: "chaos",
+          display_name: "GLiTCH! Chaos",
+          description: "The GLiTCH! run gradually corrupts as the combo climbs.",
+          short_explanation: "Rules bend. The room keeps moving.",
+          orientation_lock: "both",
+          is_enabled: true
+        }
+      ];
+      return { rows, rowCount: rows.length };
+    }
+
+    if (normalizedSql.includes("insert into vervus_data.player_profile_sessions")) {
+      const profileId = params[0];
+      const tokenHash = params[1];
+      const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+      if (tokenHash) {
+        localDbShimState.profileSessionsByHash.set(tokenHash, { profileId, expiresAt });
+      }
+      return { rows: [{ expires_at: expiresAt }], rowCount: 1 };
+    }
+
+    if (normalizedSql.includes("select player_profile_id") && normalizedSql.includes("from vervus_data.player_profile_sessions")) {
+      const session = localDbShimState.profileSessionsByHash.get(params[0]);
+      const rows = session && session.expiresAt > new Date()
+        ? [{ player_profile_id: session.profileId }]
+        : [];
+      return { rows, rowCount: rows.length };
+    }
+
+    if (normalizedSql.includes("select") && normalizedSql.includes("player_profile_entitlements")) {
+      return { rows: [], rowCount: 0 };
+    }
+
+    if (normalizedSql.includes("returning id, started_at")) {
+      return { rows: [{ id: crypto.randomUUID(), started_at: new Date() }], rowCount: 1 };
+    }
+
+    if (normalizedSql.includes("returning id")) {
+      return { rows: [{ id: crypto.randomUUID() }], rowCount: 1 };
+    }
+
+    if (normalizedSql.includes("returning processed_at")) {
+      return { rows: [{ processed_at: null }], rowCount: 1 };
+    }
+
+    if (normalizedSql.includes("select") && (
+      normalizedSql.includes("from vervus_data.products")
+      || normalizedSql.includes("from vervus_data.purchases")
+      || normalizedSql.includes("from vervus_data.error_logs")
+      || normalizedSql.includes("from vervus_data.room_history")
+      || normalizedSql.includes("from vervus_data.stripe_webhook_events")
+      || normalizedSql.includes("from vervus_data.game_sessions")
+    )) {
+      return { rows: [], rowCount: 0 };
+    }
+
+    return { rows: [], rowCount: 0 };
+  };
+
+  return {
+    query,
+    connect: async () => ({
+      query,
+      release: () => {}
+    })
+  };
+}
+
+const pool = USE_LOCAL_DB_SHIM
+  ? createLocalDbShimPool()
+  : new Pool({
+    connectionString: DATABASE_URL,
+    ssl: process.env.DB_SSL === 'false' ? false : { rejectUnauthorized: false }
+  });
 
 async function testDbConnection() { await pool.query('SELECT 1'); }
 async function ensureRoomTrackingTables() {

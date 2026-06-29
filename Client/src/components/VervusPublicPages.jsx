@@ -1,4 +1,5 @@
 import { useState } from "react";
+import GameModeSelector from "./GameModeSelector.jsx";
 import clearBackgroundLogo from "../assets/images/Logos/Logo_ClearBackground.svg";
 import discordIcon from "../assets/images/SocialIcons/SocialIcon_Discord.png";
 import instagramIcon from "../assets/images/SocialIcons/SocialIcon_Instagram.png";
@@ -16,33 +17,6 @@ const SOCIAL_LINKS = Object.freeze([
   { label: "Discord", href: "https://discord.com", icon: discordIcon },
   { label: "Instagram", href: "https://www.instagram.com", icon: instagramIcon },
   { label: "X", href: "https://x.com/PlayVervus", icon: xIcon }
-]);
-
-const EXPERIENCE_MODES = Object.freeze([
-  {
-    id: "standard",
-    label: "Standard",
-    center: "GLiTCH!",
-    left: "GHOST",
-    right: "CURSE",
-    description: "Stay in sync. Until reality diverges."
-  },
-  {
-    id: "blitz",
-    label: "Blitz",
-    center: "BLiTZ",
-    left: "GLiTCH!",
-    right: "CHAOS",
-    description: "Faster rounds. Less time to trust yourself."
-  },
-  {
-    id: "chaos",
-    label: "Chaos",
-    center: "CHAOS",
-    left: "CURSE",
-    right: "GHOST",
-    description: "Rules bend. The room keeps moving."
-  }
 ]);
 
 function BrandHeader({ onOpenMenu, menuLabel = "Open menu" }) {
@@ -129,11 +103,12 @@ export function LandingHome({
   onJoin,
   onOpenMenu,
   onStartPreview,
-  onUnlock
+  onUnlock,
+  availableModes = [],
+  selectedModeId = "standard",
+  onSelectedModeChange,
+  canSelectMode = true
 }) {
-  const [activeModeId, setActiveModeId] = useState("standard");
-  const activeMode = EXPERIENCE_MODES.find((mode) => mode.id === activeModeId) || EXPERIENCE_MODES[0];
-
   return (
     <div className="landing-screen">
       <BrandHeader onOpenMenu={onOpenMenu} />
@@ -174,34 +149,13 @@ export function LandingHome({
       <section className="landing-section" aria-labelledby="experiences-title">
         <h2 id="experiences-title">Experiences.</h2>
         <p className="landing-section-copy">Choose your reality.</p>
-        <div className="experience-panel">
-          <div className="experience-carousel" aria-live="polite">
-            <div className="experience-card experience-card-side">{activeMode.left}</div>
-            <div className="experience-card experience-card-active">{activeMode.center}</div>
-            <div className="experience-card experience-card-side">{activeMode.right}</div>
-          </div>
-          <p>{activeMode.description}</p>
-          <div className="experience-dots" aria-hidden="true">
-            {EXPERIENCE_MODES.map((mode) => (
-              <span key={mode.id} className={mode.id === activeMode.id ? "active" : undefined} />
-            ))}
-          </div>
-          <div className="experience-tabs" role="tablist" aria-label="Experience modes">
-            {EXPERIENCE_MODES.map((mode) => (
-              <button
-                key={mode.id}
-                type="button"
-                role="tab"
-                aria-selected={mode.id === activeMode.id}
-                className={mode.id === activeMode.id ? "active" : undefined}
-                onClick={() => setActiveModeId(mode.id)}
-              >
-                {mode.label}
-                <span aria-hidden="true">?</span>
-              </button>
-            ))}
-          </div>
-        </div>
+        <GameModeSelector
+          modes={availableModes}
+          selectedModeId={selectedModeId}
+          onSelectMode={onSelectedModeChange}
+          canSelectMode={canSelectMode}
+          className="landing"
+        />
       </section>
 
       <section className="landing-section landing-start-section" aria-labelledby="start-title">

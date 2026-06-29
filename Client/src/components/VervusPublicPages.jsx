@@ -11,6 +11,11 @@ import {
   PRIVACY_SECTIONS,
   TERMS_SECTIONS
 } from "../data/publicPageContent.js";
+import {
+  COOKIE_CONSENT_CHOICES,
+  hasCookieConsentChoice,
+  setCookieConsentChoice
+} from "../privacyConsent.js";
 
 const SOCIAL_LINKS = Object.freeze([
   { label: "TikTok", href: "https://www.tiktok.com", icon: tiktokIcon },
@@ -19,12 +24,25 @@ const SOCIAL_LINKS = Object.freeze([
   { label: "X", href: "https://x.com/PlayVervus", icon: xIcon }
 ]);
 
-function BrandHeader({ onOpenMenu, menuLabel = "Open menu" }) {
+function BrandHeader({ onOpenMenu, onNavigate, onHost, menuLabel = "Open menu" }) {
   return (
     <header className="landing-header">
       <div className="landing-brand-mark" aria-label="Vervus">
         <img src={clearBackgroundLogo} alt="Vervus" />
       </div>
+      {onNavigate ? (
+        <nav className="landing-desktop-nav" aria-label="Vervus sections">
+          <button type="button" onClick={() => onNavigate("how")}>How Vervus works</button>
+          <button type="button" onClick={() => onNavigate("experiences")}>Experiences</button>
+          <button type="button" onClick={() => onNavigate("unlock")}>Unlock</button>
+          <button type="button" onClick={() => onNavigate("faq")}>FAQ</button>
+        </nav>
+      ) : null}
+      {onHost ? (
+        <button className="landing-desktop-host-button" type="button" onClick={onHost}>
+          Host a room
+        </button>
+      ) : null}
       {onOpenMenu ? (
         <button className="landing-menu-button" type="button" aria-label={menuLabel} onClick={onOpenMenu}>
           <span />
@@ -49,7 +67,7 @@ function PageHeader({ onBack, backLabel = "Back" }) {
   );
 }
 
-function Footer() {
+function Footer({ onNavigate }) {
   return (
     <footer className="landing-footer">
       <div className="social-icon-row" aria-label="Vervus social links">
@@ -66,9 +84,58 @@ function Footer() {
           </a>
         ))}
       </div>
+      {onNavigate ? (
+        <nav className="landing-footer-nav" aria-label="Vervus legal pages">
+          <button type="button" onClick={() => onNavigate("terms")}>Terms of Service</button>
+          <button type="button" onClick={() => onNavigate("privacy")}>Privacy Policy</button>
+          <button type="button" onClick={() => onNavigate("contact")}>Contact</button>
+        </nav>
+      ) : null}
       <div className="landing-footer-rule" />
       <p>&copy; 2026 Vervus Interactive. Built for chaos.</p>
     </footer>
+  );
+}
+
+function CookieBanner({ onNavigate }) {
+  const [isVisible, setIsVisible] = useState(() => !hasCookieConsentChoice());
+
+  const dismiss = (choice) => {
+    setCookieConsentChoice(choice);
+    setIsVisible(false);
+  };
+
+  if (!isVisible) return null;
+
+  return (
+    <div className="landing-cookie-banner" role="region" aria-label="Cookie preferences">
+      <div className="landing-cookie-content">
+        <span className="landing-cookie-icon" aria-hidden="true" />
+        <p>
+          We use cookies for analytics and performance.{" "}
+          <button
+            type="button"
+            onClick={() => {
+              dismiss(COOKIE_CONSENT_CHOICES.CLOSED);
+              onNavigate?.("privacy");
+            }}
+          >
+            Privacy Policy
+          </button>
+        </p>
+      </div>
+      <div className="landing-cookie-actions">
+        <button type="button" className="landing-cookie-secondary" onClick={() => dismiss(COOKIE_CONSENT_CHOICES.ESSENTIAL)}>
+          Essential Only
+        </button>
+        <button type="button" className="landing-cookie-primary" onClick={() => dismiss(COOKIE_CONSENT_CHOICES.ALLOW)}>
+          Allow
+        </button>
+        <button type="button" className="landing-cookie-close" aria-label="Close cookie banner" onClick={() => dismiss(COOKIE_CONSENT_CHOICES.CLOSED)}>
+          <span aria-hidden="true" />
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -102,6 +169,7 @@ export function LandingHome({
   onHost,
   onJoin,
   onOpenMenu,
+  onNavigate,
   onStartPreview,
   onUnlock,
   availableModes = [],
@@ -109,9 +177,18 @@ export function LandingHome({
   onSelectedModeChange,
   canSelectMode = true
 }) {
+  const handleSectionNavigate = (target) => {
+    if (target === "faq") {
+      onNavigate?.("faq");
+      return;
+    }
+
+    document.getElementById(`landing-${target}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
   return (
     <div className="landing-screen">
-      <BrandHeader onOpenMenu={onOpenMenu} />
+      <BrandHeader onOpenMenu={onOpenMenu} onNavigate={handleSectionNavigate} onHost={onHost} />
 
       <section className="landing-hero">
         <h1 className="landing-title">{renderHeroHeadline(startPageContent.headline)}</h1>
@@ -134,7 +211,7 @@ export function LandingHome({
         </div>
       </section>
 
-      <section className="landing-section" aria-labelledby="how-title">
+      <section id="landing-how" className="landing-section" aria-labelledby="how-title">
         <h2 id="how-title">How Vervus works.</h2>
         <p className="landing-section-copy">Instant social multiplayer games. Zero friction.</p>
         <div className="landing-info-card">
@@ -146,7 +223,7 @@ export function LandingHome({
         </div>
       </section>
 
-      <section className="landing-section" aria-labelledby="experiences-title">
+      <section id="landing-experiences" className="landing-section" aria-labelledby="experiences-title">
         <h2 id="experiences-title">Experiences.</h2>
         <p className="landing-section-copy">Choose your reality.</p>
         <GameModeSelector
@@ -158,7 +235,7 @@ export function LandingHome({
         />
       </section>
 
-      <section className="landing-section landing-start-section" aria-labelledby="start-title">
+      <section id="landing-unlock" className="landing-section landing-start-section" aria-labelledby="start-title">
         <h2 id="start-title">Start playing.</h2>
         <p className="landing-section-copy">Try GLiTCH! or unlock everything.</p>
 
@@ -181,7 +258,8 @@ export function LandingHome({
         </div>
       </section>
 
-      <Footer />
+      <Footer onNavigate={onNavigate} />
+      <CookieBanner onNavigate={onNavigate} />
     </div>
   );
 }

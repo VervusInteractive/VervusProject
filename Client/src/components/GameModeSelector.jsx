@@ -116,6 +116,9 @@ export function ModeDescriptionDialog({ mode, gameTitle, onClose }) {
 
   const modeLabel = getModeLabel(mode, gameTitle || mode.gameTitle);
   const description = String(mode.description || mode.shortExplanation || "").trim();
+  const isStandardGlitch = String(mode.id || "").toLowerCase() === "standard";
+  const displayTitle = isStandardGlitch ? (gameTitle || mode.gameTitle || modeLabel) : modeLabel;
+  const displayLabel = isStandardGlitch ? modeLabel : (gameTitle || mode.gameTitle || "Game mode");
 
   return (
     <div className="mode-description-backdrop" onClick={onClose}>
@@ -123,11 +126,35 @@ export function ModeDescriptionDialog({ mode, gameTitle, onClose }) {
         <button type="button" className="mode-description-close" aria-label="Close mode description" onClick={onClose}>
           <span aria-hidden="true" />
         </button>
-        <p>{gameTitle || mode.gameTitle || "Game mode"}</p>
-        <h2 id="mode-description-title">{modeLabel}</h2>
+        <h2 id="mode-description-title">{displayTitle}</h2>
+        <p>{displayLabel}</p>
         <div className="mode-description-body">
-          {description || "Mode details are not available yet."}
+          {isStandardGlitch ? (
+            <>
+              <p>Stay in sync.</p>
+              <p>Everyone sees an icon.</p>
+              <p>Is everyone seeing the <strong>exact same thing?</strong></p>
+              <div className="mode-description-choice-row" aria-hidden="true">
+                <span className="mode-description-choice sync">
+                  <strong>SYNC</strong>
+                  <small>Tap SYNC if yes.</small>
+                </span>
+                <span className="mode-description-choice glitch">
+                  <strong>GLiTCH!</strong>
+                  <small>Tap GLiTCH! if no.</small>
+                </span>
+              </div>
+              <p>Someone is about to be <strong>blamed.</strong></p>
+            </>
+          ) : (
+            description || "Mode details are not available yet."
+          )}
         </div>
+        {isStandardGlitch ? (
+          <button type="button" className="mode-description-got-it" onClick={onClose}>
+            Got it
+          </button>
+        ) : null}
       </div>
     </div>
   );

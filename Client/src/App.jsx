@@ -10,6 +10,11 @@ import { STORYBLOK_IS_ENABLED } from "./storyblok/config";
 import "./App.css";
 import { CONNECTION_STATES, deriveSocketConnectionState } from "./connectionState";
 import {
+  ANALYTICS_VISITOR_STORAGE_KEY,
+  COOKIE_CONSENT_CHANGE_EVENT,
+  hasAnalyticsConsent
+} from "./privacyConsent";
+import {
   GAME_AUDIO_KEYS,
   PLATFORM_AUDIO_KEYS,
   playDebouncedSound,
@@ -24,7 +29,6 @@ if (!serverUrl) {
   throw new Error("VITE_SERVER_URL is required");
 }
 const PROFILE_SESSION_STORAGE_KEY = "profileSessionToken";
-const ANALYTICS_VISITOR_STORAGE_KEY = "analyticsVisitorId";
 const getStoredProfileSessionToken = () => localStorage.getItem(PROFILE_SESSION_STORAGE_KEY) || "";
 const buildProfileSessionHeaders = () => {
   const token = getStoredProfileSessionToken();
@@ -62,6 +66,8 @@ const getTrafficAttribution = () => {
   };
 };
 const trackAnalyticsEvent = (eventName, payload = {}) => {
+  if (!hasAnalyticsConsent()) return false;
+
   const attribution = getTrafficAttribution();
   fetch(`${serverUrl}/api/analytics/event`, {
     method: "POST",
@@ -85,6 +91,8 @@ const trackAnalyticsEvent = (eventName, payload = {}) => {
       }
     })
   }).catch(() => {});
+
+  return true;
 };
 const socket = io(serverUrl, {
   autoConnect: false,
@@ -255,6 +263,7 @@ function App() {
     sampleCount: 0,
     quality: "syncing"
   });
+  const [analyticsConsentVersion, setAnalyticsConsentVersion] = useState(0);
   const [isSocketConnected, setIsSocketConnected] = useState(socket.connected);
   const [isSocketReconnecting, setIsSocketReconnecting] = useState(!socket.connected);
   const [pingMs, setPingMs] = useState(null);
@@ -314,6 +323,15 @@ function App() {
       return;
     }
     localStorage.removeItem(key);
+  }, []);
+
+  useEffect(() => {
+    const handleCookieConsentChange = () => {
+      setAnalyticsConsentVersion((version) => version + 1);
+    };
+
+    window.addEventListener(COOKIE_CONSENT_CHANGE_EVENT, handleCookieConsentChange);
+    return () => window.removeEventListener(COOKIE_CONSENT_CHANGE_EVENT, handleCookieConsentChange);
   }, []);
 
 
@@ -471,10 +489,12 @@ function App() {
   }, [applyProfileEntitlementResponse, name]);
 
   useEffect(() => {
-    if (!profileId || hasTrackedPageViewRef.current) return;
-    hasTrackedPageViewRef.current = true;
-    trackAnalyticsEvent("page_view", { metadata: { profileId } });
-  }, [profileId]);
+    if (!profileId || hasTrackedPageViewRef.current || !hasAnalyticsConsent()) return;
+    const didTrack = trackAnalyticsEvent("page_view", { metadata: { profileId } });
+    if (didTrack) {
+      hasTrackedPageViewRef.current = true;
+    }
+  }, [analyticsConsentVersion, profileId]);
 
   useEffect(() => {
     const handleRoomState = (state) => setRoomState(state);

@@ -12,6 +12,8 @@ import {
 import { CONNECTION_STATES, getConnectionStateLabel } from "../connectionState";
 import clearBackgroundLogo from "../assets/images/Logos/Logo_ClearBackground.svg";
 
+const BLITZ_BACKGROUND_IMAGE_SOURCE = new URL("../assets/images/GlitchBackgrounds/blitz_blue_streaks.png", import.meta.url).href;
+
 const GAME_ICON_IMAGES = {
   eye: { label: "Eye", src: new URL("../assets/images/GameIcons/Eye_Base.png", import.meta.url).href, aspect: "280 / 154", width: "78%" },
   bolt: { label: "Lightning bolt", src: new URL("../assets/images/GameIcons/Lightning_Base.png", import.meta.url).href, aspect: "200 / 202", width: "58%" },
@@ -37,6 +39,7 @@ const GAME_ICON_IMAGES = {
 
 const GAME_ICON_IMAGE_SOURCES = Array.from(new Set(Object.values(GAME_ICON_IMAGES).map((icon) => icon.src)));
 const GLITCH_BACKGROUND_IMAGE_SOURCES = [
+  BLITZ_BACKGROUND_IMAGE_SOURCE,
   new URL("../assets/images/GlitchBackgrounds/subtle_noise_scanlines_white_transparent.png", import.meta.url).href,
   new URL("../assets/images/GlitchBackgrounds/horizontal_glitch_streaks_white_transparent.png", import.meta.url).href,
   new URL("../assets/images/GlitchBackgrounds/glitch_grunge_frame_white_transparent.png", import.meta.url).href,
@@ -271,7 +274,9 @@ function GlitchGamePage({ roomId, playerId, players, myGame, serverNow, onSubmit
     [currentRoundCorruptionEffects, myGame?.modeId, selectedModeId]
   );
 
-  const selectedMode = useMemo(() => availableModes.find((mode) => mode.id === (myGame?.modeId || selectedModeId)) || null, [availableModes, myGame?.modeId, selectedModeId]);
+  const activeModeId = myGame?.modeId || selectedModeId;
+  const isBlitzMode = String(activeModeId || "").toLowerCase() === "blitz";
+  const selectedMode = useMemo(() => availableModes.find((mode) => mode.id === activeModeId) || null, [activeModeId, availableModes]);
   const selectedModeOrientationLock = (selectedMode?.orientationLock || "both").toLowerCase();
   const [deviceOrientation, setDeviceOrientation] = useState("unknown");
   const isMobileDevice = typeof navigator !== "undefined" && /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || "");
@@ -770,6 +775,7 @@ function GlitchGamePage({ roomId, playerId, players, myGame, serverNow, onSubmit
   };
   const gameScreenClassName = [
     "glitch-game-screen",
+    isBlitzMode ? "blitz-mode" : "",
     isDangerTheme ? "danger" : "standard",
     isSaveItActive ? "save-it-state" : "",
     currentRound?.isLastChanceReplay ? "last-chance-state" : "",
@@ -778,7 +784,7 @@ function GlitchGamePage({ roomId, playerId, players, myGame, serverNow, onSubmit
   ].filter(Boolean).join(" ");
   const timerRingStyle = {
     "--timer-progress": `${Math.round(timerProgress * 360)}deg`,
-    "--timer-marker-angle": `${Math.round((timerProgress * 360) - 180)}deg`
+    "--timer-marker-angle": `${Math.round((timerProgress * 360) - 90)}deg`
   };
   const stimulusIconStyle = stimulusIcon
     ? {

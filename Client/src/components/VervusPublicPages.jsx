@@ -34,19 +34,6 @@ const EXPERIENCE_MODES = Object.freeze([
   }
 ]);
 
-function PhoneStatusBar() {
-  return (
-    <div className="landing-status-bar" aria-hidden="true">
-      <span>9:41</span>
-      <span className="landing-device-icons">
-        <span className="signal-icon"><span /><span /><span /></span>
-        <span className="wifi-icon" />
-        <span className="battery-icon"><span /></span>
-      </span>
-    </div>
-  );
-}
-
 function BrandHeader({ onOpenMenu, menuLabel = "Open menu" }) {
   return (
     <header className="landing-header">
@@ -66,17 +53,14 @@ function BrandHeader({ onOpenMenu, menuLabel = "Open menu" }) {
 
 function PageHeader({ onBack, backLabel = "Back" }) {
   return (
-    <>
-      <PhoneStatusBar />
-      <header className="public-page-header">
-        <button className="public-back-button" type="button" aria-label={backLabel} onClick={onBack}>
-          <span />
-        </button>
-        <div className="landing-brand-mark" aria-label="Vervus">
-          <img src={clearBackgroundLogo} alt="Vervus" />
-        </div>
-      </header>
-    </>
+    <header className="public-page-header">
+      <button className="public-back-button" type="button" aria-label={backLabel} onClick={onBack}>
+        <span />
+      </button>
+      <div className="landing-brand-mark" aria-label="Vervus">
+        <img src={clearBackgroundLogo} alt="Vervus" />
+      </div>
+    </header>
   );
 }
 
@@ -133,7 +117,6 @@ export function LandingHome({
 
   return (
     <div className="landing-screen">
-      <PhoneStatusBar />
       <BrandHeader onOpenMenu={onOpenMenu} />
 
       <section className="landing-hero">
@@ -240,7 +223,6 @@ export function LandingMenu({ onClose, onNavigate }) {
 
   return (
     <div className="menu-screen">
-      <PhoneStatusBar />
       <header className="landing-header menu-header">
         <div className="landing-brand-mark" aria-label="Vervus">
           <img src={clearBackgroundLogo} alt="Vervus" />

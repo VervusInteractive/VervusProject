@@ -5982,7 +5982,6 @@
 .glitch-game-screen.blitz-mode {
   --game-noise: rgba(35, 104, 255, 0.36);
   --glitch-bg-layer-color: #1b65ff;
-  --glitch-bg-base-image: url("./assets/images/GlitchBackgrounds/blitz_blue_streaks.png");
   --glitch-bg-motion-opacity: 0.42;
   --glitch-bg-structure-opacity: 0.38;
   --glitch-bg-filter: saturate(1.08) brightness(1.03);
@@ -5993,9 +5992,10 @@
   width: var(--glitch-stage-width);
   background:
     linear-gradient(180deg, rgba(0, 5, 20, 0.12), rgba(0, 4, 18, 0.04) 44%, rgba(0, 5, 22, 0.18)),
-    var(--glitch-bg-base-image) center / cover no-repeat,
+    url("./assets/images/GlitchBackgrounds/BlitzBackgroundFrames/Background_Blitz_Frame1.png") center / cover no-repeat,
     #041140;
   opacity: 1;
+  animation: blitz-background-frames 1400ms steps(1, end) infinite;
 }
 
 .glitch-game-screen.blitz-mode::after {
@@ -6011,15 +6011,82 @@
   mix-blend-mode: screen;
 }
 
-.glitch-game-screen.blitz-mode .glitch-background-layers::before {
-  opacity: var(--glitch-bg-structure-opacity);
-  -webkit-mask-image: var(--glitch-bg-noise-layer), var(--glitch-bg-frame-layer);
-  mask-image: var(--glitch-bg-noise-layer), var(--glitch-bg-frame-layer);
-}
-
 .glitch-game-screen.blitz-mode .glitch-background-layers::after {
   opacity: var(--glitch-bg-motion-opacity);
   animation-duration: var(--glitch-bg-motion-duration);
+}
+
+@keyframes blitz-background-frames {
+  0%,
+  9.99% {
+    background:
+      linear-gradient(180deg, rgba(0, 5, 20, 0.12), rgba(0, 4, 18, 0.04) 44%, rgba(0, 5, 22, 0.18)),
+      url("./assets/images/GlitchBackgrounds/BlitzBackgroundFrames/Background_Blitz_Frame1.png") center / cover no-repeat,
+      #041140;
+  }
+  10%,
+  19.99% {
+    background:
+      linear-gradient(180deg, rgba(0, 5, 20, 0.12), rgba(0, 4, 18, 0.04) 44%, rgba(0, 5, 22, 0.18)),
+      url("./assets/images/GlitchBackgrounds/BlitzBackgroundFrames/Background_Blitz_Frame2.png") center / cover no-repeat,
+      #041140;
+  }
+  20%,
+  29.99% {
+    background:
+      linear-gradient(180deg, rgba(0, 5, 20, 0.12), rgba(0, 4, 18, 0.04) 44%, rgba(0, 5, 22, 0.18)),
+      url("./assets/images/GlitchBackgrounds/BlitzBackgroundFrames/Background_Blitz_Frame3.png") center / cover no-repeat,
+      #041140;
+  }
+  30%,
+  39.99% {
+    background:
+      linear-gradient(180deg, rgba(0, 5, 20, 0.12), rgba(0, 4, 18, 0.04) 44%, rgba(0, 5, 22, 0.18)),
+      url("./assets/images/GlitchBackgrounds/BlitzBackgroundFrames/Background_Blitz_Frame4.png") center / cover no-repeat,
+      #041140;
+  }
+  40%,
+  49.99% {
+    background:
+      linear-gradient(180deg, rgba(0, 5, 20, 0.12), rgba(0, 4, 18, 0.04) 44%, rgba(0, 5, 22, 0.18)),
+      url("./assets/images/GlitchBackgrounds/BlitzBackgroundFrames/Background_Blitz_Frame5.png") center / cover no-repeat,
+      #041140;
+  }
+  50%,
+  59.99% {
+    background:
+      linear-gradient(180deg, rgba(0, 5, 20, 0.12), rgba(0, 4, 18, 0.04) 44%, rgba(0, 5, 22, 0.18)),
+      url("./assets/images/GlitchBackgrounds/BlitzBackgroundFrames/Background_Blitz_Frame6.png") center / cover no-repeat,
+      #041140;
+  }
+  60%,
+  69.99% {
+    background:
+      linear-gradient(180deg, rgba(0, 5, 20, 0.12), rgba(0, 4, 18, 0.04) 44%, rgba(0, 5, 22, 0.18)),
+      url("./assets/images/GlitchBackgrounds/BlitzBackgroundFrames/Background_Blitz_Frame7.png") center / cover no-repeat,
+      #041140;
+  }
+  70%,
+  79.99% {
+    background:
+      linear-gradient(180deg, rgba(0, 5, 20, 0.12), rgba(0, 4, 18, 0.04) 44%, rgba(0, 5, 22, 0.18)),
+      url("./assets/images/GlitchBackgrounds/BlitzBackgroundFrames/Background_Blitz_Frame8.png") center / cover no-repeat,
+      #041140;
+  }
+  80%,
+  89.99% {
+    background:
+      linear-gradient(180deg, rgba(0, 5, 20, 0.12), rgba(0, 4, 18, 0.04) 44%, rgba(0, 5, 22, 0.18)),
+      url("./assets/images/GlitchBackgrounds/BlitzBackgroundFrames/Background_Blitz_Frame9.png") center / cover no-repeat,
+      #041140;
+  }
+  90%,
+  100% {
+    background:
+      linear-gradient(180deg, rgba(0, 5, 20, 0.12), rgba(0, 4, 18, 0.04) 44%, rgba(0, 5, 22, 0.18)),
+      url("./assets/images/GlitchBackgrounds/BlitzBackgroundFrames/Background_Blitz_Frame10.png") center / cover no-repeat,
+      #041140;
+  }
 }
 
 .glitch-game-screen.blitz-mode .glitch-game-heading h1 {

@@ -13,7 +13,18 @@ import { CONNECTION_STATES, getConnectionStateLabel } from "../connectionState";
 import clearBackgroundLogo from "../assets/images/Logos/Logo_ClearBackground.svg";
 import { getPlayerIcon } from "../playerIcons";
 
-const BLITZ_BACKGROUND_IMAGE_SOURCE = new URL("../assets/images/GlitchBackgrounds/blitz_blue_streaks.png", import.meta.url).href;
+const BLITZ_BACKGROUND_FRAME_SOURCES = [
+  new URL("../assets/images/GlitchBackgrounds/BlitzBackgroundFrames/Background_Blitz_Frame1.png", import.meta.url).href,
+  new URL("../assets/images/GlitchBackgrounds/BlitzBackgroundFrames/Background_Blitz_Frame2.png", import.meta.url).href,
+  new URL("../assets/images/GlitchBackgrounds/BlitzBackgroundFrames/Background_Blitz_Frame3.png", import.meta.url).href,
+  new URL("../assets/images/GlitchBackgrounds/BlitzBackgroundFrames/Background_Blitz_Frame4.png", import.meta.url).href,
+  new URL("../assets/images/GlitchBackgrounds/BlitzBackgroundFrames/Background_Blitz_Frame5.png", import.meta.url).href,
+  new URL("../assets/images/GlitchBackgrounds/BlitzBackgroundFrames/Background_Blitz_Frame6.png", import.meta.url).href,
+  new URL("../assets/images/GlitchBackgrounds/BlitzBackgroundFrames/Background_Blitz_Frame7.png", import.meta.url).href,
+  new URL("../assets/images/GlitchBackgrounds/BlitzBackgroundFrames/Background_Blitz_Frame8.png", import.meta.url).href,
+  new URL("../assets/images/GlitchBackgrounds/BlitzBackgroundFrames/Background_Blitz_Frame9.png", import.meta.url).href,
+  new URL("../assets/images/GlitchBackgrounds/BlitzBackgroundFrames/Background_Blitz_Frame10.png", import.meta.url).href
+];
 
 const GAME_ICON_IMAGES = {
   eye: { label: "Eye", src: new URL("../assets/images/GameIcons/Eye_Base.png", import.meta.url).href, aspect: "280 / 154", width: "78%" },
@@ -40,7 +51,7 @@ const GAME_ICON_IMAGES = {
 
 const GAME_ICON_IMAGE_SOURCES = Array.from(new Set(Object.values(GAME_ICON_IMAGES).map((icon) => icon.src)));
 const GLITCH_BACKGROUND_IMAGE_SOURCES = [
-  BLITZ_BACKGROUND_IMAGE_SOURCE,
+  ...BLITZ_BACKGROUND_FRAME_SOURCES,
   new URL("../assets/images/GlitchBackgrounds/subtle_noise_scanlines_white_transparent.png", import.meta.url).href,
   new URL("../assets/images/GlitchBackgrounds/horizontal_glitch_streaks_white_transparent.png", import.meta.url).href,
   new URL("../assets/images/GlitchBackgrounds/glitch_grunge_frame_white_transparent.png", import.meta.url).href,

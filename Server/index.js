@@ -241,6 +241,10 @@ async function refreshPlayerEntitlementsInActiveRooms(profileId) {
         room.unlockingPreviousHasEntitlement = null;
         room.unlockingProductName = null;
       }
+      if (entitlementExpiresAtMs) {
+        room.hostUnlockingFailed = false;
+        room.hostUnlockingFailedAtMs = null;
+      }
       if (room.game?.isPreview && entitlementExpiresAtMs) {
         room.game.isPreview = false;
         room.game.previewComboLimit = null;

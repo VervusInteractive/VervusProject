@@ -1238,6 +1238,11 @@ function registerSocketHandlers(io) {
         return;
       }
 
+      if (room.creatorPlayerId === playerId && ready && room.hostUnlockingFailed) {
+        room.hostUnlockingFailed = false;
+        room.hostUnlockingFailedAtMs = null;
+      }
+
       player.ready = ready;
       updatePlayerReady({ playerId, isReady: player.ready }).catch((error) => console.error("DB ready update failed", error));
       await maybeAdvanceToPlayPhase(room, roomId);
@@ -1380,6 +1385,8 @@ function registerSocketHandlers(io) {
       }
 
       room.hostUnlockingPending = true;
+      room.hostUnlockingFailed = false;
+      room.hostUnlockingFailedAtMs = null;
       room.unlockingStartedAtMs = Date.now();
       transitionRoomStatus(room, roomId, ROOM_STATUSES.PAYMENT_PENDING, {
         eventType: "settings_changed",
@@ -1410,6 +1417,8 @@ function registerSocketHandlers(io) {
       if (!purchaseSucceeded) {
         const fallbackStatus = room.phase === "play" && room.game?.isPreview ? ROOM_STATUSES.PREVIEW : ROOM_STATUSES.LOBBY;
         room.hostUnlockingPending = false;
+        room.hostUnlockingFailed = true;
+        room.hostUnlockingFailedAtMs = Date.now();
         room.unlockingStartedAtMs = null;
         room.unlockingPreviousHasEntitlement = null;
         room.unlockingProductName = null;

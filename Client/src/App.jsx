@@ -1543,6 +1543,9 @@ function App() {
         .catch((error) => {
           alert(error.message || "Failed to start checkout");
           setShowStore(false);
+          if (roomId && playerId) {
+            emitIfConnected("entitlement:purchase:result", { roomId, playerId, success: false });
+          }
         })
         .finally(() => {
           setIsCheckoutStarting(false);
@@ -1770,6 +1773,7 @@ function App() {
             previewComboLimit={roomState?.game?.previewComboLimit ?? null}
             onOpenStore={() => openStore("room")}
             hostUnlockingPending={Boolean(roomState?.hostUnlockingPending)}
+            hostUnlockingFailed={Boolean(roomState?.hostUnlockingFailed)}
             unlockingProductName={roomState?.unlockingProductName ?? null}
             selectedModeId={roomState?.selectedModeId ?? "standard"}
             availableModes={roomAvailableModes}

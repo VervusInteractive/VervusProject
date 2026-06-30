@@ -131,6 +131,8 @@ function getRoomState(roomId) {
     connectionState: getRoomConnectionState(room.players),
     connectionStateLabel: CONNECTION_STATE_LABELS[getRoomConnectionState(room.players)],
     hostUnlockingPending: Boolean(room.hostUnlockingPending),
+    hostUnlockingFailed: Boolean(room.hostUnlockingFailed),
+    hostUnlockingFailedAtMs: room.hostUnlockingFailedAtMs ?? null,
     unlockingProductName: room.unlockingProductName || null,
     game: room.game
       ? {

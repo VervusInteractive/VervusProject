@@ -10,6 +10,8 @@ import discordIcon from "../assets/images/SocialIcons/SocialIcon_Discord.png";
 import instagramIcon from "../assets/images/SocialIcons/SocialIcon_Instagram.png";
 import tiktokIcon from "../assets/images/SocialIcons/SocialIcon_TikTok.png";
 import xIcon from "../assets/images/SocialIcons/SocialIcon_x.png";
+import cardIcon from "../assets/images/VervusIcons/Icons_Card.png";
+import failIcon from "../assets/images/VervusIcons/Icons_Fail.png";
 
 const ROOM_SOCIAL_LINKS = Object.freeze([
   { label: "TikTok", href: "https://www.tiktok.com", icon: tiktokIcon },
@@ -49,7 +51,7 @@ function RoomPage({
   previewComboLimit = null,
   onOpenStore,
   hostUnlockingPending = false,
-  unlockingProductName = null,
+  hostUnlockingFailed = false,
   selectedModeId = "standard",
   availableModes = [],
   canSelectMode = false,
@@ -139,7 +141,8 @@ function RoomPage({
   }, [copyStatus]);
 
   const isWrongOrientation = isMobileDevice && selectedModeOrientationLock !== "both" && selectedModeOrientationLock !== deviceOrientation;
-  const unlockingProductLabel = unlockingProductName || "selected product";
+  const showHostPurchasePending = !isHost && hostUnlockingPending;
+  const showHostPurchaseFailed = !isHost && hostUnlockingFailed && !hostUnlockingPending;
   const roomStatusLabels = {
     lobby: content.statusLabelLobby,
     preview: content.statusLabelPreview,
@@ -433,6 +436,47 @@ function RoomPage({
     </section>
   );
 
+  const renderHostPurchasePendingCard = () => (
+    <section className="room-host-purchase-card room-host-purchase-card-pending" role="status" aria-live="polite">
+      <img className="room-host-purchase-icon" src={cardIcon} alt="" aria-hidden="true" />
+      <div className="room-host-purchase-copy">
+        <h2>{hostDisplayName} is unlocking Vervus.</h2>
+        <p>Room stays open while they pay. You'll be playing in a moment - stay here.</p>
+      </div>
+      <div className="room-host-purchase-progress-card">
+        <div className="room-host-purchase-progress-header">
+          <span>Payment in progress</span>
+          <strong>Processing</strong>
+        </div>
+        <div className="room-host-purchase-progress" aria-hidden="true">
+          {Array.from({ length: 7 }, (_, index) => (
+            <span key={index} />
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+
+  const renderHostPurchaseFailedCard = () => (
+    <section className="room-host-purchase-failed-card" role="status" aria-live="polite">
+      <div className="room-host-purchase-failed-status">
+        <span aria-hidden="true" />
+        <strong>Waiting for {hostDisplayName}</strong>
+      </div>
+      <p>{hostDisplayName} can retry the payment or start a free preview.</p>
+    </section>
+  );
+
+  const renderHostPurchaseFailedHero = () => (
+    <section className="room-host-purchase-failed-hero">
+      <img className="room-host-purchase-face" src={failIcon} alt="" aria-hidden="true" />
+      <div className="room-host-purchase-copy">
+        <h2>{hostDisplayName} came back.</h2>
+        <p>Looks like the payment didn't go through. {hostDisplayName} might try again.</p>
+      </div>
+    </section>
+  );
+
   const renderExperiencePanel = () => (
     <section className="room-experience-card">
       <GameModeSelector
@@ -511,7 +555,7 @@ function RoomPage({
   };
 
   return (
-    <section className={`room-lobby-page ${isHost ? "room-lobby-page-host" : "room-lobby-page-join"}`} {...content.editableAttributes}>
+    <section className={`room-lobby-page ${isHost ? "room-lobby-page-host" : "room-lobby-page-join"}${showHostPurchasePending ? " room-lobby-page-host-purchase-pending" : ""}${showHostPurchaseFailed ? " room-lobby-page-host-purchase-failed" : ""}`} {...content.editableAttributes}>
       {isWrongOrientation ? (
         <div className="orientation-warning-overlay" role="alert">
           <div className="orientation-warning-card">
@@ -586,28 +630,21 @@ function RoomPage({
         </>
       ) : (
         <>
-          <div className="room-join-hero">
-            <span className="room-status-chip"><span aria-hidden="true" />{content.joinStatusPrefix} {roomId}</span>
-            <h1>{content.joinHeadline}</h1>
-            <p>{renderTemplate(content.joinDescriptionTemplate, { host: hostDisplayName })}</p>
-          </div>
-
-          {hostUnlockingPending ? (
-            <section className="room-card room-preview-card">
-              <div className="room-preview-kicker">
-                {renderModeIcon()}
-                <span>{renderTemplate(content.unlockingTemplate, { host: hostDisplayName, product: unlockingProductLabel })}</span>
+          {showHostPurchasePending ? renderHostPurchasePendingCard() : null}
+          {showHostPurchaseFailed ? renderHostPurchaseFailedHero() : null}
+          {!showHostPurchasePending && !showHostPurchaseFailed ? (
+            <>
+              <div className="room-join-hero">
+                <span className="room-status-chip"><span aria-hidden="true" />{content.joinStatusPrefix} {roomId}</span>
+                <h1>{content.joinHeadline}</h1>
+                <p>{renderTemplate(content.joinDescriptionTemplate, { host: hostDisplayName })}</p>
               </div>
-              <div className="room-selected-mode">
-                <div>
-                  <strong>{content.paymentPendingTitle}</strong>
-                  <span>{content.paymentPendingDescription}</span>
-                </div>
-              </div>
-            </section>
-          ) : renderPreviewCard()}
+              {renderPreviewCard()}
+            </>
+          ) : null}
 
           {renderPlayersPanel("join")}
+          {showHostPurchaseFailed ? renderHostPurchaseFailedCard() : null}
         </>
       )}
 
@@ -628,11 +665,10 @@ function RoomPage({
           {hostStartLabel}
         </button>
       ) : (
-        canManageReady ? (
+        canManageReady && !showHostPurchasePending ? (
           <button
             type="button"
             className="room-bottom-action"
-            disabled={hostUnlockingPending && !currentPlayer?.isHost}
             onClick={handleReadyToggle}
           >
             {currentPlayer?.ready ? content.notReadyButtonLabel : content.readyButtonLabel}

@@ -1010,12 +1010,16 @@ function App() {
   const attemptSessionRejoin = useCallback(() => {
     const savedRoomId = localStorage.getItem("roomId");
     const savedSessionToken = localStorage.getItem("sessionToken");
+    const purchaseResultToEmit = localStorage.getItem(PURCHASE_RESULT_TO_EMIT_STORAGE_KEY);
+    const purchaseResult = purchaseResultToEmit === "success" || purchaseResultToEmit === "cancelled"
+      ? purchaseResultToEmit
+      : "";
 
     if (!savedRoomId || !savedSessionToken || !socket.connected) {
       return;
     }
 
-    socket.emit("room:rejoin", { roomId: savedRoomId, sessionToken: savedSessionToken }, (response) => {
+    socket.emit("room:rejoin", { roomId: savedRoomId, sessionToken: savedSessionToken, purchaseResult }, (response) => {
       if (response?.error) {
         clearSessionState();
         if (response.code === "CREATOR_TIMED_OUT") {

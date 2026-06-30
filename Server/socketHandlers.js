@@ -1012,6 +1012,8 @@ function registerSocketHandlers(io) {
       const normalizedRoomId = normalizeRoomCode(payload.roomId);
       const sessionToken = typeof payload.sessionToken === "string" ? payload.sessionToken : "";
       const room = rooms.get(normalizedRoomId);
+      const purchaseResult = String(payload.purchaseResult || "").trim().toLowerCase();
+      const purchaseFailedOnReturn = ["cancelled", "canceled", "failed"].includes(purchaseResult);
       if (!room) {
         const creatorTimedOut = consumeCreatorTimeoutNotice(sessionToken);
         if (callback) {
@@ -1054,11 +1056,15 @@ function registerSocketHandlers(io) {
             }
           }
           clearHostUnlockingState(room);
+          if (purchaseFailedOnReturn) {
+            room.hostUnlockingFailed = true;
+            room.hostUnlockingFailedAtMs = Date.now();
+          }
           room.expiresAtMs = hasEntitlement ? player.entitlementExpiresAtMs : null;
           const returnStatus = room.phase === "play" && hasEntitlement ? ROOM_STATUSES.PREMIUM : ROOM_STATUSES.LOBBY;
           transitionRoomStatus(room, normalizedRoomId, returnStatus, {
             eventType: "settings_changed",
-            metadata: { reason: "host_returned_from_payment", hasEntitlement }
+            metadata: { reason: "host_returned_from_payment", hasEntitlement, purchaseResult: purchaseResult || null }
           });
         }
       }
@@ -1484,6 +1490,10 @@ function registerSocketHandlers(io) {
       }
 
       const purchaseSucceeded = Boolean(success);
+      if (purchaseSucceeded) {
+        room.hostUnlockingFailed = false;
+        room.hostUnlockingFailedAtMs = null;
+      }
       if (!purchaseSucceeded) {
         const fallbackStatus = room.phase === "play" && room.game?.isPreview ? ROOM_STATUSES.PREVIEW : ROOM_STATUSES.LOBBY;
         clearHostUnlockingState(room);

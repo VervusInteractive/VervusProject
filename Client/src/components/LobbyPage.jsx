@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { BrowserQRCodeReader } from "@zxing/browser";
 import clearBackgroundLogo from "../assets/images/Logos/Logo_ClearBackground.svg";
+import phoneIcon from "../assets/images/VervusIcons/Icons_Phone.png";
 import warningIcon from "../assets/images/VervusIcons/Icons_Warning.png";
 import timerIcon from "../assets/images/VervusIcons/Icons_Timer.png";
 import {
@@ -16,6 +17,7 @@ import {
 
 const ROOM_CODE_MAX_LENGTH = 6;
 const MIN_SCANNABLE_ROOM_CODE_LENGTH = 4;
+const DESKTOP_MEDIA_QUERY = "(min-width: 1024px)";
 const ROOM_CODE_NOTICE_CONFIG = {
   not_found: {
     title: "Room not found",
@@ -149,6 +151,52 @@ function RoomCodeNotice({ notice }) {
         </div>
         <p>{config.body}</p>
       </div>
+    </div>
+  );
+}
+
+function isDesktopLayout() {
+  return typeof window !== "undefined"
+    && typeof window.matchMedia === "function"
+    && window.matchMedia(DESKTOP_MEDIA_QUERY).matches;
+}
+
+function DesktopPhoneNotice({ onClose }) {
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") {
+        onClose?.();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
+  return (
+    <div className="desktop-phone-notice-backdrop" role="presentation">
+      <section
+        className="desktop-phone-notice"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="desktop-phone-notice-title"
+        aria-describedby="desktop-phone-notice-description"
+      >
+        <button className="desktop-phone-notice-close" type="button" aria-label="Close" onClick={onClose}>
+          <span aria-hidden="true" />
+        </button>
+        <span className="desktop-phone-notice-icon" aria-hidden="true">
+          <img src={phoneIcon} alt="" />
+        </span>
+        <h2 id="desktop-phone-notice-title">Vervus is designed for phones.</h2>
+        <p id="desktop-phone-notice-description">
+          Vervus is built around fast, touch-based multiplayer gameplay and is optimized for smartphones.
+        </p>
+        <p>You can continue exploring on desktop, but gameplay requires a mobile device.</p>
+        <button className="desktop-phone-notice-action" type="button" onClick={onClose}>
+          Explore on desktop
+        </button>
+      </section>
     </div>
   );
 }
@@ -349,6 +397,7 @@ function LobbyPage({
   const [lobbyStep, setLobbyStep] = useState(() => (roomIdInput ? "play" : "landing"));
   const [publicPage, setPublicPage] = useState("landing");
   const [isQrScannerOpen, setIsQrScannerOpen] = useState(false);
+  const [isDesktopPhoneNoticeOpen, setIsDesktopPhoneNoticeOpen] = useState(false);
   const formattedRoomCode = formatRoomCode(roomIdInput);
   const hasBlockingRoomCodeNotice = ["not_found", "full", "expired"].includes(roomCodeNotice?.type);
   const canJoin = !actionsLocked && !hasBlockingRoomCodeNotice && name.trim().length > 0 && normalizeRoomCodeInput(roomIdInput).length >= 4;
@@ -374,6 +423,11 @@ function LobbyPage({
 
   const handleSelectStep = (nextStep) => {
     onUiButtonClick?.();
+    if (nextStep === "play" && isDesktopLayout()) {
+      setIsDesktopPhoneNoticeOpen(true);
+      return;
+    }
+
     setPublicPage("landing");
     setLobbyStep(nextStep);
   };
@@ -604,6 +658,9 @@ function LobbyPage({
         {lobbyStep === "play" ? renderPlayStep(lobbyContent.play) : null}
         {lobbyStep === "landing" ? renderLandingStep(lobbyContent.start) : null}
         {isQrScannerOpen ? renderQrScanner(lobbyContent.play) : null}
+        {isDesktopPhoneNoticeOpen ? (
+          <DesktopPhoneNotice onClose={() => setIsDesktopPhoneNoticeOpen(false)} />
+        ) : null}
       </>
     );
   };

@@ -11,6 +11,7 @@ import {
 } from "../audioEngine";
 import { CONNECTION_STATES, getConnectionStateLabel } from "../connectionState";
 import clearBackgroundLogo from "../assets/images/Logos/Logo_ClearBackground.svg";
+import glitchGameLogo from "../assets/images/GameLogos/GameLogos_Glitch.png";
 import { getPlayerIcon } from "../playerIcons";
 
 const BLITZ_BACKGROUND_FRAME_SOURCES = [
@@ -296,6 +297,10 @@ function scheduleResultsTicks(combo, registerTimeout) {
   }
 }
 
+function GlitchLogo({ className = "", alt = "GLiTCH!" }) {
+  return <img className={["glitch-logo-image", className].filter(Boolean).join(" ")} src={glitchGameLogo} alt={alt} />;
+}
+
 
 function GlitchGamePage({ roomId, playerId, players, myGame, serverNow, onSubmitAnswer, onAssetsLoaded, onReturnRoom, onExit, connectionState = CONNECTION_STATES.CONNECTING, onUiButtonClick, isPreviewRoom = false, availableModes = [], selectedModeId = "standard" }) {
   const currentRound = myGame?.currentRound;
@@ -391,7 +396,9 @@ function GlitchGamePage({ roomId, playerId, players, myGame, serverNow, onSubmit
     <section className={pregameScreenClassName} style={pregameScreenStyle}>
       <span className="glitch-background-layers" aria-hidden="true" />
       <header className="glitch-game-heading pregame-heading">
-        <h1>GLiTCH!</h1>
+        <h1 className="glitch-logo-heading">
+          <GlitchLogo />
+        </h1>
         <p>{modeSubtitle}</p>
       </header>
       <main className={`pregame-stage ${stateClassName}`}>
@@ -648,7 +655,10 @@ function GlitchGamePage({ roomId, playerId, players, myGame, serverNow, onSubmit
   if (!myGame) {
     return (
       <section className="panel">
-        <h1 className="panel-title">GLiTCH! · Room {roomId}</h1>
+        <h1 className="panel-title panel-title-logo">
+          <GlitchLogo />
+        </h1>
+        <p className="panel-meta">Room {roomId}</p>
         <p className="panel-subtitle">Waiting for game state…</p>
       </section>
     );
@@ -733,7 +743,9 @@ function GlitchGamePage({ roomId, playerId, players, myGame, serverNow, onSubmit
         </div>
 
         <header className="kill-screen-hero">
-          <h1>GLiTCH!</h1>
+          <h1 className="glitch-logo-heading">
+            <GlitchLogo />
+          </h1>
           <strong>{finalCombo}</strong>
           <span>COMBO</span>
         </header>
@@ -917,7 +929,9 @@ function GlitchGamePage({ roomId, playerId, players, myGame, serverNow, onSubmit
         ) : null}
 
         <header className="glitch-game-heading">
-          <h1>GLiTCH!</h1>
+          <h1 className="glitch-logo-heading">
+            <GlitchLogo />
+          </h1>
           <p>{modeSubtitle}</p>
           {isPreviewRoom ? <span>Preview ends at {myGame.previewComboLimit ?? "X"} combo</span> : null}
         </header>
@@ -950,7 +964,9 @@ function GlitchGamePage({ roomId, playerId, players, myGame, serverNow, onSubmit
       ) : null}
 
       <header className="glitch-game-heading">
-        <h1>GLiTCH!</h1>
+        <h1 className="glitch-logo-heading">
+          <GlitchLogo />
+        </h1>
         <p>{isLastChanceTheme ? "Last Chance" : modeSubtitle}</p>
         {isPreviewRoom ? <span>Preview ends at {myGame.previewComboLimit ?? "X"} combo</span> : null}
       </header>

@@ -2286,6 +2286,11 @@
   font-size: 1.75rem;
 }
 
+.panel-title-logo {
+  display: grid;
+  justify-items: start;
+}
+
 .panel-subtitle {
   margin: 8px 0 0;
   color: #334155;
@@ -5088,15 +5093,6 @@
 
 .kill-screen-hero h1 {
   margin: 0;
-  color: #ffffff;
-  font-size: clamp(1.46rem, 6vw, 1.86rem);
-  line-height: 0.92;
-  font-weight: 1000;
-  letter-spacing: 0.01em;
-  text-shadow:
-    1px 0 0 #5da1ff,
-    -1px 0 0 rgba(255, 0, 134, 0.58),
-    0 0 12px rgba(255, 255, 255, 0.32);
 }
 
 .kill-screen-hero strong {
@@ -5679,15 +5675,27 @@
 
 .glitch-game-heading h1 {
   margin: 0;
-  color: #ffffff;
-  font-size: clamp(1.24rem, 5.6vw, 1.62rem);
-  line-height: 0.9;
-  font-weight: 1000;
-  letter-spacing: 0.01em;
-  text-shadow:
-    1px 0 0 var(--game-accent),
-    -1px 0 0 rgba(255, 0, 74, 0.55),
-    0 0 12px rgba(255, 255, 255, 0.34);
+}
+
+.glitch-logo-heading {
+  display: grid;
+  place-items: center;
+}
+
+.glitch-logo-image {
+  display: block;
+  width: clamp(136px, 44vw, 196px);
+  height: auto;
+  filter: drop-shadow(0 0 14px rgba(93, 161, 255, 0.22)) drop-shadow(-1px 0 0 rgba(255, 0, 74, 0.2));
+}
+
+.panel-title-logo .glitch-logo-image {
+  width: min(196px, 100%);
+  filter: none;
+}
+
+.kill-screen-hero .glitch-logo-image {
+  width: clamp(154px, 48vw, 224px);
 }
 
 .glitch-game-heading p,

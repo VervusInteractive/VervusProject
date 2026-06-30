@@ -67,15 +67,21 @@ function extractRoomCodeFromQrValue(value) {
   return roomCode.length >= MIN_SCANNABLE_ROOM_CODE_LENGTH ? roomCode : "";
 }
 
+function getErrorKind(error) {
+  if (!error) return "";
+  if (typeof error.getKind === "function") return error.getKind();
+  return error.kind || error.name || error.constructor?.kind || error.constructor?.name || "";
+}
+
 function isExpectedScanMiss(error) {
-  const errorName = error?.name || error?.constructor?.name || "";
-  return errorName === "NotFoundException"
-    || errorName === "ChecksumException"
-    || errorName === "FormatException";
+  const errorKind = getErrorKind(error);
+  return errorKind === "NotFoundException"
+    || errorKind === "ChecksumException"
+    || errorKind === "FormatException";
 }
 
 function getCameraErrorMessage(error) {
-  const errorName = error?.name || error?.constructor?.name || "";
+  const errorName = getErrorKind(error);
 
   if (errorName === "NotAllowedError" || errorName === "PermissionDeniedError") {
     return "Camera permission was blocked. Allow camera access and try again.";
@@ -159,6 +165,7 @@ function QrScannerOverlay({
   const onCancelRef = useRef(onCancel);
   const onDetectedRef = useRef(onDetected);
   const hasDetectedRef = useRef(false);
+  const hasStartedCameraRef = useRef(false);
   const [scannerMessage, setScannerMessage] = useState("Starting camera...");
   const [scannerMessageType, setScannerMessageType] = useState("info");
 
@@ -216,16 +223,27 @@ function QrScannerOverlay({
       }
 
       try {
+        const mediaStream = await navigator.mediaDevices.getUserMedia({
+          audio: false,
+          video: {
+            facingMode: { ideal: "environment" },
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+          }
+        });
+
+        if (!isActive) {
+          mediaStream.getTracks().forEach((track) => track.stop());
+          return;
+        }
+
+        hasStartedCameraRef.current = true;
+        setScannerMessage("Point your camera at the room QR code.");
+        setScannerMessageType("info");
+
         const codeReader = new BrowserQRCodeReader();
-        const controls = await codeReader.decodeFromConstraints(
-          {
-            audio: false,
-            video: {
-              facingMode: { ideal: "environment" },
-              width: { ideal: 1280 },
-              height: { ideal: 720 }
-            }
-          },
+        const controls = await codeReader.decodeFromStream(
+          mediaStream,
           videoRef.current,
           (result, error, scannerControls) => {
             controlsRef.current = scannerControls;
@@ -246,7 +264,7 @@ function QrScannerOverlay({
               return;
             }
 
-            if (error && !isExpectedScanMiss(error)) {
+            if (error && !isExpectedScanMiss(error) && !hasStartedCameraRef.current) {
               setScannerMessage(getCameraErrorMessage(error));
               setScannerMessageType("error");
             }
@@ -259,8 +277,6 @@ function QrScannerOverlay({
           return;
         }
 
-        setScannerMessage("Point your camera at the room QR code.");
-        setScannerMessageType("info");
       } catch (error) {
         if (!isActive) return;
         setScannerMessage(getCameraErrorMessage(error));

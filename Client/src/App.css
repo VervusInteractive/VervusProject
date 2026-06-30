@@ -3152,7 +3152,7 @@
 
 .room-qr-frame img {
   display: block;
-  width: min(126px, 62%);
+  width: min(220px, 72%);
   height: auto;
   border-radius: 4px;
   background: #ffffff;

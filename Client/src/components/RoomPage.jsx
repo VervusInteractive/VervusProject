@@ -79,7 +79,7 @@ function RoomPage({
 
   const clientUrl = import.meta.env.VITE_CLIENT_URL || window.location.origin;
   const roomInviteUrl = `${clientUrl}/?room=${encodeURIComponent(roomId)}`;
-  const roomInviteQrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&color=9F4DFF&bgcolor=FFFFFF&data=${encodeURIComponent(roomInviteUrl)}`;
+  const roomInviteQrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=420x420&color=111827&bgcolor=FFFFFF&data=${encodeURIComponent(roomInviteUrl)}`;
   const hostPlayer = players.find((player) => player.isHost) || players[0] || null;
   const hostDisplayName = hostPlayer?.name || content.fallbackHostName;
   const isHost = Boolean(currentPlayer?.isHost);

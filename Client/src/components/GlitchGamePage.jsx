@@ -25,6 +25,7 @@ const BLITZ_BACKGROUND_FRAME_SOURCES = [
   new URL("../assets/images/GlitchBackgrounds/BlitzBackgroundFrames/Background_Blitz_Frame9.png", import.meta.url).href,
   new URL("../assets/images/GlitchBackgrounds/BlitzBackgroundFrames/Background_Blitz_Frame10.png", import.meta.url).href
 ];
+const HEAT_SURGE_ICON_SOURCE = new URL("../assets/images/GameIcons/GameIcons_HeatSurge.png", import.meta.url).href;
 
 const GAME_ICON_IMAGES = {
   eye: { label: "Eye", src: new URL("../assets/images/GameIcons/Eye_Base.png", import.meta.url).href, aspect: "280 / 154", width: "78%" },
@@ -59,7 +60,8 @@ const GLITCH_BACKGROUND_IMAGE_SOURCES = [
 ];
 const GAME_IMAGE_SOURCES = Array.from(new Set([
   ...GAME_ICON_IMAGE_SOURCES,
-  ...GLITCH_BACKGROUND_IMAGE_SOURCES
+  ...GLITCH_BACKGROUND_IMAGE_SOURCES,
+  HEAT_SURGE_ICON_SOURCE
 ]));
 const imagePreloadCache = new Map();
 
@@ -402,6 +404,7 @@ function GlitchGamePage({ roomId, playerId, players, myGame, serverNow, onSubmit
   const previousSaveItStateRef = useRef(false);
   const [displayedIconToken, setDisplayedIconToken] = useState(currentRound?.yourStimulus ?? null);
   const [isRoundTransitionShaking, setIsRoundTransitionShaking] = useState(false);
+  const [isHeatSurgeIntroActive, setIsHeatSurgeIntroActive] = useState(false);
   const transitionTimeoutRef = useRef(null);
   const transitionStopTimeoutRef = useRef(null);
   const previousRoundIdRef = useRef(currentRound?.id ?? null);
@@ -410,6 +413,7 @@ function GlitchGamePage({ roomId, playerId, players, myGame, serverNow, onSubmit
   const previousRoundPassedRef = useRef(myGame?.lastRoundResult?.passed ?? null);
   const previousHeatSurgeActiveRef = useRef(currentRoundHeatSurgeActive);
   const heatSurgeReturnTimeoutRef = useRef(null);
+  const heatSurgeIntroTimeoutRef = useRef(null);
   const resultsTickTimeoutsRef = useRef([]);
   const hasStartedRunAudioRef = useRef(false);
 
@@ -462,6 +466,10 @@ function GlitchGamePage({ roomId, playerId, players, myGame, serverNow, onSubmit
     if (transitionStopTimeoutRef.current) {
       clearTimeout(transitionStopTimeoutRef.current);
       transitionStopTimeoutRef.current = null;
+    }
+    if (heatSurgeIntroTimeoutRef.current) {
+      clearTimeout(heatSurgeIntroTimeoutRef.current);
+      heatSurgeIntroTimeoutRef.current = null;
     }
   }, []);
 
@@ -587,14 +595,23 @@ function GlitchGamePage({ roomId, playerId, players, myGame, serverNow, onSubmit
       window.clearTimeout(heatSurgeReturnTimeoutRef.current);
       heatSurgeReturnTimeoutRef.current = null;
     }
+    if (heatSurgeIntroTimeoutRef.current) {
+      window.clearTimeout(heatSurgeIntroTimeoutRef.current);
+      heatSurgeIntroTimeoutRef.current = null;
+    }
 
     const heatSurgeParams = getHeatSurgeTensionParams(tensionBaseParams);
+    setIsHeatSurgeIntroActive(true);
     stopAllActiveAudio();
     playSound("heatSurgeWarning");
     startTensionLoop({
       ...heatSurgeParams,
       distortionIntensityLevel: tensionDistortionLevel
     });
+    heatSurgeIntroTimeoutRef.current = window.setTimeout(() => {
+      setIsHeatSurgeIntroActive(false);
+      heatSurgeIntroTimeoutRef.current = null;
+    }, 950);
 
     heatSurgeReturnTimeoutRef.current = window.setTimeout(() => {
       setTensionLoopParameters({
@@ -609,6 +626,10 @@ function GlitchGamePage({ roomId, playerId, players, myGame, serverNow, onSubmit
       if (heatSurgeReturnTimeoutRef.current) {
         window.clearTimeout(heatSurgeReturnTimeoutRef.current);
         heatSurgeReturnTimeoutRef.current = null;
+      }
+      if (heatSurgeIntroTimeoutRef.current) {
+        window.clearTimeout(heatSurgeIntroTimeoutRef.current);
+        heatSurgeIntroTimeoutRef.current = null;
       }
     };
   }, [currentRoundHeatSurgeActive, myGame?.status, tensionBaseParams, tensionDistortionLevel, tensionTargetParams]);
@@ -833,6 +854,7 @@ function GlitchGamePage({ roomId, playerId, players, myGame, serverNow, onSubmit
   const isLowTimeTheme = Boolean(!isSaveItActive && roundTimerMs > 0 && timerProgress <= 0.1);
   const isLastChanceTheme = Boolean(currentRound?.isLastChanceReplay || isSaveItActive);
   const isDangerTheme = Boolean(isLastChanceTheme || isHeatSurgeEnabled || isLowTimeTheme);
+  const showHeatSurgeIntro = Boolean(isBlitzMode && isHeatSurgeIntroActive && !isSaveItActive && myGame.status === "active");
   const comboIntensity = clamp01((Number(myGame.combo) || 0) / 40);
   const backgroundIntensity = isDangerTheme ? 1 : comboIntensity;
   const backgroundMotionDurationMs = Math.round(1700 - (backgroundIntensity * 1120));
@@ -862,6 +884,7 @@ function GlitchGamePage({ roomId, playerId, players, myGame, serverNow, onSubmit
     isLowTimeTheme ? "low-time-state" : "",
     currentRound?.isLastChanceReplay ? "last-chance-state" : "",
     isHeatSurgeEnabled ? "heat-surge-state" : "",
+    showHeatSurgeIntro ? "heat-surge-intro-state" : "",
     corruptionClasses
   ].filter(Boolean).join(" ");
   const timerElapsedDegrees = Math.round((1 - timerProgress) * 360);
@@ -958,6 +981,13 @@ function GlitchGamePage({ roomId, playerId, players, myGame, serverNow, onSubmit
           </div>
         </>
       )}
+
+      {showHeatSurgeIntro ? (
+        <div className="heat-surge-intro-overlay" role="status" aria-live="assertive">
+          <img className="heat-surge-intro-icon" src={HEAT_SURGE_ICON_SOURCE} alt="" aria-hidden="true" />
+          <span className="heat-surge-intro-label">Heat Surge</span>
+        </div>
+      ) : null}
 
       <footer className="glitch-game-footer">
         <div className="glitch-time-pill">{formatDigitalTime(displayTimeMs)}</div>

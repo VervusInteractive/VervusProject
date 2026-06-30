@@ -5982,6 +5982,14 @@
 .glitch-game-screen.blitz-mode {
   --game-noise: rgba(35, 104, 255, 0.36);
   --glitch-bg-layer-color: #1b65ff;
+  --game-ring-start: #66bbff;
+  --game-ring-end: #2d73ff;
+  --game-ring-track: rgba(14, 22, 35, 0.96);
+  --game-text-glow: rgba(74, 152, 255, 0.7);
+  --blitz-frame-base: #041140;
+  --blitz-frame-tint: rgba(17, 96, 255, 0.56);
+  --blitz-frame-bloom: rgba(135, 220, 255, 0.22);
+  --blitz-frame-filter: saturate(1.16) brightness(1.02);
   --glitch-bg-motion-opacity: 0.42;
   --glitch-bg-structure-opacity: 0.38;
   --glitch-bg-filter: saturate(1.08) brightness(1.03);
@@ -5992,9 +6000,13 @@
   width: var(--glitch-stage-width);
   background:
     linear-gradient(180deg, rgba(0, 5, 20, 0.12), rgba(0, 4, 18, 0.04) 44%, rgba(0, 5, 22, 0.18)),
+    radial-gradient(circle at 50% 56%, var(--blitz-frame-bloom), transparent 38%),
+    linear-gradient(180deg, var(--blitz-frame-tint), var(--blitz-frame-tint)),
     url("./assets/images/GlitchBackgrounds/BlitzBackgroundFrames/Background_Blitz_Frame1.png") center / cover no-repeat,
-    #041140;
+    var(--blitz-frame-base);
+  background-blend-mode: normal, screen, color, normal, normal;
   opacity: 1;
+  filter: var(--blitz-frame-filter);
   animation: blitz-background-frames 1400ms steps(1, end) infinite;
 }
 
@@ -6021,71 +6033,91 @@
   9.99% {
     background:
       linear-gradient(180deg, rgba(0, 5, 20, 0.12), rgba(0, 4, 18, 0.04) 44%, rgba(0, 5, 22, 0.18)),
+      radial-gradient(circle at 50% 56%, var(--blitz-frame-bloom), transparent 38%),
+      linear-gradient(180deg, var(--blitz-frame-tint), var(--blitz-frame-tint)),
       url("./assets/images/GlitchBackgrounds/BlitzBackgroundFrames/Background_Blitz_Frame1.png") center / cover no-repeat,
-      #041140;
+      var(--blitz-frame-base);
   }
   10%,
   19.99% {
     background:
       linear-gradient(180deg, rgba(0, 5, 20, 0.12), rgba(0, 4, 18, 0.04) 44%, rgba(0, 5, 22, 0.18)),
+      radial-gradient(circle at 50% 56%, var(--blitz-frame-bloom), transparent 38%),
+      linear-gradient(180deg, var(--blitz-frame-tint), var(--blitz-frame-tint)),
       url("./assets/images/GlitchBackgrounds/BlitzBackgroundFrames/Background_Blitz_Frame2.png") center / cover no-repeat,
-      #041140;
+      var(--blitz-frame-base);
   }
   20%,
   29.99% {
     background:
       linear-gradient(180deg, rgba(0, 5, 20, 0.12), rgba(0, 4, 18, 0.04) 44%, rgba(0, 5, 22, 0.18)),
+      radial-gradient(circle at 50% 56%, var(--blitz-frame-bloom), transparent 38%),
+      linear-gradient(180deg, var(--blitz-frame-tint), var(--blitz-frame-tint)),
       url("./assets/images/GlitchBackgrounds/BlitzBackgroundFrames/Background_Blitz_Frame3.png") center / cover no-repeat,
-      #041140;
+      var(--blitz-frame-base);
   }
   30%,
   39.99% {
     background:
       linear-gradient(180deg, rgba(0, 5, 20, 0.12), rgba(0, 4, 18, 0.04) 44%, rgba(0, 5, 22, 0.18)),
+      radial-gradient(circle at 50% 56%, var(--blitz-frame-bloom), transparent 38%),
+      linear-gradient(180deg, var(--blitz-frame-tint), var(--blitz-frame-tint)),
       url("./assets/images/GlitchBackgrounds/BlitzBackgroundFrames/Background_Blitz_Frame4.png") center / cover no-repeat,
-      #041140;
+      var(--blitz-frame-base);
   }
   40%,
   49.99% {
     background:
       linear-gradient(180deg, rgba(0, 5, 20, 0.12), rgba(0, 4, 18, 0.04) 44%, rgba(0, 5, 22, 0.18)),
+      radial-gradient(circle at 50% 56%, var(--blitz-frame-bloom), transparent 38%),
+      linear-gradient(180deg, var(--blitz-frame-tint), var(--blitz-frame-tint)),
       url("./assets/images/GlitchBackgrounds/BlitzBackgroundFrames/Background_Blitz_Frame5.png") center / cover no-repeat,
-      #041140;
+      var(--blitz-frame-base);
   }
   50%,
   59.99% {
     background:
       linear-gradient(180deg, rgba(0, 5, 20, 0.12), rgba(0, 4, 18, 0.04) 44%, rgba(0, 5, 22, 0.18)),
+      radial-gradient(circle at 50% 56%, var(--blitz-frame-bloom), transparent 38%),
+      linear-gradient(180deg, var(--blitz-frame-tint), var(--blitz-frame-tint)),
       url("./assets/images/GlitchBackgrounds/BlitzBackgroundFrames/Background_Blitz_Frame6.png") center / cover no-repeat,
-      #041140;
+      var(--blitz-frame-base);
   }
   60%,
   69.99% {
     background:
       linear-gradient(180deg, rgba(0, 5, 20, 0.12), rgba(0, 4, 18, 0.04) 44%, rgba(0, 5, 22, 0.18)),
+      radial-gradient(circle at 50% 56%, var(--blitz-frame-bloom), transparent 38%),
+      linear-gradient(180deg, var(--blitz-frame-tint), var(--blitz-frame-tint)),
       url("./assets/images/GlitchBackgrounds/BlitzBackgroundFrames/Background_Blitz_Frame7.png") center / cover no-repeat,
-      #041140;
+      var(--blitz-frame-base);
   }
   70%,
   79.99% {
     background:
       linear-gradient(180deg, rgba(0, 5, 20, 0.12), rgba(0, 4, 18, 0.04) 44%, rgba(0, 5, 22, 0.18)),
+      radial-gradient(circle at 50% 56%, var(--blitz-frame-bloom), transparent 38%),
+      linear-gradient(180deg, var(--blitz-frame-tint), var(--blitz-frame-tint)),
       url("./assets/images/GlitchBackgrounds/BlitzBackgroundFrames/Background_Blitz_Frame8.png") center / cover no-repeat,
-      #041140;
+      var(--blitz-frame-base);
   }
   80%,
   89.99% {
     background:
       linear-gradient(180deg, rgba(0, 5, 20, 0.12), rgba(0, 4, 18, 0.04) 44%, rgba(0, 5, 22, 0.18)),
+      radial-gradient(circle at 50% 56%, var(--blitz-frame-bloom), transparent 38%),
+      linear-gradient(180deg, var(--blitz-frame-tint), var(--blitz-frame-tint)),
       url("./assets/images/GlitchBackgrounds/BlitzBackgroundFrames/Background_Blitz_Frame9.png") center / cover no-repeat,
-      #041140;
+      var(--blitz-frame-base);
   }
   90%,
   100% {
     background:
       linear-gradient(180deg, rgba(0, 5, 20, 0.12), rgba(0, 4, 18, 0.04) 44%, rgba(0, 5, 22, 0.18)),
+      radial-gradient(circle at 50% 56%, var(--blitz-frame-bloom), transparent 38%),
+      linear-gradient(180deg, var(--blitz-frame-tint), var(--blitz-frame-tint)),
       url("./assets/images/GlitchBackgrounds/BlitzBackgroundFrames/Background_Blitz_Frame10.png") center / cover no-repeat,
-      #041140;
+      var(--blitz-frame-base);
   }
 }
 
@@ -6114,6 +6146,72 @@
   color: rgba(255, 255, 255, 0.78);
 }
 
+.glitch-game-screen.blitz-mode.low-time-state {
+  --game-noise: rgba(255, 84, 84, 0.42);
+  --glitch-bg-layer-color: #ff3028;
+  --game-ring-start: #ff5f47;
+  --game-ring-end: #ff2222;
+  --game-ring-track: rgba(18, 28, 42, 0.96);
+  --blitz-frame-base: #240204;
+  --blitz-frame-tint: rgba(146, 12, 18, 0.8);
+  --blitz-frame-bloom: rgba(255, 114, 72, 0.3);
+  --blitz-frame-filter: saturate(1.34) brightness(1.05);
+  --glitch-bg-filter: saturate(1.34) brightness(1.06);
+}
+
+.glitch-game-screen.blitz-mode.low-time-state .glitch-timer-ring {
+  box-shadow:
+    0 18px 30px rgba(0, 0, 0, 0.56),
+    0 0 0 1px rgba(255, 255, 255, 0.04),
+    0 0 20px rgba(255, 63, 39, 0.62),
+    0 0 32px rgba(255, 44, 34, 0.32);
+}
+
+.glitch-game-screen.blitz-mode.heat-surge-state,
+.glitch-game-screen.blitz-mode.heat-surge-intro-state {
+  --game-noise: rgba(255, 170, 74, 0.4);
+  --glitch-bg-layer-color: #ff8717;
+  --game-ring-start: #ff9e33;
+  --game-ring-end: #ff6308;
+  --game-ring-track: rgba(39, 13, 0, 0.9);
+  --game-text-glow: rgba(255, 185, 81, 0.74);
+  --blitz-frame-base: #4a1200;
+  --blitz-frame-tint: rgba(255, 117, 16, 0.88);
+  --blitz-frame-bloom: rgba(255, 245, 210, 0.58);
+  --blitz-frame-filter: saturate(1.54) brightness(1.12);
+  --glitch-bg-filter: saturate(1.42) brightness(1.1);
+}
+
+.glitch-game-screen.blitz-mode.heat-surge-state .glitch-combo-stack strong,
+.glitch-game-screen.blitz-mode.heat-surge-intro-state .glitch-combo-stack strong {
+  background: linear-gradient(180deg, #ffffff 8%, #fff4c5 100%);
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+}
+
+.glitch-game-screen.blitz-mode.heat-surge-state .glitch-combo-stack span,
+.glitch-game-screen.blitz-mode.heat-surge-intro-state .glitch-combo-stack span {
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.glitch-game-screen.blitz-mode.heat-surge-state .glitch-symbol-disc,
+.glitch-game-screen.blitz-mode.heat-surge-intro-state .glitch-symbol-disc {
+  background:
+    radial-gradient(circle at 50% 44%, rgba(255, 206, 102, 0.09), transparent 35%),
+    #190800;
+  box-shadow:
+    inset 0 0 0 1px rgba(70, 24, 0, 0.92),
+    0 0 18px rgba(255, 132, 28, 0.22);
+}
+
+.glitch-game-screen.blitz-mode.heat-surge-state .glitch-timer-ring::before,
+.glitch-game-screen.blitz-mode.heat-surge-intro-state .glitch-timer-ring::before {
+  background:
+    radial-gradient(circle at 50% 39%, rgba(255, 202, 109, 0.22), transparent 42%),
+    linear-gradient(180deg, #331101, #180700 72%, #0b0300);
+}
+
 .glitch-game-screen.blitz-mode.danger {
   --game-noise: rgba(255, 31, 31, 0.36);
   --glitch-bg-primary: #100100;
@@ -6137,6 +6235,79 @@
     linear-gradient(88deg, transparent 0 65%, var(--game-noise) 65.5% 68%, transparent 69%),
     repeating-linear-gradient(180deg, transparent 0 42px, rgba(255, 255, 255, 0.08) 43px 44px, transparent 45px 74px);
   opacity: 0.16;
+}
+
+.glitch-game-screen.blitz-mode.danger.low-time-state {
+  --glitch-bg-primary: #140102;
+  --glitch-bg-secondary: #3a0508;
+  --glitch-bg-motion-mask: var(--glitch-bg-streaks-layer);
+}
+
+.glitch-game-screen.blitz-mode.danger.heat-surge-state,
+.glitch-game-screen.blitz-mode.danger.heat-surge-intro-state {
+  --glitch-bg-primary: #301000;
+  --glitch-bg-secondary: #6f1d00;
+  --glitch-bg-motion-mask: var(--glitch-bg-streaks-layer), var(--glitch-bg-burst-layer);
+}
+
+.glitch-game-screen.blitz-mode.danger.heat-surge-state::after,
+.glitch-game-screen.blitz-mode.danger.heat-surge-intro-state::after {
+  background:
+    linear-gradient(92deg, transparent 0 14%, rgba(255, 196, 118, 0.26) 14.4% 15.4%, transparent 16% 100%),
+    linear-gradient(88deg, transparent 0 65%, rgba(255, 134, 55, 0.24) 65.5% 68%, transparent 69%),
+    repeating-linear-gradient(180deg, transparent 0 42px, rgba(255, 255, 255, 0.09) 43px 44px, transparent 45px 74px);
+  opacity: 0.18;
+}
+
+.heat-surge-intro-overlay {
+  position: absolute;
+  left: 50%;
+  top: 44%;
+  z-index: 2;
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  width: min(72vw, 240px);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  animation: heat-surge-intro-flash 950ms ease-out forwards;
+}
+
+.heat-surge-intro-icon {
+  display: block;
+  width: 100%;
+  max-width: 228px;
+  filter:
+    drop-shadow(0 0 18px rgba(255, 129, 28, 0.82))
+    drop-shadow(0 0 34px rgba(255, 255, 255, 0.34));
+}
+
+.heat-surge-intro-label {
+  color: rgba(255, 244, 214, 0.96);
+  font-size: 0.8rem;
+  font-weight: 900;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  text-shadow: 0 0 16px rgba(255, 145, 0, 0.8);
+}
+
+@keyframes heat-surge-intro-flash {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -46%) scale(0.9);
+  }
+  14% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  72% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.02);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -54%) scale(1.06);
+  }
 }
 
 .save-it-splash {

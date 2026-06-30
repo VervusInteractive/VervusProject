@@ -5498,7 +5498,11 @@
   --glitch-bg-shift-y-neg: -1px;
   --glitch-bg-motion-peak-opacity: 0.58;
   width: 100vw;
+  height: 100vh;
+  height: 100svh;
+  height: 100dvh;
   min-height: 100vh;
+  min-height: 100svh;
   min-height: 100dvh;
   position: fixed;
   inset: 0;
@@ -5515,6 +5519,10 @@
   background: #02030a;
   color: #ffffff;
   isolation: isolate;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 .glitch-game-screen.danger {
@@ -6173,6 +6181,49 @@
 
   .glitch-answer-button {
     min-height: 46px;
+  }
+}
+
+@media (max-width: 480px) and (max-height: 760px) {
+  .glitch-game-screen {
+    padding-inline: max(16px, calc((100vw - 430px) / 2 + 16px));
+  }
+
+  .glitch-game-heading {
+    margin-top: clamp(28px, 6vh, 56px);
+  }
+
+  .glitch-combo-stack {
+    margin-top: clamp(6px, 1.4vh, 12px);
+  }
+
+  .glitch-combo-stack strong {
+    font-size: clamp(3rem, 15vw, 4.25rem);
+  }
+
+  .glitch-timer-stage {
+    margin-top: clamp(12px, 2.4vh, 22px);
+  }
+
+  .glitch-timer-ring {
+    width: clamp(196px, 62vw, 260px);
+  }
+
+  .glitch-vote-strip {
+    margin-top: 8px;
+  }
+
+  .glitch-game-footer {
+    gap: clamp(10px, 1.8vh, 16px);
+    padding-bottom: max(8px, env(safe-area-inset-bottom));
+  }
+
+  .glitch-answer-row {
+    gap: 10px;
+  }
+
+  .glitch-answer-button {
+    min-height: clamp(64px, 10vh, 84px);
   }
 }
 

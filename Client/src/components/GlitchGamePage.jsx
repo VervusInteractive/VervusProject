@@ -611,7 +611,7 @@ function GlitchGamePage({ roomId, playerId, players, myGame, serverNow, onSubmit
     heatSurgeIntroTimeoutRef.current = window.setTimeout(() => {
       setIsHeatSurgeIntroActive(false);
       heatSurgeIntroTimeoutRef.current = null;
-    }, 950);
+    }, 500);
 
     heatSurgeReturnTimeoutRef.current = window.setTimeout(() => {
       setTensionLoopParameters({
@@ -883,7 +883,7 @@ function GlitchGamePage({ roomId, playerId, players, myGame, serverNow, onSubmit
     isSaveItActive ? "save-it-state" : "",
     isLowTimeTheme ? "low-time-state" : "",
     currentRound?.isLastChanceReplay ? "last-chance-state" : "",
-    isHeatSurgeEnabled ? "heat-surge-state" : "",
+    isHeatSurgeEnabled && !showHeatSurgeIntro ? "heat-surge-state" : "",
     showHeatSurgeIntro ? "heat-surge-intro-state" : "",
     corruptionClasses
   ].filter(Boolean).join(" ");
@@ -906,6 +906,32 @@ function GlitchGamePage({ roomId, playerId, players, myGame, serverNow, onSubmit
     && !isSaveItActive
     && connectionState !== CONNECTION_STATES.DISCONNECTED
     && connectionState !== CONNECTION_STATES.RECONNECTING;
+
+  if (showHeatSurgeIntro) {
+    return (
+      <section className={gameScreenClassName} style={gameScreenStyle}>
+        <span className="glitch-background-layers" aria-hidden="true" />
+
+        {connectionState !== CONNECTION_STATES.CONNECTED ? (
+          <div className="glitch-connection-slot">{connectionBanner}</div>
+        ) : null}
+
+        <header className="glitch-game-heading">
+          <h1>GLiTCH!</h1>
+          <p>{modeSubtitle}</p>
+          {isPreviewRoom ? <span>Preview ends at {myGame.previewComboLimit ?? "X"} combo</span> : null}
+        </header>
+
+        <main className="heat-surge-warning-stage" role="status" aria-live="assertive">
+          <img className="heat-surge-warning-icon" src={HEAT_SURGE_ICON_SOURCE} alt="Heat Surge" />
+        </main>
+
+        <footer className="glitch-game-footer">
+          <div className="glitch-time-pill">{formatDigitalTime(displayTimeMs)}</div>
+        </footer>
+      </section>
+    );
+  }
 
   return (
     <section className={gameScreenClassName} style={gameScreenStyle}>
@@ -981,13 +1007,6 @@ function GlitchGamePage({ roomId, playerId, players, myGame, serverNow, onSubmit
           </div>
         </>
       )}
-
-      {showHeatSurgeIntro ? (
-        <div className="heat-surge-intro-overlay" role="status" aria-live="assertive">
-          <img className="heat-surge-intro-icon" src={HEAT_SURGE_ICON_SOURCE} alt="" aria-hidden="true" />
-          <span className="heat-surge-intro-label">Heat Surge</span>
-        </div>
-      ) : null}
 
       <footer className="glitch-game-footer">
         <div className="glitch-time-pill">{formatDigitalTime(displayTimeMs)}</div>

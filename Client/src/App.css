@@ -6259,54 +6259,40 @@
   opacity: 0.18;
 }
 
-.heat-surge-intro-overlay {
-  position: absolute;
-  left: 50%;
-  top: 44%;
-  z-index: 2;
+.heat-surge-warning-stage {
+  flex: 1;
   display: grid;
-  justify-items: center;
-  gap: 10px;
-  width: min(72vw, 240px);
-  transform: translate(-50%, -50%);
-  pointer-events: none;
-  animation: heat-surge-intro-flash 950ms ease-out forwards;
+  place-items: center;
+  min-height: 0;
+  padding: 24px 0 12px;
 }
 
-.heat-surge-intro-icon {
+.heat-surge-warning-icon {
   display: block;
-  width: 100%;
-  max-width: 228px;
+  width: min(76vw, 320px);
+  max-width: 320px;
   filter:
-    drop-shadow(0 0 18px rgba(255, 129, 28, 0.82))
-    drop-shadow(0 0 34px rgba(255, 255, 255, 0.34));
+    drop-shadow(0 0 24px rgba(255, 129, 28, 0.92))
+    drop-shadow(0 0 42px rgba(255, 255, 255, 0.4));
+  animation: heat-surge-warning-pulse 500ms ease-out both;
 }
 
-.heat-surge-intro-label {
-  color: rgba(255, 244, 214, 0.96);
-  font-size: 0.8rem;
-  font-weight: 900;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  text-shadow: 0 0 16px rgba(255, 145, 0, 0.8);
-}
-
-@keyframes heat-surge-intro-flash {
+@keyframes heat-surge-warning-pulse {
   0% {
     opacity: 0;
-    transform: translate(-50%, -46%) scale(0.9);
+    transform: scale(0.92);
   }
-  14% {
+  18% {
     opacity: 1;
-    transform: translate(-50%, -50%) scale(1);
+    transform: scale(1);
   }
-  72% {
+  78% {
     opacity: 1;
-    transform: translate(-50%, -50%) scale(1.02);
+    transform: scale(1.015);
   }
   100% {
     opacity: 0;
-    transform: translate(-50%, -54%) scale(1.06);
+    transform: scale(1.04);
   }
 }
 

@@ -3,6 +3,13 @@ import { adminApiUrl } from "../config";
 import { DataTable } from "./DashboardWidgets";
 import { emptyProductForm, normalizeCurrencyCode, normalizeProductForm, normalizeProductKey } from "../data/modeConfig";
 
+function parseDescriptionPoints(value) {
+  return String(value || "")
+    .split("\n")
+    .map((point) => point.trim())
+    .filter(Boolean);
+}
+
 function ProductsPanel({ adminActor, adminKey }) {
   const [products, setProducts] = useState([]);
   const [availableModes, setAvailableModes] = useState([]);
@@ -125,6 +132,7 @@ function ProductsPanel({ adminActor, adminKey }) {
     `${product.currencyCode} ${(Number(product.priceCents || 0) / 100).toFixed(2)}`,
     `${product.validityDurationHours}h`,
     product.status,
+    (product.descriptionPoints || []).join(" / ") || "-",
     (product.modes || []).map((mode) => mode.displayName || mode.modeKey).join(", ") || "-"
   ]);
 
@@ -197,6 +205,15 @@ function ProductsPanel({ adminActor, adminKey }) {
               <span>Stripe price id</span>
               <input value={productForm.stripePriceId} onChange={(event) => updateField("stripePriceId", event.target.value)} placeholder="Optional" />
             </label>
+            <label>
+              <span>Description points</span>
+              <textarea
+                rows={5}
+                value={(productForm.descriptionPoints || []).join("\n")}
+                onChange={(event) => updateField("descriptionPoints", parseDescriptionPoints(event.target.value))}
+                placeholder={"All experiences included\nAll modes unlocked\nUnlimited runs - 24 hours"}
+              />
+            </label>
 
             <div className="advanced-config-panel product-mode-panel">
               <div className="advanced-config-header">
@@ -228,7 +245,7 @@ function ProductsPanel({ adminActor, adminKey }) {
 
       <DataTable
         title="Current products"
-        columns={["Product", "Key", "Price", "Validity", "Status", "Included modes"]}
+        columns={["Product", "Key", "Price", "Validity", "Status", "Description points", "Included modes"]}
         rows={productRows}
       />
     </>

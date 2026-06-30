@@ -24,6 +24,7 @@ import {
   unlockAudioEngine
 } from "./audioEngine";
 import warningIcon from "./assets/images/VervusIcons/Icons_Warning.png";
+import clearBackgroundLogo from "./assets/images/Logos/Logo_ClearBackground.svg";
 
 const serverUrl = import.meta.env.VITE_SERVER_URL;
 if (!serverUrl) {
@@ -241,6 +242,202 @@ const playSuccessPurchaseSound = () => playSoundWithUnlockRetry("purchaseSuccess
 const playFailedPurchaseSound = () => playSoundWithUnlockRetry("purchaseFailed");
 const createFallbackPlayerName = () => `Player-${Math.floor(1000 + Math.random() * 9000)}`;
 
+function formatProductPrice(product) {
+  const currencyCode = String(product?.currencyCode || "EUR").toUpperCase();
+  const amount = (Number(product?.priceCents) || 0) / 100;
+
+  try {
+    return new Intl.NumberFormat(undefined, {
+      style: "currency",
+      currency: currencyCode
+    }).format(amount);
+  } catch {
+    return `${currencyCode} ${amount.toFixed(2)}`;
+  }
+}
+
+function formatProductAccess(product) {
+  const hours = Math.max(1, Number(product?.validityDurationHours) || 24);
+  return `${hours} ${hours === 1 ? "hour" : "hours"}`;
+}
+
+function getProductModeCount(product) {
+  return Array.isArray(product?.modes) ? product.modes.length : 0;
+}
+
+function getStoreProductLabel(product, allModeCount) {
+  const modeCount = getProductModeCount(product);
+  if (modeCount > 0 && allModeCount > 0 && modeCount >= allModeCount) {
+    return "All experiences";
+  }
+  if (modeCount > 0) {
+    return `${modeCount} ${modeCount === 1 ? "experience" : "experiences"}`;
+  }
+  return product?.productName || "Experience";
+}
+
+function getStoreProductDescriptionPoints(product) {
+  if (Array.isArray(product?.descriptionPoints) && product.descriptionPoints.length > 0) {
+    return product.descriptionPoints;
+  }
+  const fallbackDescription = String(product?.description || "").trim();
+  return fallbackDescription ? [fallbackDescription] : [];
+}
+
+function StoreCheckoutModal({
+  products,
+  selectedProduct,
+  selectedProductKey,
+  allModeCount,
+  isLoading,
+  error,
+  hasAcceptedTerms,
+  isCheckoutStarting,
+  actionsLocked,
+  onSelectProduct,
+  onAcceptTermsChange,
+  onPay,
+  onCancel,
+  onRetry
+}) {
+  const hasProducts = products.length > 0;
+  const selectedPrice = selectedProduct ? formatProductPrice(selectedProduct) : "-";
+  const selectedAccess = selectedProduct ? formatProductAccess(selectedProduct) : "-";
+  const selectedPoints = getStoreProductDescriptionPoints(selectedProduct);
+  const canPay = Boolean(selectedProduct && hasAcceptedTerms && !isCheckoutStarting && !actionsLocked);
+  const selectedModeCount = getProductModeCount(selectedProduct);
+  const checkoutHeading = selectedProduct && selectedModeCount > 0 && allModeCount > 0 && selectedModeCount >= allModeCount
+    ? `All experiences. All modes. ${selectedAccess}.`
+    : `${selectedProduct ? getStoreProductLabel(selectedProduct, allModeCount) : "All experiences"}. ${selectedAccess === "-" ? "24 hours" : selectedAccess}.`;
+
+  return (
+    <div className="store-checkout-backdrop" onClick={onCancel}>
+      <section
+        className="store-checkout-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="store-checkout-title"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <header className="store-checkout-header">
+          <img src={clearBackgroundLogo} alt="Vervus" />
+          <span aria-hidden="true" />
+        </header>
+
+        <div className="store-checkout-content">
+          <div className="store-checkout-title-block">
+            <p>Checkout</p>
+            <h2 id="store-checkout-title">{checkoutHeading}</h2>
+            <span>Room stays open while you pay.</span>
+          </div>
+
+          {isLoading ? (
+            <div className="store-checkout-message" role="status">Loading experiences...</div>
+          ) : null}
+
+          {!isLoading && error ? (
+            <div className="store-checkout-message error" role="alert">
+              <p>{error}</p>
+              <button type="button" onClick={onRetry}>Retry</button>
+            </div>
+          ) : null}
+
+          {!isLoading && !error && !hasProducts ? (
+            <div className="store-checkout-message" role="status">No experiences are available right now.</div>
+          ) : null}
+
+          {hasProducts ? (
+            <>
+              <div className="store-experience-options" aria-label="Experience options">
+                {products.map((product) => {
+                  const isActive = product.productKey === selectedProductKey;
+                  return (
+                    <button
+                      type="button"
+                      key={product.productKey}
+                      className={`store-experience-option${isActive ? " active" : ""}`}
+                      onClick={() => onSelectProduct(product.productKey)}
+                      aria-pressed={isActive}
+                    >
+                      <span>{getStoreProductLabel(product, allModeCount)}</span>
+                      <strong>{formatProductPrice(product)}</strong>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <article className="store-selected-product-card">
+                <h3>{selectedProduct?.productName || "Unlock Vervus"}</h3>
+                <strong>{selectedPrice}</strong>
+                <div className="store-card-divider" />
+                {selectedPoints.length > 0 ? (
+                  <ul>
+                    {selectedPoints.map((point) => (
+                      <li key={point}>
+                        <span aria-hidden="true" />
+                        {point}
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+              </article>
+
+              <div className="store-order-summary">
+                <div>
+                  <span>{selectedProduct?.productName || "Unlock Vervus"}</span>
+                  <strong>{selectedPrice}</strong>
+                </div>
+                <div>
+                  <span>Access</span>
+                  <strong>{selectedAccess}</strong>
+                </div>
+                <div className="store-card-divider" />
+                <div className="total">
+                  <span>Total</span>
+                  <strong>{selectedPrice}</strong>
+                </div>
+              </div>
+
+              <label className="store-terms-checkbox">
+                <input
+                  type="checkbox"
+                  checked={hasAcceptedTerms}
+                  onChange={(event) => onAcceptTermsChange(event.target.checked)}
+                />
+                <span>
+                  I agree to the <span className="store-inline-link">Terms of Service</span> and{" "}
+                  <span className="store-inline-link">Privacy Policy</span>, and understand that digital access starts immediately after purchase and that my right of withdrawal no longer applies.
+                </span>
+              </label>
+
+              <div className="store-pay-divider">
+                <span />
+                <p>Pay another way</p>
+                <span />
+              </div>
+
+              <button
+                type="button"
+                className="store-pay-button"
+                disabled={!canPay}
+                onClick={() => onPay(selectedProduct.productKey)}
+              >
+                {isCheckoutStarting ? "Starting checkout..." : `Pay ${selectedPrice}`}
+              </button>
+
+              <button type="button" className="store-cancel-button" onClick={onCancel}>
+                Cancel
+              </button>
+
+              <p className="store-secure-note"><span aria-hidden="true" />Secure payment via Stripe</p>
+            </>
+          ) : null}
+        </div>
+      </section>
+    </div>
+  );
+}
+
 function App() {
   const [name, setName] = useState(() => localStorage.getItem("playerName") || "");
   const [roomIdInput, setRoomIdInput] = useState(initialRoomFromQuery);
@@ -250,6 +447,12 @@ function App() {
   const [profileEntitledModeKeys, setProfileEntitledModeKeys] = useState([]);
   const [profileEntitledModeExpiriesMs, setProfileEntitledModeExpiriesMs] = useState({});
   const [showStore, setShowStore] = useState(false);
+  const [storeProducts, setStoreProducts] = useState([]);
+  const [selectedStoreProductKey, setSelectedStoreProductKey] = useState("");
+  const [storeError, setStoreError] = useState("");
+  const [isStoreLoading, setIsStoreLoading] = useState(false);
+  const [hasAcceptedStoreTerms, setHasAcceptedStoreTerms] = useState(false);
+  const [isCheckoutStarting, setIsCheckoutStarting] = useState(false);
   const [purchaseOverlayStatus, setPurchaseOverlayStatus] = useState(null);
   const [removedFromRoomNotice, setRemovedFromRoomNotice] = useState(null);
   const [isSoloChaosLabOpen, setIsSoloChaosLabOpen] = useState(false);
@@ -1049,8 +1252,63 @@ function App() {
     }
   }), [emitIfConnected]);
 
+  const loadStoreProducts = useCallback(() => {
+    setIsStoreLoading(true);
+    setStoreError("");
 
-  const purchaseProduct = (productKey = "glitch_party_pack") => {
+    fetch(`${serverUrl}/api/products`, {
+      credentials: "include",
+      headers: buildProfileSessionHeaders()
+    })
+      .then(async (response) => {
+        const payload = await response.json();
+        if (!response.ok) {
+          throw new Error(payload?.error || "Failed to load experiences");
+        }
+
+        const activeProducts = Array.isArray(payload.products) ? payload.products : [];
+        setStoreProducts(activeProducts);
+        setSelectedStoreProductKey((currentKey) => {
+          if (currentKey && activeProducts.some((product) => product.productKey === currentKey)) {
+            return currentKey;
+          }
+
+          const defaultProduct = activeProducts.reduce((best, product) => {
+            if (!best) return product;
+            const modeDelta = getProductModeCount(product) - getProductModeCount(best);
+            if (modeDelta !== 0) return modeDelta > 0 ? product : best;
+            return (Number(product.displayOrder) || 0) > (Number(best.displayOrder) || 0) ? product : best;
+          }, null);
+
+          return defaultProduct?.productKey || "";
+        });
+      })
+      .catch((error) => {
+        setStoreError(error.message || "Failed to load experiences");
+      })
+      .finally(() => {
+        setIsStoreLoading(false);
+      });
+  }, []);
+
+  useEffect(() => {
+    if (!showStore || storeProducts.length || isStoreLoading) return;
+    loadStoreProducts();
+  }, [isStoreLoading, loadStoreProducts, showStore, storeProducts.length]);
+
+  const selectedStoreProduct = useMemo(
+    () => storeProducts.find((product) => product.productKey === selectedStoreProductKey) || storeProducts[0] || null,
+    [selectedStoreProductKey, storeProducts]
+  );
+
+  const storeProductModeCount = useMemo(
+    () => storeProducts.reduce((maxCount, product) => Math.max(maxCount, getProductModeCount(product)), 0),
+    [storeProducts]
+  );
+
+  const purchaseProduct = (productKey = selectedStoreProduct?.productKey || "glitch_party_pack") => {
+    setIsCheckoutStarting(true);
+
     const startCheckout = () => {
       fetch(`${serverUrl}/api/stripe/checkout-session`, {
         method: "POST",
@@ -1075,6 +1333,9 @@ function App() {
         .catch((error) => {
           alert(error.message || "Failed to start checkout");
           setShowStore(false);
+        })
+        .finally(() => {
+          setIsCheckoutStarting(false);
         });
     };
 
@@ -1083,15 +1344,21 @@ function App() {
       return;
     }
 
-    emitIfConnected("entitlement:purchase:start", { roomId, playerId, productKey }, (response) => {
+    const didEmitPurchaseStart = emitIfConnected("entitlement:purchase:start", { roomId, playerId, productKey }, (response) => {
       if (response?.error) {
         alert(response.error);
+        setIsCheckoutStarting(false);
         return;
       }
 
       startCheckout();
       return;
     });
+
+    if (!didEmitPurchaseStart) {
+      alert("Connect to the server before starting checkout.");
+      setIsCheckoutStarting(false);
+    }
   };
 
   const returnToRoom = () => {
@@ -1105,8 +1372,12 @@ function App() {
       metadata: { placement }
     });
     playSoundWithUnlockRetry("sheetOpen");
+    setHasAcceptedStoreTerms(false);
     setShowStore(true);
-  }, [roomId]);
+    if (!storeProducts.length && !isStoreLoading) {
+      loadStoreProducts();
+    }
+  }, [isStoreLoading, loadStoreProducts, roomId, storeProducts.length]);
 
   const debugLobbyModeIds = useMemo(
     () => lobbyModeOptions.map((mode) => mode.id).filter(Boolean),
@@ -1319,19 +1590,22 @@ function App() {
         />
       )}
       {showStore ? (
-        <div className="qr-modal-backdrop" onClick={() => setShowStore(false)}>
-          <div className="qr-modal" onClick={(event) => event.stopPropagation()}>
-            <h2 className="qr-modal-title">Store</h2>
-            <p className="panel-subtitle">Buy a single mode or the Party Pack bundle.</p>
-            <div className="store-action-list">
-              <button className="btn btn-secondary" disabled={actionsLocked} onClick={() => purchaseProduct("glitch_standard_mode")}>Buy GLiTCH! Mode</button>
-              <button className="btn btn-secondary" disabled={actionsLocked} onClick={() => purchaseProduct("glitch_chaos_mode")}>Buy Chaos Mode</button>
-              <button className="btn btn-secondary" disabled={actionsLocked} onClick={() => purchaseProduct("glitch_blitz_mode")}>Buy Blitz Mode</button>
-              <button className="btn btn-primary" disabled={actionsLocked} onClick={() => purchaseProduct("glitch_party_pack")}>Buy Party Pack</button>
-            </div>
-            <button className="btn btn-primary store-close-btn" onClick={() => setShowStore(false)}>Close</button>
-          </div>
-        </div>
+        <StoreCheckoutModal
+          products={storeProducts}
+          selectedProduct={selectedStoreProduct}
+          selectedProductKey={selectedStoreProductKey}
+          allModeCount={storeProductModeCount}
+          isLoading={isStoreLoading}
+          error={storeError}
+          hasAcceptedTerms={hasAcceptedStoreTerms}
+          isCheckoutStarting={isCheckoutStarting}
+          actionsLocked={actionsLocked}
+          onSelectProduct={setSelectedStoreProductKey}
+          onAcceptTermsChange={setHasAcceptedStoreTerms}
+          onPay={purchaseProduct}
+          onCancel={() => setShowStore(false)}
+          onRetry={loadStoreProducts}
+        />
       ) : null}
       {purchaseOverlayStatus ? (
         <div className="purchase-result-overlay" role="status" aria-live="polite">

@@ -14,6 +14,7 @@ const {
   getPlayerProfileIdBySessionToken,
   consumeEntitlementTransferToken,
   getProductByKey,
+  listActiveProducts,
   createPendingPurchase,
   attachStripeSessionToPurchase,
   completePurchaseAndGrantEntitlementByStripeSession,
@@ -508,6 +509,16 @@ app.get("/api/game-modes", publicEndpointLimiter, async (req, res) => {
   } catch (error) {
     logErrorEntry({ source: "game-modes:list", message: error.message || "Failed to load game modes", stackTrace: error.stack }).catch(() => {});
     res.status(500).json({ error: "Failed to load game modes", modes: getGameModesFallback() });
+  }
+});
+
+app.get("/api/products", publicEndpointLimiter, async (req, res) => {
+  try {
+    const products = await listActiveProducts();
+    res.status(200).json({ products });
+  } catch (error) {
+    logErrorEntry({ source: "products:list", message: error.message || "Failed to load products", stackTrace: error.stack }).catch(() => {});
+    res.status(500).json({ error: "Failed to load products", products: [] });
   }
 });
 

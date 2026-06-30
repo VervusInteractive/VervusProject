@@ -31,6 +31,7 @@ const emptyProductForm = {
   validityDurationHours: 24,
   status: "active",
   stripePriceId: "",
+  descriptionPoints: [],
   displayOrder: 0,
   modeKeys: []
 };
@@ -62,6 +63,7 @@ function normalizeProductForm(product = emptyProductForm) {
     validityDurationHours: product.validityDurationHours ?? 24,
     status: product.status || "active",
     stripePriceId: product.stripePriceId || "",
+    descriptionPoints: Array.isArray(product.descriptionPoints) ? product.descriptionPoints : [],
     displayOrder: product.displayOrder ?? 0,
     modeKeys: Array.isArray(product.modeKeys)
       ? product.modeKeys

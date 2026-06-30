@@ -10,6 +10,55 @@ const localDbShimState = {
   profileSessionsByHash: new Map()
 };
 
+const localDbShimProducts = [
+  {
+    id: "10000000-0000-0000-0000-000000000001",
+    product_key: "glitch_standard_mode",
+    product_name: "GLiTCH! Mode",
+    description: "",
+    description_points: ["GLiTCH! included", "Unlimited runs for 24 hours", "Everyone else joins free"],
+    price_cents: 399,
+    currency_code: "EUR",
+    validity_duration_hours: 24,
+    display_order: 10,
+    stripe_price_id: null,
+    modes: [{ modeKey: "standard", displayName: "GLiTCH!" }]
+  },
+  {
+    id: "10000000-0000-0000-0000-000000000002",
+    product_key: "glitch_two_modes",
+    product_name: "Two Experiences",
+    description: "",
+    description_points: ["Two experiences included", "Unlimited runs for 24 hours", "Everyone else joins free"],
+    price_cents: 599,
+    currency_code: "EUR",
+    validity_duration_hours: 24,
+    display_order: 20,
+    stripe_price_id: null,
+    modes: [
+      { modeKey: "standard", displayName: "GLiTCH!" },
+      { modeKey: "chaos", displayName: "GLiTCH! Chaos" }
+    ]
+  },
+  {
+    id: "10000000-0000-0000-0000-000000000003",
+    product_key: "glitch_party_pack",
+    product_name: "Unlock Vervus",
+    description: "",
+    description_points: ["All experiences included", "All modes unlocked", "Unlimited runs - 24 hours", "Everyone else joins free"],
+    price_cents: 699,
+    currency_code: "EUR",
+    validity_duration_hours: 24,
+    display_order: 30,
+    stripe_price_id: null,
+    modes: [
+      { modeKey: "standard", displayName: "GLiTCH!" },
+      { modeKey: "chaos", displayName: "GLiTCH! Chaos" },
+      { modeKey: "blitz", displayName: "GLiTCH! Blitz" }
+    ]
+  }
+];
+
 function createLocalDbShimPool() {
   console.warn("[local-db-shim] Running without PostgreSQL. Persistence, analytics, and payment records are in-memory only.");
 
@@ -82,6 +131,16 @@ function createLocalDbShimPool() {
 
     if (normalizedSql.includes("select") && normalizedSql.includes("player_profile_entitlements")) {
       return { rows: [], rowCount: 0 };
+    }
+
+    if (normalizedSql.includes("select") && normalizedSql.includes("from vervus_data.products p") && normalizedSql.includes("p.description_points")) {
+      return { rows: localDbShimProducts, rowCount: localDbShimProducts.length };
+    }
+
+    if (normalizedSql.includes("select") && normalizedSql.includes("from vervus_data.products") && normalizedSql.includes("where product_key")) {
+      const productKey = params[0];
+      const rows = localDbShimProducts.filter((product) => product.product_key === productKey);
+      return { rows, rowCount: rows.length };
     }
 
     if (normalizedSql.includes("returning id, started_at")) {
@@ -408,6 +467,20 @@ async function consumeEntitlementTransferToken({ token, targetProfileId, display
   }
 }
 
+function normalizeProductDescriptionPoints(value) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((point) => String(point || "").trim())
+    .filter(Boolean)
+    .slice(0, 12);
+}
+
+async function ensureProductStoreColumns() {
+  await pool.query(`ALTER TABLE IF EXISTS vervus_data.products
+    ADD COLUMN IF NOT EXISTS description TEXT NULL,
+    ADD COLUMN IF NOT EXISTS description_points JSONB NOT NULL DEFAULT '[]'::jsonb;`);
+}
+
 async function getProductByKey(productKey = 'glitch_party_pack') {
   const { rows } = await pool.query(
     `SELECT id, product_key, product_name, price_cents, currency_code, validity_duration_hours, stripe_price_id
@@ -417,6 +490,56 @@ async function getProductByKey(productKey = 'glitch_party_pack') {
     [productKey]
   );
   return rows[0] || null;
+}
+
+async function listActiveProducts() {
+  await ensureProductStoreColumns();
+  const { rows } = await pool.query(
+    `SELECT p.id,
+            p.product_key,
+            p.product_name,
+            p.description,
+            p.description_points,
+            p.price_cents,
+            p.currency_code,
+            p.validity_duration_hours,
+            p.display_order,
+            COALESCE(
+              jsonb_agg(
+                DISTINCT jsonb_build_object(
+                  'modeKey', gm.mode_key,
+                  'displayName', gm.display_name
+                )
+              ) FILTER (WHERE gm.id IS NOT NULL),
+              '[]'::jsonb
+            ) AS modes
+     FROM vervus_data.products p
+     LEFT JOIN vervus_data.product_modes pm ON pm.product_id = p.id
+     LEFT JOIN vervus_data.game_modes gm ON gm.id = pm.mode_id
+     WHERE p.status = 'active'::vervus_data.product_status
+     GROUP BY p.id
+     ORDER BY p.display_order ASC, p.product_name ASC`
+  );
+
+  return rows.map((row) => ({
+    id: row.id,
+    productKey: row.product_key,
+    productName: row.product_name,
+    description: row.description || "",
+    descriptionPoints: normalizeProductDescriptionPoints(row.description_points),
+    priceCents: Number(row.price_cents) || 0,
+    currencyCode: row.currency_code || "EUR",
+    validityDurationHours: Number(row.validity_duration_hours) || 24,
+    displayOrder: Number(row.display_order) || 0,
+    modes: Array.isArray(row.modes)
+      ? row.modes
+        .filter((mode) => mode?.modeKey)
+        .map((mode) => ({
+          modeKey: mode.modeKey,
+          displayName: mode.displayName || mode.modeKey
+        }))
+      : []
+  }));
 }
 async function createPendingPurchase({ playerId, productId, amountCents, currencyCode }) {
   const { rows } = await pool.query(
@@ -931,4 +1054,4 @@ async function deletePlayerRecord(playerId) { await pool.query('DELETE FROM verv
 async function updateRoomStatus({ roomCode, status, metadata = {} }) { await ensureRoomTrackingTables(); await pool.query(`UPDATE vervus_data.rooms SET status = $2::vervus_data.room_status, started_at = CASE WHEN $2 IN ('preview', 'premium', 'active') THEN COALESCE(started_at, now()) ELSE started_at END, ended_at = CASE WHEN $2 IN ('ended', 'expired') THEN now() ELSE ended_at END, metadata = COALESCE(metadata, '{}'::jsonb) || $3::jsonb WHERE room_code = $1`, [roomCode, status, JSON.stringify(metadata || {})]); }
 async function deleteRoomRecord(roomCode) { await pool.query('DELETE FROM vervus_data.rooms WHERE room_code = $1', [roomCode]); }
 
-module.exports = { pool, testDbConnection, ensureRoomTrackingTables, logRoomHistoryEvent, logErrorEntry, ensurePlayerProfileTables, ensureGameAnalyticsTables, ensureAnalyticsEventTables, recordAnalyticsEvent, recordGameSessionStart, recordGameSessionEnd, upsertPlayerProfile, grantPlayerProfileEntitlement, getActivePlayerProfileEntitlement, getActiveEntitledModeKeys, getActiveEntitlementExpiriesByMode, createPlayerProfileSession, getPlayerProfileIdBySessionToken, createEntitlementTransferToken, consumeEntitlementTransferToken, getProductByKey, createPendingPurchase, attachStripeSessionToPurchase, completePurchaseAndGrantEntitlementByStripeSession, recordStripeWebhookEvent, markStripeWebhookEventProcessed, markStripeWebhookEventFailed, getPurchaseStatusByStripeSession, getRecentErrorLogs, getRecentRoomHistory, getRecentStripeWebhookEvents, markPurchaseFailedByStripeSession, getProductById, createRoomRecord, addPlayerRecord, updatePlayerReady, updatePlayerConnection, deletePlayerRecord, updateRoomStatus, deleteRoomRecord };
+module.exports = { pool, testDbConnection, ensureRoomTrackingTables, logRoomHistoryEvent, logErrorEntry, ensurePlayerProfileTables, ensureGameAnalyticsTables, ensureAnalyticsEventTables, recordAnalyticsEvent, recordGameSessionStart, recordGameSessionEnd, upsertPlayerProfile, grantPlayerProfileEntitlement, getActivePlayerProfileEntitlement, getActiveEntitledModeKeys, getActiveEntitlementExpiriesByMode, createPlayerProfileSession, getPlayerProfileIdBySessionToken, createEntitlementTransferToken, consumeEntitlementTransferToken, getProductByKey, listActiveProducts, createPendingPurchase, attachStripeSessionToPurchase, completePurchaseAndGrantEntitlementByStripeSession, recordStripeWebhookEvent, markStripeWebhookEventProcessed, markStripeWebhookEventFailed, getPurchaseStatusByStripeSession, getRecentErrorLogs, getRecentRoomHistory, getRecentStripeWebhookEvents, markPurchaseFailedByStripeSession, getProductById, createRoomRecord, addPlayerRecord, updatePlayerReady, updatePlayerConnection, deletePlayerRecord, updateRoomStatus, deleteRoomRecord };

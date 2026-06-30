@@ -41,8 +41,15 @@ async function ensureProductTables() {
   );`);
   await pool.query(`ALTER TABLE vervus_data.products
     ADD COLUMN IF NOT EXISTS stripe_price_id TEXT NULL,
+    ADD COLUMN IF NOT EXISTS description_points JSONB NOT NULL DEFAULT '[]'::jsonb,
     ADD COLUMN IF NOT EXISTS display_order INTEGER NOT NULL DEFAULT 0,
     ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now();`);
+  await pool.query(`UPDATE vervus_data.products
+    SET description_points = '[]'::jsonb
+    WHERE description_points IS NULL;`);
+  await pool.query(`ALTER TABLE vervus_data.products
+    ALTER COLUMN description_points SET DEFAULT '[]'::jsonb,
+    ALTER COLUMN description_points SET NOT NULL;`);
   await pool.query(`CREATE TABLE IF NOT EXISTS vervus_data.product_modes (
     product_id UUID NOT NULL REFERENCES vervus_data.products(id) ON DELETE CASCADE,
     mode_id UUID NOT NULL REFERENCES vervus_data.game_modes(id) ON DELETE CASCADE,
@@ -83,6 +90,7 @@ async function listProducts() {
   const [productResult, modeResult] = await Promise.all([
     pool.query(`SELECT p.id, p.product_key, p.product_name, p.price_cents, p.currency_code,
                        p.validity_duration_hours, p.status::text AS status, p.stripe_price_id,
+                       p.description_points,
                        p.display_order, p.updated_at
                 FROM vervus_data.products p
                 ORDER BY p.display_order ASC, p.product_name ASC`),
@@ -129,6 +137,9 @@ async function listProducts() {
       validityDurationHours: Number(row.validity_duration_hours) || 24,
       status: row.status || "active",
       stripePriceId: row.stripe_price_id || "",
+      descriptionPoints: Array.isArray(row.description_points)
+        ? row.description_points.map((point) => String(point || "").trim()).filter(Boolean)
+        : [],
       displayOrder: Number(row.display_order) || 0,
       modes: modeByProductId.get(row.id) || [],
       updatedAt: row.updated_at
@@ -152,6 +163,7 @@ async function saveProduct(payload = {}) {
   const validityDurationHours = normalizeInteger(payload.validityDurationHours, 24, { min: 1, max: 8760 });
   const status = normalizeProductStatus(payload.status);
   const stripePriceId = String(payload.stripePriceId || "").trim().slice(0, 255) || null;
+  const descriptionPoints = normalizeTextArray(payload.descriptionPoints).map((point) => point.slice(0, 180)).slice(0, 12);
   const displayOrder = normalizeInteger(payload.displayOrder, 0, { min: 0, max: 1000000 });
   const modeKeys = [...new Set(normalizeTextArray(payload.modeKeys).map(normalizeModeKey).filter(Boolean))];
 
@@ -159,8 +171,8 @@ async function saveProduct(payload = {}) {
   try {
     await client.query("BEGIN");
     const productResult = await client.query(
-      `INSERT INTO vervus_data.products (product_key, product_name, price_cents, currency_code, validity_duration_hours, status, stripe_price_id, display_order, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6::vervus_data.product_status, $7, $8, now())
+      `INSERT INTO vervus_data.products (product_key, product_name, price_cents, currency_code, validity_duration_hours, status, stripe_price_id, description_points, display_order, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6::vervus_data.product_status, $7, $8::jsonb, $9, now())
        ON CONFLICT (product_key) DO UPDATE
        SET product_name = EXCLUDED.product_name,
            price_cents = EXCLUDED.price_cents,
@@ -168,10 +180,11 @@ async function saveProduct(payload = {}) {
            validity_duration_hours = EXCLUDED.validity_duration_hours,
            status = EXCLUDED.status,
            stripe_price_id = EXCLUDED.stripe_price_id,
+           description_points = EXCLUDED.description_points,
            display_order = EXCLUDED.display_order,
            updated_at = now()
        RETURNING id`,
-      [productKey, productName, priceCents, currencyCode, validityDurationHours, status, stripePriceId, displayOrder]
+      [productKey, productName, priceCents, currencyCode, validityDurationHours, status, stripePriceId, JSON.stringify(descriptionPoints), displayOrder]
     );
     const productId = productResult.rows[0].id;
     await client.query(`DELETE FROM vervus_data.product_modes WHERE product_id = $1::uuid`, [productId]);

@@ -334,6 +334,35 @@ function GlitchGamePage({ roomId, playerId, players, myGame, serverNow, onSubmit
   }, [currentRound, myGame, serverNow]);
 
   const isPregameCountdown = preGameCountdownNumber !== null;
+  const modeSubtitle = getModeSubtitle(selectedMode, myGame?.modeId || activeModeId);
+  const pregameScreenClassName = [
+    "glitch-game-screen",
+    "pregame-screen",
+    isBlitzMode ? "blitz-mode" : "",
+    "standard"
+  ].filter(Boolean).join(" ");
+  const pregameScreenStyle = {
+    "--glitch-bg-motion-opacity": "0.64",
+    "--glitch-bg-structure-opacity": "0.58",
+    "--glitch-bg-motion-duration": "980ms",
+    "--glitch-bg-shift-x": "4px",
+    "--glitch-bg-shift-y": "3px",
+    "--glitch-bg-shift-x-neg": "-4px",
+    "--glitch-bg-shift-y-neg": "-3px",
+    "--glitch-bg-motion-peak-opacity": "0.82"
+  };
+  const renderPregameScreen = (stateClassName, children) => (
+    <section className={pregameScreenClassName} style={pregameScreenStyle}>
+      <span className="glitch-background-layers" aria-hidden="true" />
+      <header className="glitch-game-heading pregame-heading">
+        <h1>GLiTCH!</h1>
+        <p>{modeSubtitle}</p>
+      </header>
+      <main className={`pregame-stage ${stateClassName}`}>
+        {children}
+      </main>
+    </section>
+  );
   const saveItLabel = myGame?.lastRoundResult?.statusLabel || "";
   const isSaveItActive = saveItLabel === "SAVE IT!";
   const previousSaveItStateRef = useRef(false);
@@ -571,21 +600,35 @@ function GlitchGamePage({ roomId, playerId, players, myGame, serverNow, onSubmit
   }
 
   if (isPregameCountdown) {
-    return (
-      <section className="pregame-blank-screen">
-        <div className="pregame-countdown" aria-live="assertive">{preGameCountdownNumber}</div>
-      </section>
-    );
+    return renderPregameScreen("countdown-state", (
+      <>
+        <div className="pregame-countdown" aria-live="assertive">
+          <span>{preGameCountdownNumber}</span>
+        </div>
+        <p className="pregame-status-label">Get ready</p>
+      </>
+    ));
   }
 
   if (myGame.status === "loading") {
     const activePlayers = players.filter((player) => player.currentGameParticipant && !player.waitingForNextGame);
     const loadedCount = activePlayers.filter((player) => player.assetsLoaded).length;
-    return (
-      <section className="pregame-blank-screen">
-        <div className="pregame-loading-text" aria-live="polite">Loading assets… {loadedCount}/{activePlayers.length}</div>
-      </section>
-    );
+    const loadingProgress = activePlayers.length ? clamp01(loadedCount / activePlayers.length) : 0;
+    return renderPregameScreen("loading-state", (
+      <>
+        <div
+          className="pregame-loading-ring"
+          style={{ "--pregame-load-progress": `${Math.round(loadingProgress * 360)}deg` }}
+          aria-live="polite"
+        >
+          <span>{loadedCount}/{activePlayers.length}</span>
+        </div>
+        <p className="pregame-status-label">Loading assets</p>
+        <div className="pregame-loading-bar" aria-hidden="true">
+          <span style={{ width: `${Math.round(loadingProgress * 100)}%` }} />
+        </div>
+      </>
+    ));
   }
 
   if (myGame.status === "gameover") {
@@ -755,7 +798,6 @@ function GlitchGamePage({ roomId, playerId, players, myGame, serverNow, onSubmit
   const displayTimeMs = isSaveItActive ? Math.min(3000, roundTimerMs || 3000) : boundedTimeRemainingMs;
   const isLastChanceTheme = Boolean(currentRound?.isLastChanceReplay || isSaveItActive);
   const isDangerTheme = Boolean(isLastChanceTheme || isHeatSurgeEnabled);
-  const modeSubtitle = getModeSubtitle(selectedMode, myGame.modeId);
   const comboIntensity = clamp01((Number(myGame.combo) || 0) / 40);
   const backgroundIntensity = isDangerTheme ? 1 : comboIntensity;
   const backgroundMotionDurationMs = Math.round(1700 - (backgroundIntensity * 1120));

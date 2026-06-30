@@ -23,6 +23,7 @@ const {
   getActivePlayerProfileEntitlement,
   getActiveEntitledModeKeys,
   getActiveEntitlementExpiriesByMode,
+  getPlayerProfileIdBySessionToken,
   createEntitlementTransferToken,
   consumeEntitlementTransferToken,
   getProductByKey,
@@ -100,6 +101,20 @@ function registerSocketHandlers(io) {
   });
 
   const normalizeSocketPayload = (payload) => (payload && typeof payload === "object" ? payload : {});
+  const resolveSocketProfileId = async (socket, payload = {}) => {
+    const existingProfileId = normalizeUuid(socket.data.profileId);
+    if (existingProfileId) return existingProfileId;
+
+    const token = typeof payload.profileSessionToken === "string" ? payload.profileSessionToken.trim() : "";
+    if (!token) return null;
+
+    const profileId = normalizeUuid(await getPlayerProfileIdBySessionToken({ token }));
+    if (profileId) {
+      socket.data.profileId = profileId;
+      joinProfileSocketRoom(socket, profileId);
+    }
+    return profileId;
+  };
   const normalizeEntitlementTransferToken = (value) => {
     const normalized = String(value || "").trim();
     return /^[A-Za-z0-9_-]{32,128}$/.test(normalized) ? normalized : null;
@@ -746,7 +761,7 @@ function registerSocketHandlers(io) {
 
     socket.on("player:register", async (payload = {}, callback) => {
       payload = normalizeSocketPayload(payload);
-      const nextProfileId = normalizeUuid(socket.data.profileId);
+      const nextProfileId = await resolveSocketProfileId(socket, payload);
       const displayName = normalizePlayerName(payload.name, "Player");
       if (!nextProfileId) return callback?.({ error: "Session required" });
       joinProfileSocketRoom(socket, nextProfileId);
@@ -792,7 +807,7 @@ function registerSocketHandlers(io) {
         callback?.({ error: "Could not allocate room code" });
         return;
       }
-      const playerId = normalizeUuid(socket.data.profileId);
+      const playerId = await resolveSocketProfileId(socket, payload);
       const displayName = normalizePlayerName(payload.name, "Host");
       if (!playerId) return callback?.({ error: "Session required" });
       const selectedModeId = payload.selectedModeId;
@@ -920,7 +935,7 @@ function registerSocketHandlers(io) {
         return;
       }
 
-      const playerId = normalizeUuid(socket.data.profileId);
+      const playerId = await resolveSocketProfileId(socket, payload);
       if (!playerId) return callback?.({ error: "Session required" });
       if (room.players.has(playerId)) {
         callback?.({ error: "Player is already in this room. Rejoin with the saved session instead." });

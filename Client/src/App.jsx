@@ -23,6 +23,7 @@ import {
   resumeAudioEngine,
   unlockAudioEngine
 } from "./audioEngine";
+import warningIcon from "./assets/images/VervusIcons/Icons_Warning.png";
 
 const serverUrl = import.meta.env.VITE_SERVER_URL;
 if (!serverUrl) {
@@ -162,6 +163,7 @@ const LOBBY_MODE_OPTIONS = [
   { id: "blitz", title: "GLiTCH! Blitz" },
   { id: "chaos", title: "GLiTCH! Chaos" }
 ];
+const REMOVED_FROM_ROOM_REASON = "You were removed from the room by the host.";
 
 const TIME_SYNC_SAMPLE_LIMIT = 8;
 const TIME_SYNC_BEST_SAMPLE_COUNT = 5;
@@ -248,6 +250,7 @@ function App() {
   const [profileEntitledModeExpiriesMs, setProfileEntitledModeExpiriesMs] = useState({});
   const [showStore, setShowStore] = useState(false);
   const [purchaseOverlayStatus, setPurchaseOverlayStatus] = useState(null);
+  const [removedFromRoomNotice, setRemovedFromRoomNotice] = useState(null);
   const [isSoloChaosLabOpen, setIsSoloChaosLabOpen] = useState(false);
   const [selectedLobbyModeId, setSelectedLobbyModeId] = useState("standard");
   const [lobbyModeOptions, setLobbyModeOptions] = useState(LOBBY_MODE_OPTIONS);
@@ -357,16 +360,18 @@ function App() {
       localStorage.setItem(PROFILE_SESSION_STORAGE_KEY, response.profileSessionToken);
       setSocketProfileSessionToken(response.profileSessionToken);
     }
-    if (response.profileId && response.profileId !== profileId) {
-      setProfileId(response.profileId);
+    if (response.profileId) {
+      setProfileId((currentProfileId) => (
+        response.profileId !== currentProfileId ? response.profileId : currentProfileId
+      ));
     }
     setProfileEntitlementExpiresAtMs(response.entitlementExpiresAtMs ?? null);
     setProfileEntitledModeKeys(response.entitledModeKeys ?? []);
     setProfileEntitledModeExpiriesMs(response.entitledModeExpiriesMs ?? {});
-  }, [profileId]);
+  }, []);
 
   const refreshProfileEntitlements = useCallback(() => {
-    emitIfConnected("player:register", { name }, applyProfileEntitlementResponse);
+    emitIfConnected("player:register", { name, profileSessionToken: getStoredProfileSessionToken() }, applyProfileEntitlementResponse);
   }, [applyProfileEntitlementResponse, emitIfConnected, name]);
 
   useEffect(() => {
@@ -446,7 +451,15 @@ function App() {
     setRoomState(null);
     setIsViewingRoomPage(false);
   }, [roomId]);
+  const handleRemovedRoomHome = useCallback(() => {
+    playClickSound();
+    setRemovedFromRoomNotice(null);
+    clearSessionState();
+    setIsSoloChaosLabOpen(false);
+    window.scrollTo({ top: 0 });
+  }, [clearSessionState]);
   const applyJoinResponse = useCallback((response) => {
+    setRemovedFromRoomNotice(null);
     setRoomPreview({ status: "idle", roomId: "", room: null, error: "" });
     setRoomId(response.roomId);
     setPlayerId(response.playerId);
@@ -479,7 +492,13 @@ function App() {
         const payload = await response.json();
         if (!response.ok) throw new Error(payload?.error || "Failed to establish player session");
         if (!isMounted) return;
+        const previousProfileSessionToken = String(socket.auth?.profileSessionToken || "");
         applyProfileEntitlementResponse(payload);
+        if (payload.profileSessionToken && payload.profileSessionToken !== previousProfileSessionToken && socket.connected) {
+          socket.disconnect();
+          socket.connect();
+          return;
+        }
         if (!socket.connected && !socket.active) {
           socket.connect();
         }
@@ -512,6 +531,11 @@ function App() {
 
     const handleRoomDisbanded = ({ reason }) => {
       clearSessionState();
+      if (reason === REMOVED_FROM_ROOM_REASON) {
+        playAlertSound();
+        setRemovedFromRoomNotice({ reason });
+        return;
+      }
       if (reason) {
         playAlertSound();
         alert(reason);
@@ -906,7 +930,7 @@ function App() {
       modeKey: selectedLobbyModeId,
       metadata: { selectedModeId: selectedLobbyModeId }
     });
-    emitIfConnected("room:create", { name, selectedModeId: selectedLobbyModeId, debugUnlockAllModes }, (response) => {
+    emitIfConnected("room:create", { name, selectedModeId: selectedLobbyModeId, debugUnlockAllModes, profileSessionToken: getStoredProfileSessionToken() }, (response) => {
       if (response?.error) {
         alert(response.error);
         return;
@@ -917,7 +941,7 @@ function App() {
 
   const joinRoomWithCode = useCallback((nextRoomId, nextName) => {
     const normalizedRoomId = normalizeRoomCodeForLookup(nextRoomId);
-    emitIfConnected("room:join", { roomId: normalizedRoomId, name: nextName }, (response) => {
+    emitIfConnected("room:join", { roomId: normalizedRoomId, name: nextName, profileSessionToken: getStoredProfileSessionToken() }, (response) => {
       if (response?.error) {
         const noticeType = getRoomCodeNoticeType(response);
         if (noticeType) {
@@ -1303,6 +1327,27 @@ function App() {
                 : "Purchase was not completed. Please try again when you're ready."}
             </p>
             <button className="btn btn-primary" onClick={handleDismissPurchaseOverlay}>Continue</button>
+          </div>
+        </div>
+      ) : null}
+      {removedFromRoomNotice ? (
+        <div className="removed-room-overlay" role="alertdialog" aria-modal="true" aria-labelledby="removed-room-title" aria-describedby="removed-room-description">
+          <div className="removed-room-card">
+            <span className="removed-room-side-glow" aria-hidden="true" />
+            <span className="removed-room-center-glow" aria-hidden="true" />
+            <div className="removed-room-content">
+              <span className="removed-room-icon" aria-hidden="true">
+                <img src={warningIcon} alt="" />
+              </span>
+              <h2 id="removed-room-title">You were removed from the room.</h2>
+              <p id="removed-room-description">
+                The host removed you from this session.<br />
+                You can host your own room anytime.
+              </p>
+            </div>
+            <button type="button" className="removed-room-home-button" onClick={handleRemovedRoomHome}>
+              Home
+            </button>
           </div>
         </div>
       ) : null}

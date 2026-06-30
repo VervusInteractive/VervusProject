@@ -24,6 +24,7 @@ import {
   unlockAudioEngine
 } from "./audioEngine";
 import warningIcon from "./assets/images/VervusIcons/Icons_Warning.png";
+import emailIcon from "./assets/images/VervusIcons/Icons_Email.png";
 import clearBackgroundLogo from "./assets/images/Logos/Logo_ClearBackground.svg";
 
 const serverUrl = import.meta.env.VITE_SERVER_URL;
@@ -114,6 +115,7 @@ const PENDING_PURCHASE_STORAGE_KEY = "pendingPurchaseCheckout";
 const PURCHASE_RESULT_TO_EMIT_STORAGE_KEY = "purchaseResultToEmit";
 const PENDING_PURCHASE_SOUND_STORAGE_KEY = "pendingPurchaseSoundEffect";
 const PENDING_PURCHASE_SESSION_STORAGE_KEY = "pendingPurchaseCheckoutSessionId";
+const RECOVERY_EMAIL_STORAGE_KEY = "vervusRecoveryEmail";
 const PLAYER_COLORS = ["#ef4444", "#3b82f6", "#22c55e", "#eab308"];
 const initialSearchParams = new URLSearchParams(window.location.search);
 const DEBUG_QUERY_VALUES = new Set(["1", "true", "yes", "on"]);
@@ -284,6 +286,12 @@ function getStoreProductDescriptionPoints(product) {
   return fallbackDescription ? [fallbackDescription] : [];
 }
 
+function isValidRecoveryEmail(value) {
+  const normalized = String(value || "").trim();
+  if (!normalized) return false;
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized);
+}
+
 function StoreCheckoutPage({
   products,
   selectedProduct,
@@ -434,6 +442,100 @@ function StoreCheckoutPage({
   );
 }
 
+function PostPurchaseUnlockMenu({
+  email,
+  transferLink,
+  transferLinkStatus,
+  transferLinkCopied,
+  onEmailChange,
+  onContinue,
+  onSkip,
+  onClose,
+  onCopyTransferLink,
+  onRetryTransferLink
+}) {
+  const canContinue = isValidRecoveryEmail(email);
+  const isTransferLoading = transferLinkStatus === "loading";
+  const hasTransferError = transferLinkStatus === "error";
+
+  return (
+    <section className="unlock-success-menu" role="dialog" aria-modal="true" aria-labelledby="unlock-success-title">
+      <span className="unlock-success-side-glow" aria-hidden="true" />
+      <span className="unlock-success-center-glow" aria-hidden="true" />
+      <button type="button" className="unlock-success-close" aria-label="Close" onClick={onClose}>
+        <span aria-hidden="true" />
+      </button>
+
+      <div className="unlock-success-content">
+        <div className="unlock-success-heading">
+          <span className="unlock-success-icon" aria-hidden="true">
+            <i />
+            <i />
+            <i />
+          </span>
+          <h2 id="unlock-success-title">Vervus unlocked</h2>
+          <p>24 hours - unlimited runs</p>
+        </div>
+
+        <div className="unlock-success-divider" />
+
+        <label className="unlock-email-field">
+          <span>Add recovery email</span>
+          <div className="unlock-email-input">
+            <img src={emailIcon} alt="" aria-hidden="true" />
+            <input
+              type="email"
+              autoComplete="email"
+              inputMode="email"
+              placeholder="Email address"
+              value={email}
+              onChange={(event) => onEmailChange(event.target.value)}
+            />
+          </div>
+          <small>For receipts and access recovery</small>
+        </label>
+
+        <div className="unlock-or-divider">
+          <span />
+          <p>or</p>
+          <span />
+        </div>
+
+        <div className="unlock-transfer-link-block">
+          <label htmlFor="unlock-transfer-link">Entitlement Transfer link</label>
+          <div className="unlock-transfer-copy-row">
+            <input
+              id="unlock-transfer-link"
+              type="text"
+              readOnly
+              value={transferLink || (isTransferLoading ? "Preparing transfer link..." : "")}
+              placeholder={hasTransferError ? "Transfer link unavailable" : "Preparing transfer link..."}
+              onFocus={(event) => event.target.select()}
+            />
+            <button type="button" disabled={!transferLink} onClick={onCopyTransferLink}>
+              {transferLinkCopied ? "Copied" : "Copy"}
+            </button>
+          </div>
+          {hasTransferError ? (
+            <button type="button" className="unlock-transfer-retry" onClick={onRetryTransferLink}>
+              Retry transfer link
+            </button>
+          ) : null}
+        </div>
+
+        <div className="unlock-success-actions">
+          <button type="button" className="unlock-success-secondary" onClick={onSkip}>
+            Skip
+          </button>
+          <button type="button" className="unlock-success-primary" disabled={!canContinue} onClick={onContinue}>
+            Continue
+          </button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function App() {
   const [name, setName] = useState(() => localStorage.getItem("playerName") || "");
   const [roomIdInput, setRoomIdInput] = useState(initialRoomFromQuery);
@@ -450,6 +552,12 @@ function App() {
   const [hasAcceptedStoreTerms, setHasAcceptedStoreTerms] = useState(false);
   const [isCheckoutStarting, setIsCheckoutStarting] = useState(false);
   const [purchaseOverlayStatus, setPurchaseOverlayStatus] = useState(null);
+  const [unlockMenuVisible, setUnlockMenuVisible] = useState(false);
+  const [unlockRecoveryEmail, setUnlockRecoveryEmail] = useState(() => localStorage.getItem(RECOVERY_EMAIL_STORAGE_KEY) || "");
+  const [unlockTransferLink, setUnlockTransferLink] = useState("");
+  const [unlockTransferLinkStatus, setUnlockTransferLinkStatus] = useState("idle");
+  const [unlockTransferLinkCopied, setUnlockTransferLinkCopied] = useState(false);
+  const [unlockTransferLinkRequestId, setUnlockTransferLinkRequestId] = useState(0);
   const [removedFromRoomNotice, setRemovedFromRoomNotice] = useState(null);
   const [isSoloChaosLabOpen, setIsSoloChaosLabOpen] = useState(false);
   const [selectedLobbyModeId, setSelectedLobbyModeId] = useState("standard");
@@ -512,8 +620,31 @@ function App() {
     });
   }, []);
   const showPurchaseResultOverlay = useCallback((success) => {
-    setPurchaseOverlayStatus(success ? "success" : "failed");
+    if (success) {
+      setPurchaseOverlayStatus(null);
+      setUnlockMenuVisible(true);
+      setUnlockTransferLink("");
+      setUnlockTransferLinkStatus("idle");
+      setUnlockTransferLinkCopied(false);
+      setUnlockTransferLinkRequestId((requestId) => requestId + 1);
+      return;
+    }
+
+    setUnlockMenuVisible(false);
+    setPurchaseOverlayStatus("failed");
   }, []);
+  const dismissUnlockMenu = useCallback(() => {
+    playPurchaseSoundWithFallback(true);
+    setUnlockMenuVisible(false);
+    setUnlockTransferLinkCopied(false);
+  }, [playPurchaseSoundWithFallback]);
+  const handleUnlockMenuContinue = useCallback(() => {
+    const email = unlockRecoveryEmail.trim();
+    if (isValidRecoveryEmail(email)) {
+      localStorage.setItem(RECOVERY_EMAIL_STORAGE_KEY, email);
+    }
+    dismissUnlockMenu();
+  }, [dismissUnlockMenu, unlockRecoveryEmail]);
   const handleDismissPurchaseOverlay = useCallback(() => {
     if (!purchaseOverlayStatus) return;
     const purchaseSucceeded = purchaseOverlayStatus === "success";
@@ -1229,11 +1360,17 @@ function App() {
   }, [emitIfConnected, playerId, roomId]);
 
 
-  const createEntitlementTransfer = useCallback(() => new Promise((resolve) => {
+  const createEntitlementTransfer = useCallback(({ showErrors = true } = {}) => new Promise((resolve) => {
+    const fail = (message) => {
+      if (showErrors) {
+        alert(message);
+      }
+      resolve(null);
+    };
+
     const didEmit = emitIfConnected("entitlement:transfer:create", {}, (response) => {
       if (response?.error) {
-        alert(response.error);
-        resolve(null);
+        fail(response.error);
         return;
       }
 
@@ -1243,10 +1380,87 @@ function App() {
     });
 
     if (!didEmit) {
-      alert("Connect to the server before creating a transfer link.");
-      resolve(null);
+      fail("Connect to the server before creating a transfer link.");
     }
   }), [emitIfConnected]);
+
+  useEffect(() => {
+    if (!unlockMenuVisible) return undefined;
+
+    let cancelled = false;
+    let timeoutId = null;
+    let attemptCount = 0;
+
+    const requestTransferLink = () => {
+      attemptCount += 1;
+      setUnlockTransferLink("");
+      setUnlockTransferLinkCopied(false);
+      setUnlockTransferLinkStatus("loading");
+
+      createEntitlementTransfer({ showErrors: false }).then((transfer) => {
+        if (cancelled) return;
+
+        if (transfer?.transferUrl) {
+          setUnlockTransferLink(transfer.transferUrl);
+          setUnlockTransferLinkStatus("ready");
+          return;
+        }
+
+        if (attemptCount >= 8) {
+          setUnlockTransferLinkStatus("error");
+          return;
+        }
+
+        timeoutId = window.setTimeout(requestTransferLink, 1500);
+      });
+    };
+
+    requestTransferLink();
+
+    return () => {
+      cancelled = true;
+      if (timeoutId) {
+        window.clearTimeout(timeoutId);
+      }
+    };
+  }, [createEntitlementTransfer, unlockMenuVisible, unlockTransferLinkRequestId]);
+
+  const copyUnlockTransferLink = useCallback(() => {
+    if (!unlockTransferLink) return;
+
+    const markCopied = () => {
+      setUnlockTransferLinkCopied(true);
+      window.setTimeout(() => setUnlockTransferLinkCopied(false), 1800);
+    };
+
+    const fallbackCopy = () => {
+      const input = document.getElementById("unlock-transfer-link");
+      if (!input) return;
+      input.focus();
+      input.select();
+      try {
+        if (document.execCommand("copy")) {
+          markCopied();
+        }
+      } catch {
+        setUnlockTransferLinkCopied(false);
+      }
+    };
+
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(unlockTransferLink).then(markCopied).catch(fallbackCopy);
+      return;
+    }
+
+    fallbackCopy();
+  }, [unlockTransferLink]);
+
+  const retryUnlockTransferLink = useCallback(() => {
+    setUnlockTransferLink("");
+    setUnlockTransferLinkStatus("idle");
+    setUnlockTransferLinkCopied(false);
+    setUnlockTransferLinkRequestId((requestId) => requestId + 1);
+  }, []);
 
   const loadStoreProducts = useCallback(() => {
     setIsStoreLoading(true);
@@ -1603,6 +1817,22 @@ function App() {
           lobbyContent={lobbyContent}
         />
       )}
+      {unlockMenuVisible ? (
+        <div className="purchase-result-overlay purchase-result-overlay-unlock" role="presentation">
+          <PostPurchaseUnlockMenu
+            email={unlockRecoveryEmail}
+            transferLink={unlockTransferLink}
+            transferLinkStatus={unlockTransferLinkStatus}
+            transferLinkCopied={unlockTransferLinkCopied}
+            onEmailChange={setUnlockRecoveryEmail}
+            onContinue={handleUnlockMenuContinue}
+            onSkip={dismissUnlockMenu}
+            onClose={dismissUnlockMenu}
+            onCopyTransferLink={copyUnlockTransferLink}
+            onRetryTransferLink={retryUnlockTransferLink}
+          />
+        </div>
+      ) : null}
       {purchaseOverlayStatus ? (
         <div className="purchase-result-overlay" role="status" aria-live="polite">
           <div className={`purchase-result-card ${purchaseOverlayStatus}`}>

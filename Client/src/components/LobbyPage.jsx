@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { BrowserQRCodeReader } from "@zxing/browser";
 import clearBackgroundLogo from "../assets/images/Logos/Logo_ClearBackground.svg";
 import warningIcon from "../assets/images/VervusIcons/Icons_Warning.png";
 import timerIcon from "../assets/images/VervusIcons/Icons_Timer.png";
@@ -14,6 +15,7 @@ import {
 } from "../storyblok/lobbyContent.js";
 
 const ROOM_CODE_MAX_LENGTH = 6;
+const MIN_SCANNABLE_ROOM_CODE_LENGTH = 4;
 const ROOM_CODE_NOTICE_CONFIG = {
   not_found: {
     title: "Room not found",
@@ -45,6 +47,57 @@ function normalizeRoomCodeInput(value) {
 function formatRoomCode(value) {
   const normalized = normalizeRoomCodeInput(value);
   return normalized.match(/.{1,2}/g)?.join("-") || "";
+}
+
+function extractRoomCodeFromQrValue(value) {
+  const rawValue = String(value || "").trim();
+  if (!rawValue) return "";
+
+  try {
+    const parsedUrl = new URL(rawValue, window.location.origin);
+    const roomCode = normalizeRoomCodeInput(parsedUrl.searchParams.get("room"));
+    if (roomCode.length >= MIN_SCANNABLE_ROOM_CODE_LENGTH) return roomCode;
+  } catch {
+    // Fall through to plain room-code parsing.
+  }
+
+  if (!/^[A-Z2-9\s-]{4,16}$/i.test(rawValue)) return "";
+
+  const roomCode = normalizeRoomCodeInput(rawValue);
+  return roomCode.length >= MIN_SCANNABLE_ROOM_CODE_LENGTH ? roomCode : "";
+}
+
+function isExpectedScanMiss(error) {
+  const errorName = error?.name || error?.constructor?.name || "";
+  return errorName === "NotFoundException"
+    || errorName === "ChecksumException"
+    || errorName === "FormatException";
+}
+
+function getCameraErrorMessage(error) {
+  const errorName = error?.name || error?.constructor?.name || "";
+
+  if (errorName === "NotAllowedError" || errorName === "PermissionDeniedError") {
+    return "Camera permission was blocked. Allow camera access and try again.";
+  }
+
+  if (errorName === "NotFoundError" || errorName === "DevicesNotFoundError") {
+    return "No camera was found on this device.";
+  }
+
+  if (errorName === "NotReadableError" || errorName === "TrackStartError") {
+    return "The camera is already in use by another app.";
+  }
+
+  if (errorName === "OverconstrainedError" || errorName === "ConstraintNotSatisfiedError") {
+    return "This camera cannot use the requested scan settings.";
+  }
+
+  if (errorName === "SecurityError") {
+    return "Camera access is blocked by this browser.";
+  }
+
+  return "The camera could not start. Check permissions and try again.";
 }
 
 function formatRoomPreviewNames(playerNames = []) {
@@ -94,6 +147,169 @@ function RoomCodeNotice({ notice }) {
   );
 }
 
+function QrScannerOverlay({
+  title = "Scan QR Code",
+  description = "Position the QR code within the frame.",
+  cancelLabel = "Cancel",
+  onCancel,
+  onDetected
+}) {
+  const videoRef = useRef(null);
+  const controlsRef = useRef(null);
+  const onCancelRef = useRef(onCancel);
+  const onDetectedRef = useRef(onDetected);
+  const hasDetectedRef = useRef(false);
+  const [scannerMessage, setScannerMessage] = useState("Starting camera...");
+  const [scannerMessageType, setScannerMessageType] = useState("info");
+
+  useEffect(() => {
+    onCancelRef.current = onCancel;
+  }, [onCancel]);
+
+  useEffect(() => {
+    onDetectedRef.current = onDetected;
+  }, [onDetected]);
+
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") {
+        onCancelRef.current?.();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+  useEffect(() => {
+    let isActive = true;
+
+    const stopPreviewStream = () => {
+      controlsRef.current?.stop?.();
+      controlsRef.current = null;
+
+      const videoElement = videoRef.current;
+      const stream = videoElement?.srcObject;
+      if (stream && typeof stream.getTracks === "function") {
+        stream.getTracks().forEach((track) => track.stop());
+      }
+
+      if (videoElement) {
+        videoElement.pause();
+        videoElement.srcObject = null;
+        videoElement.removeAttribute("src");
+      }
+    };
+
+    const startScanner = async () => {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        setScannerMessage("This browser does not support in-app camera scanning.");
+        setScannerMessageType("error");
+        return;
+      }
+
+      const isLocalHost = ["localhost", "127.0.0.1", "::1"].includes(window.location.hostname);
+      if (!window.isSecureContext && !isLocalHost) {
+        setScannerMessage("Camera scanning requires HTTPS.");
+        setScannerMessageType("error");
+        return;
+      }
+
+      try {
+        const codeReader = new BrowserQRCodeReader();
+        const controls = await codeReader.decodeFromConstraints(
+          {
+            audio: false,
+            video: {
+              facingMode: { ideal: "environment" },
+              width: { ideal: 1280 },
+              height: { ideal: 720 }
+            }
+          },
+          videoRef.current,
+          (result, error, scannerControls) => {
+            controlsRef.current = scannerControls;
+            if (!isActive || hasDetectedRef.current) return;
+
+            if (result) {
+              const rawScanValue = result.getText();
+              const roomCode = extractRoomCodeFromQrValue(rawScanValue);
+              if (!roomCode) {
+                setScannerMessage("That QR code is not a Vervus room invite.");
+                setScannerMessageType("error");
+                return;
+              }
+
+              hasDetectedRef.current = true;
+              scannerControls.stop();
+              onDetectedRef.current?.(roomCode, rawScanValue);
+              return;
+            }
+
+            if (error && !isExpectedScanMiss(error)) {
+              setScannerMessage(getCameraErrorMessage(error));
+              setScannerMessageType("error");
+            }
+          }
+        );
+
+        controlsRef.current = controls;
+        if (!isActive || hasDetectedRef.current) {
+          controls.stop();
+          return;
+        }
+
+        setScannerMessage("Point your camera at the room QR code.");
+        setScannerMessageType("info");
+      } catch (error) {
+        if (!isActive) return;
+        setScannerMessage(getCameraErrorMessage(error));
+        setScannerMessageType("error");
+      }
+    };
+
+    startScanner();
+
+    return () => {
+      isActive = false;
+      stopPreviewStream();
+    };
+  }, []);
+
+  return (
+    <div className="qr-scanner-overlay" role="dialog" aria-modal="true" aria-labelledby="qr-scanner-title">
+      <div className="qr-scanner-shell">
+        <div className="qr-scanner-content">
+          <div className="qr-scanner-camera-mark" aria-hidden="true">
+            <span />
+          </div>
+          <div className="qr-scanner-copy">
+            <h2 id="qr-scanner-title">{title}</h2>
+            <p>{description}</p>
+          </div>
+          <div className="qr-scanner-frame" aria-label="Camera preview">
+            <video ref={videoRef} className="qr-scanner-video" autoPlay muted playsInline />
+            <div className="qr-scanner-grid" aria-hidden="true" />
+            <div className="qr-scanner-corners" aria-hidden="true">
+              <span className="top-left" />
+              <span className="top-right" />
+              <span className="bottom-left" />
+              <span className="bottom-right" />
+            </div>
+            <span className="qr-scanner-line" aria-hidden="true" />
+          </div>
+          <p className={`qr-scanner-status ${scannerMessageType}`} role="status" aria-live="polite">
+            {scannerMessage}
+          </p>
+        </div>
+        <button type="button" className="qr-scanner-cancel" onClick={onCancel}>
+          {cancelLabel}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function LobbyPage({
   name,
   roomIdInput,
@@ -103,6 +319,7 @@ function LobbyPage({
   onRoomIdInputChange,
   onCreateRoom,
   onJoinRoom,
+  onQrScanRoomCode,
   onOpenStore,
   onUiButtonClick,
   onSelectionChanged,
@@ -115,7 +332,7 @@ function LobbyPage({
 }) {
   const [lobbyStep, setLobbyStep] = useState(() => (roomIdInput ? "play" : "landing"));
   const [publicPage, setPublicPage] = useState("landing");
-  const [isQrNoticeOpen, setIsQrNoticeOpen] = useState(false);
+  const [isQrScannerOpen, setIsQrScannerOpen] = useState(false);
   const formattedRoomCode = formatRoomCode(roomIdInput);
   const hasBlockingRoomCodeNotice = ["not_found", "full", "expired"].includes(roomCodeNotice?.type);
   const canJoin = !actionsLocked && !hasBlockingRoomCodeNotice && name.trim().length > 0 && normalizeRoomCodeInput(roomIdInput).length >= 4;
@@ -184,9 +401,18 @@ function LobbyPage({
     onSelectedModeChange?.(modeId);
   };
 
-  const handleOpenQrNotice = () => {
+  const handleOpenQrScanner = () => {
     onUiButtonClick?.();
-    setIsQrNoticeOpen(true);
+    setIsQrScannerOpen(true);
+  };
+
+  const handleQrScanDetected = (roomCode) => {
+    onUiButtonClick?.();
+    onRoomIdInputChange(roomCode);
+    setPublicPage("landing");
+    setLobbyStep("play");
+    setIsQrScannerOpen(false);
+    onQrScanRoomCode?.(roomCode);
   };
 
   const renderTextWithBreaks = (text) => String(text || "")
@@ -311,30 +537,28 @@ function LobbyPage({
         <button className="lobby-primary-action" type="submit" disabled={!canJoin}>
           {playPageContent.submitLabel}
         </button>
-        <button className="lobby-secondary-action" type="button" onClick={handleOpenQrNotice}>
+        <button className="lobby-secondary-action" type="button" onClick={handleOpenQrScanner} disabled={actionsLocked}>
           {playPageContent.qrButtonLabel}
         </button>
       </div>
     </form>
   );
 
-  const renderQrNotice = (playPageContent = DEFAULT_LOBBY_CONTENT.play) => (
-    <div className="qr-modal-backdrop" onClick={() => setIsQrNoticeOpen(false)}>
-      <div className="qr-modal" onClick={(event) => event.stopPropagation()}>
-        <h2 className="qr-modal-title">{playPageContent.qrModalTitle}</h2>
-        <p className="panel-subtitle">{playPageContent.qrModalDescription}</p>
-        <button
-          type="button"
-          className="btn btn-primary store-close-btn"
-          onClick={() => {
-            onUiButtonClick?.();
-            setIsQrNoticeOpen(false);
-          }}
-        >
-          {playPageContent.qrModalCloseLabel}
-        </button>
-      </div>
-    </div>
+  const renderQrScanner = (playPageContent = DEFAULT_LOBBY_CONTENT.play) => (
+    <QrScannerOverlay
+      title={playPageContent.qrModalTitle || DEFAULT_LOBBY_CONTENT.play.qrModalTitle}
+      description={/not connected/i.test(playPageContent.qrModalDescription || "")
+        ? DEFAULT_LOBBY_CONTENT.play.qrModalDescription
+        : (playPageContent.qrModalDescription || DEFAULT_LOBBY_CONTENT.play.qrModalDescription)}
+      cancelLabel={/^close$/i.test(playPageContent.qrModalCloseLabel || "")
+        ? DEFAULT_LOBBY_CONTENT.play.qrModalCloseLabel
+        : (playPageContent.qrModalCloseLabel || DEFAULT_LOBBY_CONTENT.play.qrModalCloseLabel)}
+      onCancel={() => {
+        onUiButtonClick?.();
+        setIsQrScannerOpen(false);
+      }}
+      onDetected={handleQrScanDetected}
+    />
   );
 
   const renderLobbySteps = (lobbyContent = DEFAULT_LOBBY_CONTENT) => {
@@ -363,7 +587,7 @@ function LobbyPage({
         {lobbyStep === "host" ? renderHostStep(lobbyContent.host) : null}
         {lobbyStep === "play" ? renderPlayStep(lobbyContent.play) : null}
         {lobbyStep === "landing" ? renderLandingStep(lobbyContent.start) : null}
-        {isQrNoticeOpen ? renderQrNotice(lobbyContent.play) : null}
+        {isQrScannerOpen ? renderQrScanner(lobbyContent.play) : null}
       </>
     );
   };

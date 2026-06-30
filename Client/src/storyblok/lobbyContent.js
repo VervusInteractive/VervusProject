@@ -33,8 +33,8 @@ export const DEFAULT_LOBBY_CONTENT = Object.freeze({
     submitLabel: "Join room",
     qrButtonLabel: "Scan QR code",
     qrModalTitle: "Scan QR code",
-    qrModalDescription: "QR scanning is not connected yet. Enter the room code to join for now.",
-    qrModalCloseLabel: "Close",
+    qrModalDescription: "Position the QR code within the frame.",
+    qrModalCloseLabel: "Cancel",
     editableAttributes: editableFallback
   },
   room: {

@@ -84,8 +84,8 @@ const componentDefinitions = [
       submit_label: "Join room",
       qr_button_label: "Scan QR code",
       qr_modal_title: "Scan QR code",
-      qr_modal_description: "QR scanning is not connected yet. Enter the room code to join for now.",
-      qr_modal_close_label: "Close"
+      qr_modal_description: "Position the QR code within the frame.",
+      qr_modal_close_label: "Cancel"
     }
   },
   {

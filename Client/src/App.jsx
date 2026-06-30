@@ -239,6 +239,7 @@ const playAlertSound = () => playSoundWithUnlockRetry("alert");
 const playSuccessPurchaseSound = () => playSoundWithUnlockRetry("purchaseSuccess");
 
 const playFailedPurchaseSound = () => playSoundWithUnlockRetry("purchaseFailed");
+const createFallbackPlayerName = () => `Player-${Math.floor(1000 + Math.random() * 9000)}`;
 
 function App() {
   const [name, setName] = useState(() => localStorage.getItem("playerName") || "");
@@ -958,6 +959,20 @@ function App() {
 
   const joinRoom = () => joinRoomWithCode(roomIdInput, name);
 
+  const joinRoomFromQrScan = useCallback((nextRoomId) => {
+    const normalizedRoomId = normalizeRoomCodeForLookup(nextRoomId);
+    setRoomIdInput(normalizedRoomId);
+
+    if (normalizedRoomId.length < ROOM_PREVIEW_MIN_LENGTH) return;
+
+    if (!isSocketConnected) {
+      alert("Connection is still restoring. Try again in a moment.");
+      return;
+    }
+
+    joinRoomWithCode(normalizedRoomId, name || createFallbackPlayerName());
+  }, [isSocketConnected, joinRoomWithCode, name]);
+
   useEffect(() => {
     const pendingAutoJoinRoomId = pendingAutoJoinRoomIdRef.current;
     if (!pendingAutoJoinRoomId || roomId || pendingAutoJoinRoomId !== roomIdInput) {
@@ -965,7 +980,7 @@ function App() {
     }
 
     pendingAutoJoinRoomIdRef.current = "";
-    const autoJoinName = name || `Player-${Math.floor(1000 + Math.random() * 9000)}`;
+    const autoJoinName = name || createFallbackPlayerName();
     joinRoomWithCode(pendingAutoJoinRoomId, autoJoinName);
   }, [joinRoomWithCode, name, roomId, roomIdInput]);
 
@@ -1286,6 +1301,7 @@ function App() {
           onRoomIdInputChange={setRoomIdInput}
           onCreateRoom={createRoom}
           onJoinRoom={joinRoom}
+          onQrScanRoomCode={joinRoomFromQrScan}
           roomPreview={roomPreview.status === "found" ? roomPreview.room : null}
           onUiButtonClick={playClickSound}
           onSelectionChanged={playSelectionChangedSound}

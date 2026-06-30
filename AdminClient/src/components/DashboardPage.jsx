@@ -4,6 +4,7 @@ import { dashboardSections } from "../data/dashboardSections";
 import { SectionNavigation } from "./Navigation";
 import { AdminActivityPanel } from "./AdminActivityPanel";
 import { AdminAnalyticsPanel } from "./AdminAnalyticsPanel";
+import { ContactInboxPanel } from "./ContactInboxPanel";
 import { DataTable, FunnelPanel, MetricGrid, PlaceholderChart, TimelinePanel } from "./DashboardWidgets";
 import { GameAnalyticsPanel } from "./GameAnalyticsPanel";
 import { ErrorsPanel } from "./ErrorsPanel";
@@ -68,6 +69,8 @@ function DashboardPage({ adminActor, adminKey, overview, status, isLoading, onRe
           <LiveRoomsPanel adminKey={adminKey} />
         ) : activeSection.id === "room-history" ? (
           <RoomHistoryPanel adminKey={adminKey} />
+        ) : activeSection.id === "contact-inbox" ? (
+          <ContactInboxPanel adminKey={adminKey} />
         ) : activeSection.id === "admin-activity" ? (
           <AdminActivityPanel adminActor={adminActor} adminKey={adminKey} />
         ) : (

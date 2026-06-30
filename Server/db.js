@@ -811,9 +811,57 @@ async function ensureAnalyticsEventTables() {
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_analytics_events_profile_event_at ON vervus_data.analytics_events(profile_id, event_at DESC);`);
 }
 
+async function ensureContactMessageTables() {
+  await pool.query(`CREATE SCHEMA IF NOT EXISTS vervus_data;`);
+  await pool.query(`CREATE EXTENSION IF NOT EXISTS pgcrypto;`);
+  await pool.query(`CREATE TABLE IF NOT EXISTS vervus_data.contact_messages (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    email TEXT NOT NULL,
+    subject TEXT NOT NULL,
+    message TEXT NOT NULL,
+    source TEXT NOT NULL DEFAULT 'contact_page',
+    user_agent TEXT NULL,
+    ip_address TEXT NULL,
+    metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    read_at TIMESTAMPTZ NULL
+  );`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_contact_messages_created_at
+    ON vervus_data.contact_messages(created_at DESC);`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_contact_messages_read_created_at
+    ON vervus_data.contact_messages(read_at, created_at DESC);`);
+}
+
 function normalizeAnalyticsText(value, maxLength = 120) {
   const normalized = String(value || "").trim();
   return normalized ? normalized.slice(0, maxLength) : null;
+}
+
+async function createContactMessage({
+  email,
+  subject,
+  message,
+  source = "contact_page",
+  userAgent = null,
+  ipAddress = null,
+  metadata = {}
+}) {
+  await ensureContactMessageTables();
+  const { rows } = await pool.query(
+    `INSERT INTO vervus_data.contact_messages (email, subject, message, source, user_agent, ip_address, metadata)
+     VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb)
+     RETURNING id`,
+    [
+      normalizeAnalyticsText(email, 320),
+      normalizeAnalyticsText(subject, 200),
+      normalizeAnalyticsText(message, 5000),
+      normalizeAnalyticsText(source, 80) || "contact_page",
+      normalizeAnalyticsText(userAgent, 500),
+      normalizeAnalyticsText(ipAddress, 80),
+      JSON.stringify(metadata || {})
+    ]
+  );
+  return rows[0] || null;
 }
 
 async function recordAnalyticsEvent({
@@ -1054,4 +1102,4 @@ async function deletePlayerRecord(playerId) { await pool.query('DELETE FROM verv
 async function updateRoomStatus({ roomCode, status, metadata = {} }) { await ensureRoomTrackingTables(); await pool.query(`UPDATE vervus_data.rooms SET status = $2::vervus_data.room_status, started_at = CASE WHEN $2 IN ('preview', 'premium', 'active') THEN COALESCE(started_at, now()) ELSE started_at END, ended_at = CASE WHEN $2 IN ('ended', 'expired') THEN now() ELSE ended_at END, metadata = COALESCE(metadata, '{}'::jsonb) || $3::jsonb WHERE room_code = $1`, [roomCode, status, JSON.stringify(metadata || {})]); }
 async function deleteRoomRecord(roomCode) { await pool.query('DELETE FROM vervus_data.rooms WHERE room_code = $1', [roomCode]); }
 
-module.exports = { pool, testDbConnection, ensureRoomTrackingTables, logRoomHistoryEvent, logErrorEntry, ensurePlayerProfileTables, ensureGameAnalyticsTables, ensureAnalyticsEventTables, recordAnalyticsEvent, recordGameSessionStart, recordGameSessionEnd, upsertPlayerProfile, grantPlayerProfileEntitlement, getActivePlayerProfileEntitlement, getActiveEntitledModeKeys, getActiveEntitlementExpiriesByMode, createPlayerProfileSession, getPlayerProfileIdBySessionToken, createEntitlementTransferToken, consumeEntitlementTransferToken, getProductByKey, listActiveProducts, createPendingPurchase, attachStripeSessionToPurchase, completePurchaseAndGrantEntitlementByStripeSession, recordStripeWebhookEvent, markStripeWebhookEventProcessed, markStripeWebhookEventFailed, getPurchaseStatusByStripeSession, getRecentErrorLogs, getRecentRoomHistory, getRecentStripeWebhookEvents, markPurchaseFailedByStripeSession, getProductById, createRoomRecord, addPlayerRecord, updatePlayerReady, updatePlayerConnection, deletePlayerRecord, updateRoomStatus, deleteRoomRecord };
+module.exports = { pool, testDbConnection, ensureRoomTrackingTables, logRoomHistoryEvent, logErrorEntry, ensurePlayerProfileTables, ensureGameAnalyticsTables, ensureAnalyticsEventTables, ensureContactMessageTables, createContactMessage, recordAnalyticsEvent, recordGameSessionStart, recordGameSessionEnd, upsertPlayerProfile, grantPlayerProfileEntitlement, getActivePlayerProfileEntitlement, getActiveEntitledModeKeys, getActiveEntitlementExpiriesByMode, createPlayerProfileSession, getPlayerProfileIdBySessionToken, createEntitlementTransferToken, consumeEntitlementTransferToken, getProductByKey, listActiveProducts, createPendingPurchase, attachStripeSessionToPurchase, completePurchaseAndGrantEntitlementByStripeSession, recordStripeWebhookEvent, markStripeWebhookEventProcessed, markStripeWebhookEventFailed, getPurchaseStatusByStripeSession, getRecentErrorLogs, getRecentRoomHistory, getRecentStripeWebhookEvents, markPurchaseFailedByStripeSession, getProductById, createRoomRecord, addPlayerRecord, updatePlayerReady, updatePlayerConnection, deletePlayerRecord, updateRoomStatus, deleteRoomRecord };

@@ -152,6 +152,26 @@ async function ensureOperationalTables() {
     ON vervus_data.stripe_webhook_events(received_at DESC);`);
 }
 
+async function ensureContactMessageTables() {
+  await ensureRoomCoreTables();
+  await pool.query(`CREATE TABLE IF NOT EXISTS vervus_data.contact_messages (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    email TEXT NOT NULL,
+    subject TEXT NOT NULL,
+    message TEXT NOT NULL,
+    source TEXT NOT NULL DEFAULT 'contact_page',
+    user_agent TEXT NULL,
+    ip_address TEXT NULL,
+    metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    read_at TIMESTAMPTZ NULL
+  );`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_contact_messages_created_at
+    ON vervus_data.contact_messages(created_at DESC);`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_contact_messages_read_created_at
+    ON vervus_data.contact_messages(read_at, created_at DESC);`);
+}
+
 async function ensureCommerceTables() {
   await ensureOperationalTables();
   await pool.query(`DO $$
@@ -209,6 +229,7 @@ async function ensureCommerceTables() {
 
 module.exports = {
   ensureAnalyticsEventTables,
+  ensureContactMessageTables,
   ensureCommerceTables,
   ensureOperationalTables,
   ensureRoomCoreTables

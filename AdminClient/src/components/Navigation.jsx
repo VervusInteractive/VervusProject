@@ -2,7 +2,7 @@ import { useState } from "react";
 import { dashboardSections } from "../data/dashboardSections";
 
 const analyticsSectionIds = ["sales", "game", "modes", "balancing", "previews", "hosts", "retention", "traffic"];
-const operationsSectionIds = ["live-rooms", "room-history", "admin-activity", "errors"];
+const operationsSectionIds = ["live-rooms", "room-history", "contact-inbox", "admin-activity", "errors"];
 const configurationSectionIds = ["mode-config", "products"];
 
 function getSectionsByIds(sectionIds) {

@@ -125,6 +125,13 @@ const dashboardSections = [
     description: "Audit joins, leaves, starts, ends, and host changes for completed or active rooms."
   },
   {
+    id: "contact-inbox",
+    label: "Contact Inbox",
+    eyebrow: "Support",
+    title: "Contact Inbox",
+    description: "View contact page submissions stored in the game database."
+  },
+  {
     id: "admin-activity",
     label: "Admin activity",
     eyebrow: "Operations",

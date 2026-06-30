@@ -3,6 +3,7 @@ const { config } = require("../config");
 const { requireAdmin } = require("../middleware/requireAdmin");
 const { listAdminActivityLogs, writeAdminActivityLog } = require("../services/adminActivity");
 const { getAdminAnalyticsSection } = require("../services/adminAnalytics");
+const { listContactMessages } = require("../services/contactMessages");
 const { getGameAnalytics } = require("../services/gameAnalytics");
 const { getLiveRooms, getRoomHistory } = require("../services/liveRooms");
 const { resolveErrorLogs } = require("../services/errorLogs");
@@ -132,6 +133,19 @@ router.get("/room-history", requireAdmin, async (req, res, next) => {
       eventType: req.query.eventType
     });
     res.json(history);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get("/contact-messages", requireAdmin, async (req, res, next) => {
+  try {
+    const messages = await listContactMessages({
+      limit: req.query.limit,
+      search: req.query.search,
+      unreadOnly: req.query.unreadOnly
+    });
+    res.json(messages);
   } catch (error) {
     next(error);
   }

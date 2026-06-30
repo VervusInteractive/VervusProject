@@ -857,6 +857,59 @@ tr:last-child td {
   min-width: 8rem;
 }
 
+.contact-inbox-filters {
+  align-items: end;
+}
+
+.contact-search-field {
+  min-width: min(20rem, 100%);
+}
+
+.contact-inbox-table td {
+  vertical-align: top;
+}
+
+.active-contact-row {
+  background: rgba(56, 189, 248, 0.1);
+}
+
+.contact-message-preview {
+  display: block;
+  max-width: 32rem;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.contact-detail-panel {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.contact-detail-panel p {
+  margin: 0;
+  color: #cbd5e1;
+}
+
+.contact-detail-summary strong {
+  overflow-wrap: anywhere;
+}
+
+.contact-message-body {
+  max-height: 28rem;
+  overflow: auto;
+  border: 1px solid rgba(147, 197, 253, 0.18);
+  border-radius: 1rem;
+  padding: 1rem;
+  color: #f8fafc;
+  background: rgba(2, 6, 23, 0.42);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.contact-message-metadata dd {
+  white-space: pre-wrap;
+}
+
 .runtime-warning-panel {
   display: flex;
   flex-wrap: wrap;

@@ -28,6 +28,7 @@ const {
   markPurchaseFailedByStripeSession,
   ensureAnalyticsEventTables,
   ensureRoomTrackingTables,
+  createContactMessage,
   logErrorEntry,
   recordAnalyticsEvent
 } = require("./db");
@@ -295,6 +296,34 @@ function getRuntimeRoomSummary() {
   };
 }
 
+function normalizeContactText(value, maxLength) {
+  return String(value || "").trim().replace(/\s+/g, " ").slice(0, maxLength);
+}
+
+function normalizeContactMessageBody(value, maxLength) {
+  return String(value || "").trim().replace(/\r\n/g, "\n").slice(0, maxLength);
+}
+
+function getValidatedContactPayload(req) {
+  const email = normalizeContactText(req.body?.email, 320).toLowerCase();
+  const subject = normalizeContactText(req.body?.subject, 200);
+  const message = normalizeContactMessageBody(req.body?.message, 5000);
+
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return { error: "Enter a valid email address." };
+  }
+
+  if (subject.length < 3) {
+    return { error: "Subject must be at least 3 characters." };
+  }
+
+  if (message.length < 10) {
+    return { error: "Message must be at least 10 characters." };
+  }
+
+  return { email, subject, message };
+}
+
 function requireAdmin(req, res, next) {
   const adminToken = process.env.ADMIN_TOKEN || "";
   if (!adminToken && process.env.NODE_ENV !== "production") {
@@ -479,6 +508,31 @@ app.post("/api/stripe/webhook", stripeWebhookLimiter, express.raw({ type: "appli
 });
 
 app.use(express.json({ limit: "32kb" }));
+
+app.post("/api/contact-messages", strictPublicEndpointLimiter, async (req, res) => {
+  const payload = getValidatedContactPayload(req);
+  if (payload.error) {
+    res.status(400).json({ error: payload.error });
+    return;
+  }
+
+  try {
+    const contactMessage = await createContactMessage({
+      email: payload.email,
+      subject: payload.subject,
+      message: payload.message,
+      userAgent: req.headers["user-agent"] || null,
+      ipAddress: getClientIp(req),
+      metadata: {
+        path: req.headers.referer || null
+      }
+    });
+    res.status(201).json({ ok: true, id: contactMessage?.id || null });
+  } catch (error) {
+    logErrorEntry({ source: "contact:message", message: error.message || "Failed to save contact message", stackTrace: error.stack }).catch(() => {});
+    res.status(500).json({ error: "Failed to send message" });
+  }
+});
 
 app.post("/api/analytics/event", publicEndpointLimiter, async (req, res) => {
   const allowedEvents = new Set(["page_view", "host_click", "store_open"]);

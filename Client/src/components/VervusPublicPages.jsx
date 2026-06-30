@@ -24,6 +24,8 @@ const SOCIAL_LINKS = Object.freeze([
   { label: "X", href: "https://x.com/PlayVervus", icon: xIcon }
 ]);
 
+const serverUrl = String(import.meta.env.VITE_SERVER_URL || "").replace(/\/+$/, "");
+
 function BrandHeader({ onOpenMenu, onNavigate, onHost, menuLabel = "Open menu" }) {
   return (
     <header className="landing-header">
@@ -417,18 +419,43 @@ export function LegalPage({ kind, onBack }) {
 }
 
 export function ContactPage({ onBack }) {
-  const [isVerified, setIsVerified] = useState(false);
+  const [status, setStatus] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault();
 
-    const form = new FormData(event.currentTarget);
+    if (!serverUrl) {
+      setStatus("Contact service is not configured.");
+      return;
+    }
+
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
     const email = String(form.get("email") || "").trim();
     const subject = String(form.get("subject") || "Vervus support request").trim();
     const message = String(form.get("message") || "").trim();
-    const body = [`From: ${email}`, "", message].join("\n");
 
-    window.location.href = `mailto:support@vervus.live?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    setIsSubmitting(true);
+    setStatus("Sending message...");
+
+    try {
+      const response = await fetch(`${serverUrl}/api/contact-messages`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, subject, message })
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload.error || "Unable to send message");
+      }
+      formElement.reset();
+      setStatus("Message sent. We will get back to you soon.");
+    } catch (error) {
+      setStatus(error.message || "Unable to send message.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -453,24 +480,10 @@ export function ContactPage({ onBack }) {
             <textarea name="message" placeholder="How can we help?" required />
           </label>
 
-          <label className="recaptcha-card">
-            <input
-              type="checkbox"
-              checked={isVerified}
-              onChange={(event) => setIsVerified(event.target.checked)}
-              required
-            />
-            <span className="recaptcha-box" aria-hidden="true" />
-            <span className="recaptcha-label">I'm not a robot</span>
-            <span className="recaptcha-brand">
-              <span />
-              reCAPTCHA
-              <small>Privacy - Terms</small>
-            </span>
-          </label>
+          <p className="contact-status" aria-live="polite">{status}</p>
 
-          <button className="landing-pill-button landing-pill-button-primary contact-submit" type="submit">
-            Send Message
+          <button className="landing-pill-button landing-pill-button-primary contact-submit" type="submit" disabled={isSubmitting}>
+            {isSubmitting ? "Sending..." : "Send Message"}
           </button>
         </form>
       </div>

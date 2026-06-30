@@ -284,7 +284,7 @@ function getStoreProductDescriptionPoints(product) {
   return fallbackDescription ? [fallbackDescription] : [];
 }
 
-function StoreCheckoutModal({
+function StoreCheckoutPage({
   products,
   selectedProduct,
   selectedProductKey,
@@ -311,13 +311,9 @@ function StoreCheckoutModal({
     : `${selectedProduct ? getStoreProductLabel(selectedProduct, allModeCount) : "All experiences"}. ${selectedAccess === "-" ? "24 hours" : selectedAccess}.`;
 
   return (
-    <div className="store-checkout-backdrop" onClick={onCancel}>
+    <section className="store-checkout-page" aria-labelledby="store-checkout-title">
       <section
-        className="store-checkout-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="store-checkout-title"
-        onClick={(event) => event.stopPropagation()}
+        className="store-checkout-shell"
       >
         <header className="store-checkout-header">
           <img src={clearBackgroundLogo} alt="Vervus" />
@@ -434,7 +430,7 @@ function StoreCheckoutModal({
           ) : null}
         </div>
       </section>
-    </div>
+    </section>
   );
 }
 
@@ -1374,6 +1370,7 @@ function App() {
     playSoundWithUnlockRetry("sheetOpen");
     setHasAcceptedStoreTerms(false);
     setShowStore(true);
+    window.setTimeout(() => window.scrollTo({ top: 0 }), 0);
     if (!storeProducts.length && !isStoreLoading) {
       loadStoreProducts();
     }
@@ -1497,17 +1494,34 @@ function App() {
   const usesDarkLobbyShell = (!roomId && !isSoloChaosLabOpen) || (roomId && !shouldShowGamePage);
 
   const renderApp = (lobbyContent = DEFAULT_LOBBY_CONTENT) => (
-    <main className={`app-page${usesDarkLobbyShell ? " app-page-lobby" : ""}`}>
-      {roomId ? (
+    <main className={`app-page${usesDarkLobbyShell || showStore ? " app-page-lobby" : ""}${showStore ? " app-page-checkout" : ""}`}>
+      {showStore ? (
+        <StoreCheckoutPage
+          products={storeProducts}
+          selectedProduct={selectedStoreProduct}
+          selectedProductKey={selectedStoreProductKey}
+          allModeCount={storeProductModeCount}
+          isLoading={isStoreLoading}
+          error={storeError}
+          hasAcceptedTerms={hasAcceptedStoreTerms}
+          isCheckoutStarting={isCheckoutStarting}
+          actionsLocked={actionsLocked}
+          onSelectProduct={setSelectedStoreProductKey}
+          onAcceptTermsChange={setHasAcceptedStoreTerms}
+          onPay={purchaseProduct}
+          onCancel={() => setShowStore(false)}
+          onRetry={loadStoreProducts}
+        />
+      ) : roomId ? (
         shouldShowGamePage ? (
-        <GlitchGamePage
+          <GlitchGamePage
             roomId={roomId}
             playerId={playerId}
             players={players}
             myGame={me?.game ?? null}
             serverNow={serverOffsetMs === null ? null : serverNow}
-          onSubmitAnswer={submitAnswer}
-          onAssetsLoaded={notifyAssetsLoaded}
+            onSubmitAnswer={submitAnswer}
+            onAssetsLoaded={notifyAssetsLoaded}
             onReturnRoom={returnToRoom}
             onExit={exitRoom}
             connectionState={connectionState}
@@ -1589,24 +1603,6 @@ function App() {
           lobbyContent={lobbyContent}
         />
       )}
-      {showStore ? (
-        <StoreCheckoutModal
-          products={storeProducts}
-          selectedProduct={selectedStoreProduct}
-          selectedProductKey={selectedStoreProductKey}
-          allModeCount={storeProductModeCount}
-          isLoading={isStoreLoading}
-          error={storeError}
-          hasAcceptedTerms={hasAcceptedStoreTerms}
-          isCheckoutStarting={isCheckoutStarting}
-          actionsLocked={actionsLocked}
-          onSelectProduct={setSelectedStoreProductKey}
-          onAcceptTermsChange={setHasAcceptedStoreTerms}
-          onPay={purchaseProduct}
-          onCancel={() => setShowStore(false)}
-          onRetry={loadStoreProducts}
-        />
-      ) : null}
       {purchaseOverlayStatus ? (
         <div className="purchase-result-overlay" role="status" aria-live="polite">
           <div className={`purchase-result-card ${purchaseOverlayStatus}`}>

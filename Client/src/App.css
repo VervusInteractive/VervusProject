@@ -6161,19 +6161,25 @@
   margin-top: 10px;
 }
 
-.store-checkout-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 88;
-  display: grid;
-  place-items: start center;
-  overflow-y: auto;
-  padding: 0 12px max(18px, env(safe-area-inset-bottom));
-  background: rgba(3, 2, 10, 0.72);
-  backdrop-filter: blur(10px);
+.app-page-checkout {
+  place-items: stretch center;
+  padding: 0;
 }
 
-.store-checkout-modal {
+.store-checkout-page {
+  width: 100%;
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 0 12px max(18px, env(safe-area-inset-bottom));
+  background:
+    radial-gradient(ellipse at 50% 3%, rgba(117, 68, 191, 0.2), transparent 22%),
+    linear-gradient(180deg, #04050b 0%, #070613 42%, #080814 100%);
+}
+
+.store-checkout-shell {
   width: min(390px, calc(100vw - 24px));
   min-height: min(100vh, 900px);
   min-height: min(100dvh, 900px);
@@ -6187,7 +6193,7 @@
   box-shadow: 0 28px 76px rgba(0, 0, 0, 0.58);
 }
 
-.store-checkout-modal * {
+.store-checkout-shell * {
   box-sizing: border-box;
 }
 
@@ -6582,17 +6588,13 @@
 }
 
 @media (min-width: 760px) {
-  .store-checkout-backdrop {
-    place-items: center;
+  .store-checkout-page {
     padding: 28px;
   }
 
-  .store-checkout-modal {
+  .store-checkout-shell {
     min-height: auto;
-    max-height: calc(100vh - 56px);
-    max-height: calc(100dvh - 56px);
     border-radius: 28px;
-    overflow-y: auto;
   }
 }
 

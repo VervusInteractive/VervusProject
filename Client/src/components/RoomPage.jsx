@@ -65,6 +65,7 @@ function RoomPage({
   const [showDebug, setShowDebug] = useState(false);
   const [copyStatus, setCopyStatus] = useState("");
   const [descriptionMode, setDescriptionMode] = useState(null);
+  const [leaveConfirmation, setLeaveConfirmation] = useState(null);
   const [currentTimeMs, setCurrentTimeMs] = useState(() => Date.now());
   const content = {
     ...DEFAULT_LOBBY_CONTENT.room,
@@ -226,10 +227,21 @@ function RoomPage({
   const handlePlayerRemove = (targetPlayer) => {
     onUiButtonClick?.();
     if (targetPlayer.playerId === playerId) {
-      onExit();
+      setLeaveConfirmation(targetPlayer.isHost ? "host" : "player");
       return;
     }
     onKickPlayer?.(targetPlayer.playerId);
+  };
+
+  const handleConfirmLeave = () => {
+    onUiButtonClick?.();
+    setLeaveConfirmation(null);
+    onExit();
+  };
+
+  const handleCancelLeave = () => {
+    onUiButtonClick?.();
+    setLeaveConfirmation(null);
   };
 
   const handleCycleColor = () => {
@@ -461,6 +473,43 @@ function RoomPage({
     </div>
   ) : null);
 
+  const renderLeaveConfirmation = () => {
+    if (!leaveConfirmation) return null;
+
+    const isHostLeaving = leaveConfirmation === "host";
+
+    return (
+      <div
+        className="leave-room-overlay"
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="leave-room-title"
+        aria-describedby="leave-room-description"
+      >
+        <div className="leave-room-card">
+          <span className="leave-room-side-glow" aria-hidden="true" />
+          <span className="leave-room-center-glow" aria-hidden="true" />
+          <div className="leave-room-content">
+            <h2 id="leave-room-title">Leave room?</h2>
+            <p id="leave-room-description">
+              {isHostLeaving
+                ? "You're the host. If you leave, the room will close for everyone."
+                : "You'll leave this room. The host and other players can keep going."}
+            </p>
+          </div>
+          <div className="leave-room-actions">
+            <button type="button" className="leave-room-stay-button" onClick={handleCancelLeave}>
+              Stay in the room
+            </button>
+            <button type="button" className="leave-room-leave-button" onClick={handleConfirmLeave}>
+              Leave room
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <section className={`room-lobby-page ${isHost ? "room-lobby-page-host" : "room-lobby-page-join"}`} {...content.editableAttributes}>
       {isWrongOrientation ? (
@@ -625,6 +674,7 @@ function RoomPage({
       </div>
 
       {renderQrModal()}
+      {renderLeaveConfirmation()}
       <ModeDescriptionDialog
         mode={descriptionMode}
         gameTitle={selectedMode?.gameTitle || "GLiTCH!"}

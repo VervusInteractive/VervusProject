@@ -12,6 +12,7 @@ import tiktokIcon from "../assets/images/SocialIcons/SocialIcon_TikTok.png";
 import xIcon from "../assets/images/SocialIcons/SocialIcon_x.png";
 import cardIcon from "../assets/images/VervusIcons/Icons_Card.png";
 import failIcon from "../assets/images/VervusIcons/Icons_Fail.png";
+import { getPlayerIcon } from "../playerIcons";
 
 const ROOM_SOCIAL_LINKS = Object.freeze([
   { label: "TikTok", href: "https://www.tiktok.com", icon: tiktokIcon },
@@ -272,7 +273,7 @@ function RoomPage({
     const avatarStyle = { "--player-color": player.color || "#8d5cff" };
     const avatar = (
       <span className="room-player-avatar" style={avatarStyle} aria-hidden="true">
-        <span />
+        <img src={getPlayerIcon(player.color)} alt="" />
       </span>
     );
 

@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { getPlayerIcon } from "../playerIcons";
 
 const BAD_CONNECTION_THRESHOLD_MS = 250;
 
@@ -114,9 +115,10 @@ function PlayAreaPage({
                     {isCurrentPlayer ? " (You)" : ""}
                     <span
                       className="player-color-dot"
-                      style={{ backgroundColor: player.color || "#64748b" }}
                       aria-hidden="true"
-                    />
+                    >
+                      <img src={getPlayerIcon(player.color)} alt="" />
+                    </span>
                     {hasBadRemoteConnection ? <span className="warning-icon" aria-label={`${player.name} has a bad connection`} title={`${player.name} has a bad connection`}>⚠</span> : null}
                   </strong>
                   <span className="player-id">{player.playerId}</span>

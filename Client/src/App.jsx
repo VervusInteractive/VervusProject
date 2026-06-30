@@ -26,6 +26,7 @@ import {
 import warningIcon from "./assets/images/VervusIcons/Icons_Warning.png";
 import emailIcon from "./assets/images/VervusIcons/Icons_Email.png";
 import clearBackgroundLogo from "./assets/images/Logos/Logo_ClearBackground.svg";
+import { PLAYER_COLORS } from "./playerIcons";
 
 const serverUrl = import.meta.env.VITE_SERVER_URL;
 if (!serverUrl) {
@@ -116,7 +117,6 @@ const PURCHASE_RESULT_TO_EMIT_STORAGE_KEY = "purchaseResultToEmit";
 const PENDING_PURCHASE_SOUND_STORAGE_KEY = "pendingPurchaseSoundEffect";
 const PENDING_PURCHASE_SESSION_STORAGE_KEY = "pendingPurchaseCheckoutSessionId";
 const RECOVERY_EMAIL_STORAGE_KEY = "vervusRecoveryEmail";
-const PLAYER_COLORS = ["#ef4444", "#3b82f6", "#22c55e", "#eab308"];
 const initialSearchParams = new URLSearchParams(window.location.search);
 const DEBUG_QUERY_VALUES = new Set(["1", "true", "yes", "on"]);
 const isQueryFlagEnabled = (key) => DEBUG_QUERY_VALUES.has(String(initialSearchParams.get(key) || "").trim().toLowerCase());

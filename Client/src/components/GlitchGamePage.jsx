@@ -11,6 +11,7 @@ import {
 } from "../audioEngine";
 import { CONNECTION_STATES, getConnectionStateLabel } from "../connectionState";
 import clearBackgroundLogo from "../assets/images/Logos/Logo_ClearBackground.svg";
+import { getPlayerIcon } from "../playerIcons";
 
 const BLITZ_BACKGROUND_IMAGE_SOURCE = new URL("../assets/images/GlitchBackgrounds/blitz_blue_streaks.png", import.meta.url).href;
 
@@ -751,7 +752,7 @@ function GlitchGamePage({ roomId, playerId, players, myGame, serverNow, onSubmit
                 return (
                   <li key={player.playerId} className="kill-player-row">
                     <span className="kill-player-avatar" style={{ "--player-color": player.color || "#8d5cff" }} aria-hidden="true">
-                      <span />
+                      <img src={getPlayerIcon(player.color)} alt="" />
                     </span>
                     <strong>{player.playerId === playerId ? "You" : player.name}</strong>
                     <div>
@@ -906,9 +907,11 @@ function GlitchGamePage({ roomId, playerId, players, myGame, serverNow, onSubmit
                 <span
                   key={player.playerId}
                   className={`vote-indicator ${hasVoted ? "voted" : "pending"}`}
-                  style={{ backgroundColor: player.color || "#64748b" }}
+                  style={{ backgroundColor: player.color || "#64748b", color: player.color || "#64748b" }}
                   title={`${player.name}${hasVoted ? " has voted" : " has not voted yet"}`}
-                />
+                >
+                  <img src={getPlayerIcon(player.color)} alt="" aria-hidden="true" />
+                </span>
               );
             })}
           </div>

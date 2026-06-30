@@ -100,6 +100,28 @@ function formatDigitalTime(ms) {
   return `${String(minutes).padStart(2, "0")} : ${String(seconds).padStart(2, "0")}`;
 }
 
+function getCounterClockwiseTimerArcPath(elapsedDegrees) {
+  const safeDegrees = Math.min(359.99, Math.max(0, Number(elapsedDegrees) || 0));
+  if (safeDegrees <= 0) return "";
+
+  const center = 150;
+  const radius = 138;
+  const startAngle = -90;
+  const endAngle = startAngle - safeDegrees;
+  const toPoint = (angleDegrees) => {
+    const radians = (angleDegrees * Math.PI) / 180;
+    return {
+      x: center + (radius * Math.cos(radians)),
+      y: center + (radius * Math.sin(radians))
+    };
+  };
+  const start = toPoint(startAngle);
+  const end = toPoint(endAngle);
+  const largeArcFlag = safeDegrees > 180 ? 1 : 0;
+
+  return `M ${start.x.toFixed(3)} ${start.y.toFixed(3)} A ${radius} ${radius} 0 ${largeArcFlag} 0 ${end.x.toFixed(3)} ${end.y.toFixed(3)}`;
+}
+
 function getModeSubtitle(mode, modeId) {
   const title = mode?.title || modeId || "standard";
   const cleanedTitle = title.replace(/^GLiTCH!\s*/i, "").trim();
@@ -797,8 +819,9 @@ function GlitchGamePage({ roomId, playerId, players, myGame, serverNow, onSubmit
   const boundedTimeRemainingMs = roundTimerMs > 0 ? Math.min(roundTimerMs, safeTimeRemainingMs) : safeTimeRemainingMs;
   const timerProgress = roundTimerMs > 0 ? clamp01(boundedTimeRemainingMs / roundTimerMs) : 0;
   const displayTimeMs = isSaveItActive ? Math.min(3000, roundTimerMs || 3000) : boundedTimeRemainingMs;
+  const isLowTimeTheme = Boolean(!isSaveItActive && roundTimerMs > 0 && timerProgress <= 0.1);
   const isLastChanceTheme = Boolean(currentRound?.isLastChanceReplay || isSaveItActive);
-  const isDangerTheme = Boolean(isLastChanceTheme || isHeatSurgeEnabled);
+  const isDangerTheme = Boolean(isLastChanceTheme || isHeatSurgeEnabled || isLowTimeTheme);
   const comboIntensity = clamp01((Number(myGame.combo) || 0) / 40);
   const backgroundIntensity = isDangerTheme ? 1 : comboIntensity;
   const backgroundMotionDurationMs = Math.round(1700 - (backgroundIntensity * 1120));
@@ -825,13 +848,16 @@ function GlitchGamePage({ roomId, playerId, players, myGame, serverNow, onSubmit
     isBlitzMode ? "blitz-mode" : "",
     isDangerTheme ? "danger" : "standard",
     isSaveItActive ? "save-it-state" : "",
+    isLowTimeTheme ? "low-time-state" : "",
     currentRound?.isLastChanceReplay ? "last-chance-state" : "",
     isHeatSurgeEnabled ? "heat-surge-state" : "",
     corruptionClasses
   ].filter(Boolean).join(" ");
+  const timerElapsedDegrees = Math.round((1 - timerProgress) * 360);
+  const timerArcPath = getCounterClockwiseTimerArcPath(timerElapsedDegrees);
   const timerRingStyle = {
-    "--timer-progress": `${Math.round(timerProgress * 360)}deg`,
-    "--timer-marker-angle": `${Math.round((timerProgress * 360) - 180)}deg`
+    "--timer-progress": `${timerElapsedDegrees}deg`,
+    "--timer-marker-angle": `${-timerElapsedDegrees - 90}deg`
   };
   const stimulusIconStyle = stimulusIcon
     ? {
@@ -882,6 +908,10 @@ function GlitchGamePage({ roomId, playerId, players, myGame, serverNow, onSubmit
 
           <div className="glitch-timer-stage" aria-label={`Time left ${formatTimeLeft(boundedTimeRemainingMs)}`}>
             <div className="glitch-timer-ring" style={timerRingStyle}>
+              <svg className="glitch-timer-arc" viewBox="0 0 300 300" aria-hidden="true">
+                <circle className="glitch-timer-arc-track" cx="150" cy="150" r="138" />
+                {timerArcPath ? <path className="glitch-timer-arc-fill" d={timerArcPath} /> : null}
+              </svg>
               <div className="glitch-timer-marker"><span /></div>
               <div className="glitch-symbol-disc">
                 <div className={`glitch-icon ${stimulusClassName} ${isRoundTransitionShaking ? "round-transition-shake" : ""}`} role="img" aria-label={stimulusIcon?.label || "Current symbol"}>

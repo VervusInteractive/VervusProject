@@ -5556,7 +5556,8 @@
 }
 
 .glitch-game-screen.save-it-state,
-.glitch-game-screen.last-chance-state {
+.glitch-game-screen.last-chance-state,
+.glitch-game-screen.low-time-state {
   --glitch-bg-motion-mask: var(--glitch-bg-streaks-layer);
   --glitch-bg-filter: saturate(1.34) brightness(1.06);
 }
@@ -5701,15 +5702,20 @@
 }
 
 .glitch-combo-stack strong {
+  background: linear-gradient(163deg, #002cda 40%, #ffffff 75%);
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
   font-size: clamp(3.35rem, 18vw, 5rem);
   line-height: 0.78;
   font-weight: 1000;
 }
 
 .glitch-combo-stack span {
-  font-size: 0.5rem;
+  color: #012bd9;
+  font-size: 0.875rem;
   font-weight: 900;
-  letter-spacing: 0.08em;
+  letter-spacing: 0;
 }
 
 .glitch-timer-stage {
@@ -5721,24 +5727,49 @@
 .glitch-timer-ring {
   --timer-ring-inset: clamp(18px, 5.5vw, 24px);
   --timer-marker-size: clamp(16px, 4.8vw, 20px);
-  width: clamp(220px, 68vw, 286px);
+  width: clamp(230px, 76vw, 300px);
   aspect-ratio: 1 / 1;
   position: relative;
   display: grid;
   place-items: center;
   border-radius: 999px;
-  background:
-    conic-gradient(from -90deg, var(--game-ring-start) 0deg, var(--game-ring-end) var(--timer-progress), var(--game-ring-track) var(--timer-progress) 360deg);
+  background: transparent;
   box-shadow:
     0 18px 30px rgba(0, 0, 0, 0.56),
     0 0 0 1px rgba(255, 255, 255, 0.04),
     0 0 22px color-mix(in srgb, var(--game-accent) 34%, transparent);
 }
 
+.glitch-timer-arc {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.glitch-timer-arc-track,
+.glitch-timer-arc-fill {
+  fill: none;
+  stroke-width: 24;
+}
+
+.glitch-timer-arc-track {
+  stroke: var(--game-ring-track);
+}
+
+.glitch-timer-arc-fill {
+  stroke: var(--game-ring-start);
+  stroke-linecap: round;
+  filter: drop-shadow(0 0 5px color-mix(in srgb, var(--game-accent) 42%, transparent));
+}
+
 .glitch-timer-ring::before {
   content: "";
   position: absolute;
   inset: var(--timer-ring-inset);
+  z-index: 2;
   border-radius: inherit;
   background:
     radial-gradient(circle at 50% 39%, color-mix(in srgb, var(--game-accent) 12%, transparent), transparent 42%),
@@ -5880,60 +5911,54 @@
 
 .glitch-time-pill {
   justify-self: center;
-  min-width: 64px;
-  min-height: 18px;
+  width: 120px;
+  min-height: 40px;
   display: inline-grid;
   place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 999px;
-  padding: 2px 10px;
-  background: rgba(5, 10, 24, 0.74);
-  color: rgba(255, 255, 255, 0.84);
-  font-size: 0.58rem;
-  font-weight: 800;
-  letter-spacing: 0.04em;
+  padding: 6px 12px;
+  background: rgba(0, 0, 0, 0.25);
+  color: #ffffff;
+  font-size: 1.125rem;
+  font-weight: 400;
+  letter-spacing: 0;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.08),
     0 0 12px rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(2px);
 }
 
 .glitch-answer-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 10px;
+  gap: 12px;
 }
 
 .glitch-answer-button {
-  min-height: clamp(58px, 8vh, 72px);
+  min-height: clamp(82px, 13vh, 100px);
   border: 1px solid transparent;
-  border-radius: 11px;
+  border-radius: 24px;
   color: #ffffff;
   font: inherit;
-  font-size: clamp(0.62rem, 2.4vw, 0.78rem);
+  font-size: clamp(1rem, 4.8vw, 1.25rem);
   font-weight: 1000;
-  letter-spacing: 0.02em;
+  letter-spacing: 0;
   text-transform: uppercase;
   cursor: pointer;
-  text-shadow: 0 1px 8px rgba(255, 255, 255, 0.28);
+  text-shadow: 0 -1px 0 rgba(255, 255, 255, 0.18);
 }
 
 .glitch-answer-button.sync {
-  border-color: rgba(37, 255, 119, 0.74);
-  background:
-    linear-gradient(180deg, rgba(13, 92, 54, 0.96), rgba(7, 52, 34, 0.98)),
-    #07351f;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.12),
-    0 0 15px rgba(37, 255, 119, 0.48);
+  border-color: #1ad064;
+  background: #082012;
+  box-shadow: inset 0 1px 12px #76ee74;
 }
 
 .glitch-answer-button.glitch {
-  border-color: rgba(255, 58, 72, 0.74);
-  background:
-    linear-gradient(180deg, rgba(82, 15, 23, 0.96), rgba(42, 7, 14, 0.98)),
-    #2b0710;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.12),
-    0 0 15px rgba(255, 58, 72, 0.48);
+  border-color: #ca0a0d;
+  background: #200809;
+  box-shadow: inset 0 1px 12px #dc3d40;
 }
 
 .glitch-answer-button:not(:disabled):active {
@@ -5947,17 +5972,7 @@
 }
 
 .glitch-game-screen.blitz-mode {
-  --game-accent: #214dff;
-  --game-accent-strong: #002cda;
-  --game-ring-start: #10151f;
-  --game-ring-end: #343945;
-  --game-ring-track: #11151e;
-  --game-icon-gradient:
-    radial-gradient(circle at 59% 32%, #ffffff 0 5%, transparent 8%),
-    radial-gradient(circle at 49% 54%, #ffffff 0 11%, #7dbdff 12% 19%, transparent 20%),
-    linear-gradient(135deg, #2f8dff 0%, #edf6ff 72%, #ffffff 100%);
   --game-noise: rgba(35, 104, 255, 0.36);
-  --game-text-glow: rgba(53, 102, 255, 0.45);
   --glitch-bg-layer-color: #1b65ff;
   --glitch-bg-base-image: url("./assets/images/GlitchBackgrounds/blitz_blue_streaks.png");
   --glitch-bg-motion-opacity: 0.42;
@@ -6016,45 +6031,7 @@
 }
 
 .glitch-game-screen.blitz-mode .glitch-combo-stack span {
-  color: #7c95fd;
-}
-
-.glitch-game-screen.blitz-mode .glitch-timer-ring {
-  background:
-    conic-gradient(from -90deg, #11151e 0 var(--timer-progress), #343945 var(--timer-progress) 360deg);
-  box-shadow:
-    0 21px 32px rgba(0, 0, 0, 0.58),
-    0 0 0 1px rgba(18, 30, 82, 0.72);
-}
-
-.glitch-game-screen.blitz-mode .glitch-timer-ring::before {
-  background:
-    radial-gradient(circle at 50% 46%, rgba(7, 31, 67, 0.58), transparent 56%),
-    linear-gradient(180deg, #071221 0%, #050b15 100%);
-  box-shadow:
-    inset 0 0 44px rgba(0, 0, 0, 0.78),
-    inset 0 0 0 1px rgba(26, 52, 224, 0.42);
-}
-
-.glitch-game-screen.blitz-mode .glitch-timer-marker span {
-  background: #ffffff;
-  box-shadow: 0 0 12px rgba(255, 255, 255, 0.62);
-}
-
-.glitch-game-screen.blitz-mode .glitch-symbol-disc {
-  border: 0;
-  background:
-    radial-gradient(circle at 50% 50%, rgba(15, 50, 96, 0.4), transparent 42%),
-    #050b15;
-  box-shadow:
-    inset 0 0 0 1px rgba(13, 38, 124, 0.52),
-    inset 0 -24px 46px rgba(0, 0, 0, 0.62);
-}
-
-.glitch-game-screen.blitz-mode .glitch-symbol-disc .glitch-icon {
-  filter:
-    drop-shadow(0 0 8px rgba(96, 163, 255, 0.56))
-    drop-shadow(0 0 18px rgba(0, 44, 218, 0.28));
+  color: #012bd9;
 }
 
 .glitch-game-screen.blitz-mode .glitch-state-callout,
@@ -6062,28 +6039,29 @@
   color: rgba(255, 255, 255, 0.78);
 }
 
-.glitch-game-screen.blitz-mode .glitch-time-pill {
-  border: 1px solid #1834e0;
-  background: rgba(0, 0, 0, 0.5);
-  color: #ffffff;
-  box-shadow: none;
-  backdrop-filter: blur(0.5px);
+.glitch-game-screen.blitz-mode.danger {
+  --game-noise: rgba(255, 31, 31, 0.36);
+  --glitch-bg-primary: #100100;
+  --glitch-bg-secondary: #350706;
+  --glitch-bg-layer-color: #ff1f1f;
+  --glitch-bg-motion-mask: var(--glitch-bg-streaks-layer);
+  --glitch-bg-filter: saturate(1.34) brightness(1.06);
+  background: #02030a;
 }
 
-.glitch-game-screen.blitz-mode .glitch-answer-button {
-  text-shadow: 0 -1px 0 rgba(255, 255, 255, 0.18);
+.glitch-game-screen.blitz-mode.danger::before {
+  background:
+    radial-gradient(circle at 50% 45%, color-mix(in srgb, var(--glitch-bg-layer-color) 34%, transparent), transparent 41%),
+    radial-gradient(circle at 50% 82%, color-mix(in srgb, var(--glitch-bg-layer-color) 18%, transparent), transparent 44%),
+    linear-gradient(180deg, #02030a 0%, var(--glitch-bg-primary) 18%, var(--glitch-bg-secondary) 62%, #010207 100%);
 }
 
-.glitch-game-screen.blitz-mode .glitch-answer-button.sync {
-  border-color: #1ad064;
-  background: #082012;
-  box-shadow: inset 0 1px 12px #76ee74;
-}
-
-.glitch-game-screen.blitz-mode .glitch-answer-button.glitch {
-  border-color: #ca0a0d;
-  background: #200809;
-  box-shadow: inset 0 1px 12px #dc3d40;
+.glitch-game-screen.blitz-mode.danger::after {
+  background:
+    linear-gradient(92deg, transparent 0 14%, var(--game-noise) 14.4% 15.4%, transparent 16% 100%),
+    linear-gradient(88deg, transparent 0 65%, var(--game-noise) 65.5% 68%, transparent 69%),
+    repeating-linear-gradient(180deg, transparent 0 42px, rgba(255, 255, 255, 0.08) 43px 44px, transparent 45px 74px);
+  opacity: 0.16;
 }
 
 .save-it-splash {
@@ -6299,35 +6277,6 @@
   box-shadow: 0 0 12px color-mix(in srgb, var(--game-accent) 56%, transparent);
   transition: width 180ms ease;
 }
-
-.pregame-screen.blitz-mode .pregame-countdown,
-.pregame-screen.blitz-mode .pregame-loading-ring {
-  background:
-    conic-gradient(from -90deg, #11151e 0 var(--pregame-load-progress, 360deg), #343945 var(--pregame-load-progress, 360deg) 360deg);
-  box-shadow:
-    0 21px 32px rgba(0, 0, 0, 0.58),
-    0 0 0 1px rgba(18, 30, 82, 0.72);
-}
-
-.pregame-screen.blitz-mode .pregame-countdown::before,
-.pregame-screen.blitz-mode .pregame-loading-ring::before {
-  background:
-    radial-gradient(circle at 50% 46%, rgba(7, 31, 67, 0.58), transparent 56%),
-    linear-gradient(180deg, #071221 0%, #050b15 100%);
-  box-shadow:
-    inset 0 0 44px rgba(0, 0, 0, 0.78),
-    inset 0 0 0 1px rgba(26, 52, 224, 0.42);
-}
-
-.pregame-screen.blitz-mode .pregame-countdown span,
-.pregame-screen.blitz-mode .pregame-loading-ring span {
-  background: linear-gradient(163deg, #002cda 38%, #ffffff 76%);
-  background-clip: text;
-  -webkit-background-clip: text;
-  color: transparent;
-  text-shadow: none;
-}
-
 
 .debug-button {
   position: absolute;

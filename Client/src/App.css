@@ -2898,38 +2898,29 @@
 
 .room-host-purchase-progress {
   display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 6px;
 }
 
 .room-host-purchase-progress span {
   height: 8px;
   border-radius: 999px;
+  background: rgba(75, 64, 96, 0.72);
+  box-shadow: none;
+}
+
+.room-host-purchase-progress span.active {
   background: #9a56f6;
   box-shadow: 0 0 14px rgba(154, 86, 246, 0.4);
   animation: room-payment-progress-pulse 1.35s ease-in-out infinite;
 }
 
-.room-host-purchase-progress span:nth-child(2) {
+.room-host-purchase-progress span.active:nth-child(2) {
   animation-delay: 100ms;
 }
 
-.room-host-purchase-progress span:nth-child(3) {
+.room-host-purchase-progress span.active:nth-child(3) {
   animation-delay: 200ms;
-}
-
-.room-host-purchase-progress span:nth-child(4) {
-  animation-delay: 300ms;
-}
-
-.room-host-purchase-progress span:nth-child(5) {
-  animation-delay: 400ms;
-}
-
-.room-host-purchase-progress span:nth-child(n + 6) {
-  background: rgba(75, 64, 96, 0.72);
-  box-shadow: none;
-  animation: none;
 }
 
 .room-host-purchase-failed-hero {

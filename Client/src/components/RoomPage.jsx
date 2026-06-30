@@ -21,6 +21,12 @@ const ROOM_SOCIAL_LINKS = Object.freeze([
   { label: "X", href: "https://x.com/PlayVervus", icon: xIcon }
 ]);
 
+const HOST_PURCHASE_STEPS = Object.freeze([
+  { key: "selecting_experience", label: "Selecting experience" },
+  { key: "checkout", label: "Starting checkout" },
+  { key: "payment", label: "Payment in progress" }
+]);
+
 const renderTemplate = (template, values) => String(template || "").replace(/\{([a-zA-Z0-9_]+)\}/g, (match, key) => (
   values[key] ?? match
 ));
@@ -52,6 +58,7 @@ function RoomPage({
   previewComboLimit = null,
   onOpenStore,
   hostUnlockingPending = false,
+  hostUnlockingStage = null,
   hostUnlockingFailed = false,
   selectedModeId = "standard",
   availableModes = [],
@@ -144,6 +151,14 @@ function RoomPage({
   const isWrongOrientation = isMobileDevice && selectedModeOrientationLock !== "both" && selectedModeOrientationLock !== deviceOrientation;
   const showHostPurchasePending = !isHost && hostUnlockingPending;
   const showHostPurchaseFailed = !isHost && hostUnlockingFailed && !hostUnlockingPending;
+  const hostPurchaseStageIndex = Math.max(
+    0,
+    HOST_PURCHASE_STEPS.findIndex((step) => step.key === hostUnlockingStage)
+  );
+  const activeHostPurchaseStageIndex = hostUnlockingStage
+    ? hostPurchaseStageIndex
+    : HOST_PURCHASE_STEPS.length - 1;
+  const activeHostPurchaseStage = HOST_PURCHASE_STEPS[activeHostPurchaseStageIndex] || HOST_PURCHASE_STEPS[0];
   const roomStatusLabels = {
     lobby: content.statusLabelLobby,
     preview: content.statusLabelPreview,
@@ -446,12 +461,15 @@ function RoomPage({
       </div>
       <div className="room-host-purchase-progress-card">
         <div className="room-host-purchase-progress-header">
-          <span>Payment in progress</span>
-          <strong>Processing</strong>
+          <span>{activeHostPurchaseStage.label}</span>
+          <strong>{activeHostPurchaseStageIndex + 1} / {HOST_PURCHASE_STEPS.length}</strong>
         </div>
         <div className="room-host-purchase-progress" aria-hidden="true">
-          {Array.from({ length: 7 }, (_, index) => (
-            <span key={index} />
+          {HOST_PURCHASE_STEPS.map((step, index) => (
+            <span
+              key={step.key}
+              className={index <= activeHostPurchaseStageIndex ? "active" : ""}
+            />
           ))}
         </div>
       </div>

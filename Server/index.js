@@ -237,6 +237,7 @@ async function refreshPlayerEntitlementsInActiveRooms(profileId) {
       room.expiresAtMs = entitledModeExpiriesMs[selectedModeId] || entitlementExpiresAtMs || room.expiresAtMs || null;
       if (room.hostUnlockingPending) {
         room.hostUnlockingPending = false;
+        room.hostUnlockingStage = null;
         room.unlockingStartedAtMs = null;
         room.unlockingPreviousHasEntitlement = null;
         room.unlockingProductName = null;
@@ -244,6 +245,7 @@ async function refreshPlayerEntitlementsInActiveRooms(profileId) {
       if (entitlementExpiresAtMs) {
         room.hostUnlockingFailed = false;
         room.hostUnlockingFailedAtMs = null;
+        room.hostUnlockingStage = null;
       }
       if (room.game?.isPreview && entitlementExpiresAtMs) {
         room.game.isPreview = false;
@@ -625,6 +627,21 @@ app.post("/api/stripe/checkout-session", strictPublicEndpointLimiter, async (req
       "metadata[roomId]": roomId || ""
     });
     await attachStripeSessionToPurchase({ purchaseId, stripeCheckoutSessionId: session.id });
+    const activeRoom = roomId ? rooms.get(roomId) : null;
+    if (activeRoom?.creatorPlayerId === profileId && activeRoom.hostUnlockingPending) {
+      activeRoom.hostUnlockingStage = "payment";
+      activeRoom.unlockingProductName = product.product_name;
+      transitionRoomStatus(activeRoom, roomId, ROOM_STATUSES.PAYMENT_PENDING, {
+        eventType: "settings_changed",
+        metadata: {
+          productKey: product.product_key,
+          productName: product.product_name,
+          purchaseStage: "payment",
+          stripeCheckoutSessionId: session.id
+        }
+      });
+      io.to(roomId).emit("room:state", getRoomState(roomId));
+    }
     recordAnalyticsEvent({
       eventName: "checkout_started",
       profileId,

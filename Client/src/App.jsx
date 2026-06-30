@@ -1561,6 +1561,7 @@ function App() {
       if (response?.error) {
         alert(response.error);
         setIsCheckoutStarting(false);
+        emitIfConnected("entitlement:purchase:cancel", { roomId, playerId });
         return;
       }
 
@@ -1584,6 +1585,13 @@ function App() {
       roomCode: roomId,
       metadata: { placement }
     });
+    if (placement === "room" && roomId && playerId) {
+      emitIfConnected("entitlement:purchase:stage", {
+        roomId,
+        playerId,
+        stage: "selecting_experience"
+      });
+    }
     playSoundWithUnlockRetry("sheetOpen");
     setHasAcceptedStoreTerms(false);
     setShowStore(true);
@@ -1591,7 +1599,14 @@ function App() {
     if (!storeProducts.length && !isStoreLoading) {
       loadStoreProducts();
     }
-  }, [isStoreLoading, loadStoreProducts, roomId, storeProducts.length]);
+  }, [emitIfConnected, isStoreLoading, loadStoreProducts, playerId, roomId, storeProducts.length]);
+
+  const cancelStore = useCallback(() => {
+    setShowStore(false);
+    if (roomId && playerId) {
+      emitIfConnected("entitlement:purchase:cancel", { roomId, playerId });
+    }
+  }, [emitIfConnected, playerId, roomId]);
 
   const debugLobbyModeIds = useMemo(
     () => lobbyModeOptions.map((mode) => mode.id).filter(Boolean),
@@ -1726,7 +1741,7 @@ function App() {
           onSelectProduct={setSelectedStoreProductKey}
           onAcceptTermsChange={setHasAcceptedStoreTerms}
           onPay={purchaseProduct}
-          onCancel={() => setShowStore(false)}
+          onCancel={cancelStore}
           onRetry={loadStoreProducts}
         />
       ) : roomId ? (
@@ -1773,6 +1788,7 @@ function App() {
             previewComboLimit={roomState?.game?.previewComboLimit ?? null}
             onOpenStore={() => openStore("room")}
             hostUnlockingPending={Boolean(roomState?.hostUnlockingPending)}
+            hostUnlockingStage={roomState?.hostUnlockingStage ?? null}
             hostUnlockingFailed={Boolean(roomState?.hostUnlockingFailed)}
             unlockingProductName={roomState?.unlockingProductName ?? null}
             selectedModeId={roomState?.selectedModeId ?? "standard"}

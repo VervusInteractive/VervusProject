@@ -71,6 +71,14 @@ const ROOM_JOIN_ERROR_CODES = Object.freeze({
   EXPIRED: "ROOM_EXPIRED"
 });
 
+const HOST_UNLOCKING_STAGES = Object.freeze({
+  SELECTING_EXPERIENCE: "selecting_experience",
+  CHECKOUT: "checkout",
+  PAYMENT: "payment"
+});
+
+const VALID_HOST_UNLOCKING_STAGES = new Set(Object.values(HOST_UNLOCKING_STAGES));
+
 function registerSocketHandlers(io) {
   startRoomCleanupScheduler(io);
 
@@ -124,6 +132,14 @@ function registerSocketHandlers(io) {
   const emitState = (roomId) => {
     touchRoom(rooms.get(roomId));
     io.to(roomId).emit("room:state", getRoomState(roomId));
+  };
+
+  const clearHostUnlockingState = (room) => {
+    room.hostUnlockingPending = false;
+    room.hostUnlockingStage = null;
+    room.unlockingStartedAtMs = null;
+    room.unlockingPreviousHasEntitlement = null;
+    room.unlockingProductName = null;
   };
   const persistConnectionState = (player, status, contextLabel) => {
     updatePlayerConnection({
@@ -1037,10 +1053,7 @@ function registerSocketHandlers(io) {
               clearPreviewTimer(room);
             }
           }
-          room.hostUnlockingPending = false;
-          room.unlockingStartedAtMs = null;
-          room.unlockingPreviousHasEntitlement = null;
-          room.unlockingProductName = null;
+          clearHostUnlockingState(room);
           room.expiresAtMs = hasEntitlement ? player.entitlementExpiresAtMs : null;
           const returnStatus = room.phase === "play" && hasEntitlement ? ROOM_STATUSES.PREMIUM : ROOM_STATUSES.LOBBY;
           transitionRoomStatus(room, normalizedRoomId, returnStatus, {
@@ -1241,6 +1254,7 @@ function registerSocketHandlers(io) {
       if (room.creatorPlayerId === playerId && ready && room.hostUnlockingFailed) {
         room.hostUnlockingFailed = false;
         room.hostUnlockingFailedAtMs = null;
+        room.hostUnlockingStage = null;
       }
 
       player.ready = ready;
@@ -1352,6 +1366,61 @@ function registerSocketHandlers(io) {
       }
     });
 
+    socket.on("entitlement:purchase:stage", (payload = {}, callback) => {
+      payload = normalizeSocketPayload(payload);
+      const roomId = normalizeRoomCode(payload.roomId);
+      const playerId = normalizeUuid(payload.playerId);
+      const stage = String(payload.stage || "").trim();
+      const room = rooms.get(roomId);
+      if (!room) return callback?.({ error: "Room not found" });
+      const player = room.players.get(playerId);
+      if (!player || player.socketId !== socket.id || room.creatorPlayerId !== playerId) {
+        return callback?.({ error: "Not allowed" });
+      }
+      if (!VALID_HOST_UNLOCKING_STAGES.has(stage)) {
+        return callback?.({ error: "Invalid purchase stage" });
+      }
+
+      room.hostUnlockingPending = true;
+      room.hostUnlockingStage = stage;
+      room.hostUnlockingFailed = false;
+      room.hostUnlockingFailedAtMs = null;
+      room.unlockingStartedAtMs = room.unlockingStartedAtMs || Date.now();
+      room.unlockingPreviousHasEntitlement = Boolean(player.entitlementExpiresAtMs && player.entitlementExpiresAtMs > Date.now());
+      transitionRoomStatus(room, roomId, ROOM_STATUSES.PAYMENT_PENDING, {
+        eventType: "settings_changed",
+        metadata: { purchaseStage: stage }
+      });
+      for (const candidate of room.players.values()) {
+        candidate.ready = false;
+      }
+      emitState(roomId);
+      return callback?.({ ok: true });
+    });
+
+    socket.on("entitlement:purchase:cancel", (payload = {}, callback) => {
+      payload = normalizeSocketPayload(payload);
+      const roomId = normalizeRoomCode(payload.roomId);
+      const playerId = normalizeUuid(payload.playerId);
+      const room = rooms.get(roomId);
+      if (!room) return callback?.({ error: "Room not found" });
+      const player = room.players.get(playerId);
+      if (!player || player.socketId !== socket.id || room.creatorPlayerId !== playerId) {
+        return callback?.({ error: "Not allowed" });
+      }
+
+      if (room.hostUnlockingPending) {
+        clearHostUnlockingState(room);
+        transitionRoomStatus(room, roomId, ROOM_STATUSES.LOBBY, {
+          eventType: "settings_changed",
+          metadata: { reason: "host_cancelled_unlock" }
+        });
+        emitState(roomId);
+      }
+
+      return callback?.({ ok: true });
+    });
+
     socket.on("entitlement:purchase:start", async (payload = {}, callback) => {
       payload = normalizeSocketPayload(payload);
       const roomId = normalizeRoomCode(payload.roomId);
@@ -1385,12 +1454,13 @@ function registerSocketHandlers(io) {
       }
 
       room.hostUnlockingPending = true;
+      room.hostUnlockingStage = HOST_UNLOCKING_STAGES.CHECKOUT;
       room.hostUnlockingFailed = false;
       room.hostUnlockingFailedAtMs = null;
-      room.unlockingStartedAtMs = Date.now();
+      room.unlockingStartedAtMs = room.unlockingStartedAtMs || Date.now();
       transitionRoomStatus(room, roomId, ROOM_STATUSES.PAYMENT_PENDING, {
         eventType: "settings_changed",
-        metadata: { productKey: productKey || "glitch_party_pack", productName: product.product_name }
+        metadata: { productKey: productKey || "glitch_party_pack", productName: product.product_name, purchaseStage: HOST_UNLOCKING_STAGES.CHECKOUT }
       });
       room.unlockingPreviousHasEntitlement = Boolean(player.entitlementExpiresAtMs && player.entitlementExpiresAtMs > Date.now());
       room.unlockingProductName = product.product_name;
@@ -1416,12 +1486,9 @@ function registerSocketHandlers(io) {
       const purchaseSucceeded = Boolean(success);
       if (!purchaseSucceeded) {
         const fallbackStatus = room.phase === "play" && room.game?.isPreview ? ROOM_STATUSES.PREVIEW : ROOM_STATUSES.LOBBY;
-        room.hostUnlockingPending = false;
+        clearHostUnlockingState(room);
         room.hostUnlockingFailed = true;
         room.hostUnlockingFailedAtMs = Date.now();
-        room.unlockingStartedAtMs = null;
-        room.unlockingPreviousHasEntitlement = null;
-        room.unlockingProductName = null;
         transitionRoomStatus(room, room.id, fallbackStatus, {
           eventType: "settings_changed",
           metadata: { reason: "payment_not_completed" }

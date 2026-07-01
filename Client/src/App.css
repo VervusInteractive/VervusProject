@@ -5483,6 +5483,7 @@
   --glitch-bg-streaks-layer: url("./assets/images/GlitchBackgrounds/horizontal_glitch_streaks_white_transparent.png");
   --glitch-bg-frame-layer: url("./assets/images/GlitchBackgrounds/glitch_grunge_frame_white_transparent.png");
   --glitch-bg-burst-layer: url("./assets/images/GlitchBackgrounds/energy_burst_glitch_white_transparent.png");
+  --glitch-bg-base-image: none;
   --glitch-bg-motion-mask: var(--glitch-bg-streaks-layer);
   --glitch-bg-structure-opacity: 0.42;
   --glitch-bg-motion-opacity: 0.52;
@@ -5610,6 +5611,10 @@
   pointer-events: none;
   transform: translateX(-50%);
   filter: var(--glitch-bg-filter);
+  background-image: var(--glitch-bg-base-image);
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
 }
 
 .glitch-background-layers::before,

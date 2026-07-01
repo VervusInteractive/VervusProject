@@ -26,6 +26,25 @@ const BLITZ_BACKGROUND_FRAME_SOURCES = [
   new URL("../assets/images/GlitchBackgrounds/BlitzBackgroundFrames/Background_Blitz_Frame9.png", import.meta.url).href,
   new URL("../assets/images/GlitchBackgrounds/BlitzBackgroundFrames/Background_Blitz_Frame10.png", import.meta.url).href
 ];
+const CHAOS_BACKGROUND_FRAME_GROUPS = Object.entries(
+  import.meta.glob("../assets/images/GlitchBackgrounds/ChaosBackground/**/*.png", { eager: true, import: "default" })
+).reduce((groups, [path, source]) => {
+  const fileName = path.split("/").pop() || "";
+  const intensityMatch = path.match(/intensity[_-]?(\d+)/i);
+  if (!intensityMatch) return groups;
+
+  const intensityLevel = Number(intensityMatch[1]);
+  const frameMatch = path.match(/frame[_-]?(\d+)/i);
+  const frameNumber = Number(frameMatch?.[1] || 1);
+
+  if (!groups.has(intensityLevel)) groups.set(intensityLevel, []);
+  groups.get(intensityLevel).push({ source, frameNumber, fileName });
+  return groups;
+}, new Map());
+CHAOS_BACKGROUND_FRAME_GROUPS.forEach((frames, intensityLevel) => {
+  frames.sort((left, right) => left.frameNumber - right.frameNumber || left.fileName.localeCompare(right.fileName));
+  CHAOS_BACKGROUND_FRAME_GROUPS.set(intensityLevel, frames.map((frame) => frame.source));
+});
 const HEAT_SURGE_ICON_SOURCE = new URL("../assets/images/GameIcons/GameIcons_HeatSurge.png", import.meta.url).href;
 
 const GAME_ICON_IMAGES = {
@@ -52,8 +71,10 @@ const GAME_ICON_IMAGES = {
 };
 
 const GAME_ICON_IMAGE_SOURCES = Array.from(new Set(Object.values(GAME_ICON_IMAGES).map((icon) => icon.src)));
+const CHAOS_BACKGROUND_IMAGE_SOURCES = Array.from(CHAOS_BACKGROUND_FRAME_GROUPS.values()).flat();
 const GLITCH_BACKGROUND_IMAGE_SOURCES = [
   ...BLITZ_BACKGROUND_FRAME_SOURCES,
+  ...CHAOS_BACKGROUND_IMAGE_SOURCES,
   new URL("../assets/images/GlitchBackgrounds/subtle_noise_scanlines_white_transparent.png", import.meta.url).href,
   new URL("../assets/images/GlitchBackgrounds/horizontal_glitch_streaks_white_transparent.png", import.meta.url).href,
   new URL("../assets/images/GlitchBackgrounds/glitch_grunge_frame_white_transparent.png", import.meta.url).href,
@@ -283,6 +304,22 @@ function getTensionDistortionLevel(modeId, corruptionEffects) {
     : 0;
 }
 
+function getChaosBackgroundSource(modeId, corruptionEffects) {
+  if (String(modeId || "").toLowerCase() !== "chaos") return null;
+
+  const requestedIntensity = Math.max(0, Number(corruptionEffects?.intensityLevel) || 0);
+  if (requestedIntensity <= 0) return null;
+
+  const availableIntensities = Array.from(CHAOS_BACKGROUND_FRAME_GROUPS.keys()).sort((left, right) => left - right);
+  if (!availableIntensities.length) return null;
+
+  const matchedIntensity = availableIntensities
+    .filter((intensityLevel) => intensityLevel <= requestedIntensity)
+    .at(-1) ?? availableIntensities[0];
+
+  return CHAOS_BACKGROUND_FRAME_GROUPS.get(matchedIntensity)?.[0] || null;
+}
+
 function scheduleResultsTicks(combo, registerTimeout) {
   const tickCount = Math.min(120, Math.max(0, Math.floor(Number(combo) || 0)));
   if (tickCount <= 0) return;
@@ -321,6 +358,10 @@ function GlitchGamePage({ roomId, playerId, players, myGame, serverNow, onSubmit
 
   const activeModeId = myGame?.modeId || selectedModeId;
   const isBlitzMode = String(activeModeId || "").toLowerCase() === "blitz";
+  const chaosBackgroundSource = useMemo(
+    () => getChaosBackgroundSource(activeModeId, currentRoundCorruptionEffects),
+    [activeModeId, currentRoundCorruptionEffects]
+  );
   const selectedMode = useMemo(() => availableModes.find((mode) => mode.id === activeModeId) || null, [activeModeId, availableModes]);
   const selectedModeOrientationLock = (selectedMode?.orientationLock || "both").toLowerCase();
   const [deviceOrientation, setDeviceOrientation] = useState("unknown");
@@ -873,6 +914,7 @@ function GlitchGamePage({ roomId, playerId, players, myGame, serverNow, onSubmit
   const backgroundShiftX = Math.round(1 + (backgroundIntensity * 5));
   const backgroundShiftY = Math.round(1 + (backgroundIntensity * 4));
   const gameScreenStyle = {
+    "--glitch-bg-base-image": chaosBackgroundSource ? `url(${chaosBackgroundSource})` : "none",
     "--glitch-bg-motion-opacity": isDangerTheme
       ? "0.86"
       : (0.46 + (backgroundIntensity * 0.26)).toFixed(2),

@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import GameModeSelector, { ModeDescriptionDialog } from "./GameModeSelector.jsx";
-import LanguageSwitcher from "./LanguageSwitcher.jsx";
 import ModeDebugOverlay from "./ModeDebugOverlay";
 import { CONNECTION_STATES, getConnectionStateLabel } from "../connectionState";
 import { DEFAULT_LOBBY_CONTENT } from "../storyblok/lobbyContent.js";
@@ -593,8 +592,6 @@ function RoomPage({
         <img src={clearBackgroundLogo} alt={t("app.name")} />
       </div>
 
-      <LanguageSwitcher className="room-language-switcher room-language-switcher-mobile" />
-
       <header className="room-desktop-header" aria-label={t("room.desktop.navAriaLabel")}>
         <div className="room-desktop-brand" aria-label={t("app.name")}>
           <img src={clearBackgroundLogo} alt={t("app.name")} />
@@ -606,7 +603,6 @@ function RoomPage({
           <span>{t("room.desktop.nav.faq")}</span>
         </nav>
         <div className="room-desktop-header-actions">
-          <LanguageSwitcher className="room-language-switcher" />
           <span className="room-desktop-host-pill">{t("room.desktop.hostPill")}</span>
         </div>
       </header>

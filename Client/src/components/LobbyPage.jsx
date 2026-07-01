@@ -13,7 +13,6 @@ import {
   LandingMenu,
   LegalPage
 } from "./VervusPublicPages.jsx";
-import LanguageSwitcher from "./LanguageSwitcher.jsx";
 import {
   DEFAULT_LOBBY_CONTENT
 } from "../storyblok/lobbyContent.js";
@@ -685,7 +684,6 @@ function LobbyPage({
 
   return (
     <section className="lobby-start-page" aria-label={t("lobby.ariaLabel")}>
-      {publicPage === "landing" ? <LanguageSwitcher className="lobby-language-switcher" /> : null}
       {shouldShowLegacyBrand ? (
         <div className="lobby-brand" aria-label={t("app.name")}>
           <img src={clearBackgroundLogo} alt={t("app.name")} />

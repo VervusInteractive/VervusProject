@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import lockIcon from "../assets/images/Buttons/Button_Lock.png";
 import questionIcon from "../assets/images/Buttons/Button_Question.png";
 
@@ -112,18 +113,19 @@ function rotateGames(games, activeGameId) {
 }
 
 export function ModeDescriptionDialog({ mode, gameTitle, onClose }) {
+  const { t } = useTranslation();
   if (!mode) return null;
 
   const modeLabel = getModeLabel(mode, gameTitle || mode.gameTitle);
   const description = String(mode.description || mode.shortExplanation || "").trim();
   const isStandardGlitch = String(mode.id || "").toLowerCase() === "standard";
   const displayTitle = isStandardGlitch ? (gameTitle || mode.gameTitle || modeLabel) : modeLabel;
-  const displayLabel = isStandardGlitch ? modeLabel : (gameTitle || mode.gameTitle || "Game mode");
+  const displayLabel = isStandardGlitch ? modeLabel : (gameTitle || mode.gameTitle || t("modeSelector.gameModeLabel"));
 
   return (
     <div className="mode-description-backdrop" onClick={onClose}>
       <div className="mode-description-dialog" role="dialog" aria-modal="true" aria-labelledby="mode-description-title" onClick={(event) => event.stopPropagation()}>
-        <button type="button" className="mode-description-close" aria-label="Close mode description" onClick={onClose}>
+        <button type="button" className="mode-description-close" aria-label={t("modeSelector.closeDescription")} onClick={onClose}>
           <span aria-hidden="true" />
         </button>
         <h2 id="mode-description-title">{displayTitle}</h2>
@@ -131,28 +133,28 @@ export function ModeDescriptionDialog({ mode, gameTitle, onClose }) {
         <div className="mode-description-body">
           {isStandardGlitch ? (
             <>
-              <p>Stay in sync.</p>
-              <p>Everyone sees an icon.</p>
-              <p>Is everyone seeing the <strong>exact same thing?</strong></p>
+              <p>{t("modeSelector.standardGlitch.line1")}</p>
+              <p>{t("modeSelector.standardGlitch.line2")}</p>
+              <p>{t("modeSelector.standardGlitch.line3Prefix")} <strong>{t("modeSelector.standardGlitch.line3Strong")}</strong></p>
               <div className="mode-description-choice-row" aria-hidden="true">
                 <span className="mode-description-choice sync">
                   <strong>SYNC</strong>
-                  <small>Tap SYNC if yes.</small>
+                  <small>{t("modeSelector.standardGlitch.syncHelp")}</small>
                 </span>
                 <span className="mode-description-choice glitch">
                   <strong>GLiTCH!</strong>
-                  <small>Tap GLiTCH! if no.</small>
+                  <small>{t("modeSelector.standardGlitch.glitchHelp")}</small>
                 </span>
               </div>
-              <p>Someone is about to be <strong>blamed.</strong></p>
+              <p>{t("modeSelector.standardGlitch.line4Prefix")} <strong>{t("modeSelector.standardGlitch.line4Strong")}</strong></p>
             </>
           ) : (
-            description || "Mode details are not available yet."
+            description || t("modeSelector.modeDetailsUnavailable")
           )}
         </div>
         {isStandardGlitch ? (
           <button type="button" className="mode-description-got-it" onClick={onClose}>
-            Got it
+            {t("modeSelector.gotIt")}
           </button>
         ) : null}
       </div>
@@ -169,6 +171,7 @@ function GameModeSelector({
   showDescriptions = true,
   label = "EXPERIENCE"
 }) {
+  const { t } = useTranslation();
   const normalizedModes = useMemo(() => {
     const sourceModes = Array.isArray(modes) && modes.length ? modes : FALLBACK_MODES;
     return sourceModes.map(normalizeMode).filter((mode) => mode.id);
@@ -213,7 +216,7 @@ function GameModeSelector({
       ) : null}
 
       <div className="game-mode-window">
-        <div className="game-mode-carousel" aria-label="Games">
+        <div className="game-mode-carousel" aria-label={t("modeSelector.gamesAriaLabel")}>
           {visibleGames.map((game) => {
             const isActive = game.id === activeGame.id;
             const Tag = game.hasModes && !isActive ? "button" : "div";
@@ -241,7 +244,7 @@ function GameModeSelector({
         ))}
       </div>
 
-      <div className="game-mode-tabs" role="group" aria-label={`${activeGame.title} game modes`}>
+      <div className="game-mode-tabs" role="group" aria-label={t("modeSelector.gameModesAriaLabel", { game: activeGame.title })}>
         {modesForGame.map((mode) => {
           const isActive = mode.id === activeMode.id;
           const modeLabel = getModeLabel(mode, activeGame.title);
@@ -267,7 +270,7 @@ function GameModeSelector({
                 <button
                   type="button"
                   className="game-mode-help"
-                  aria-label={`About ${modeLabel}`}
+                  aria-label={t("modeSelector.aboutMode", { mode: modeLabel })}
                   onClick={() => setDescriptionMode(mode)}
                 >
                   <img src={questionIcon} alt="" aria-hidden="true" />

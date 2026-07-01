@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   GAME_AUDIO_KEYS,
   playSound,
@@ -157,28 +158,30 @@ function getCounterClockwiseTimerArcPath(elapsedDegrees) {
   return `M ${start.x.toFixed(3)} ${start.y.toFixed(3)} A ${radius} ${radius} 0 ${largeArcFlag} 0 ${end.x.toFixed(3)} ${end.y.toFixed(3)}`;
 }
 
-function getModeSubtitle(mode, modeId) {
+function getModeSubtitle(mode, modeId, t) {
   const title = mode?.title || modeId || "standard";
   const cleanedTitle = title.replace(/^GLiTCH!\s*/i, "").trim();
   if (cleanedTitle) return cleanedTitle;
-  return modeId === "standard" ? "Standard" : String(modeId || "standard");
+  return modeId === "standard" ? t("glitchGame.mode.standard") : String(modeId || "standard");
 }
 
 const ANSWER_DISPLAY = {
-  sync: { label: "SYNC", className: "sync" },
-  glitch: { label: "GLiTCH!", className: "glitch" }
+  sync: { key: "glitchGame.answers.sync", className: "sync" },
+  glitch: { key: "glitchGame.answers.glitch", className: "glitch" }
 };
 
 const STIMULUS_LABELS = {
-  eye: "Eye",
-  bolt: "Lightning",
-  skull: "Skull",
-  smiley: "Smiley",
-  star: "Star"
+  eye: "glitchGame.stimuli.eye",
+  bolt: "glitchGame.stimuli.bolt",
+  skull: "glitchGame.stimuli.skull",
+  smiley: "glitchGame.stimuli.smiley",
+  star: "glitchGame.stimuli.star"
 };
 
-function getAnswerDisplay(answer) {
-  return ANSWER_DISPLAY[String(answer || "").toLowerCase()] || { label: "-", className: "unknown" };
+function getAnswerDisplay(answer, t) {
+  const config = ANSWER_DISPLAY[String(answer || "").toLowerCase()];
+  if (!config) return { label: "-", className: "unknown" };
+  return { label: t(config.key), className: config.className };
 }
 
 function getStimulusBaseToken(token) {
@@ -187,15 +190,17 @@ function getStimulusBaseToken(token) {
     .replace(/_partial_break$/i, "");
 }
 
-function getStimulusLabel(token) {
+function getStimulusLabel(token, t) {
   const baseToken = getStimulusBaseToken(token);
-  return STIMULUS_LABELS[baseToken] || (baseToken ? baseToken.replace(/_/g, " ") : "Screen");
+  return STIMULUS_LABELS[baseToken]
+    ? t(STIMULUS_LABELS[baseToken])
+    : (baseToken ? baseToken.replace(/_/g, " ") : t("glitchGame.stimuli.screen"));
 }
 
-function formatKillCause(causeLabel) {
+function formatKillCause(causeLabel, t) {
   const normalized = String(causeLabel || "").trim();
-  if (!normalized) return "Run ended";
-  if (normalized.toLowerCase() === "preview ended") return "Preview ended";
+  if (!normalized) return t("glitchGame.killScreen.runEnded");
+  if (normalized.toLowerCase() === "preview ended") return t("glitchGame.killScreen.previewEnded");
   return normalized;
 }
 
@@ -340,6 +345,7 @@ function GlitchLogo({ className = "", alt = "GLiTCH!" }) {
 
 
 function GlitchGamePage({ roomId, playerId, players, myGame, serverNow, onSubmitAnswer, onAssetsLoaded, onReturnRoom, onExit, connectionState = CONNECTION_STATES.CONNECTING, onUiButtonClick, isPreviewRoom = false, availableModes = [], selectedModeId = "standard" }) {
+  const { t } = useTranslation();
   const currentRound = myGame?.currentRound;
   const currentRoundCorruptionEffects = currentRound?.corruptionEffects ?? null;
   const currentRoundHeatSurgeActive = Boolean(currentRound?.heatSurgeActive);
@@ -384,13 +390,21 @@ function GlitchGamePage({ roomId, playerId, players, myGame, serverNow, onSubmit
   const isWrongOrientation = isMobileDevice && selectedModeOrientationLock !== "both" && selectedModeOrientationLock !== deviceOrientation;
   const connectionBanner = (
     <div className={`connection-banner ${connectionState}`} role="status" aria-live="polite">
-      <strong>Connection:</strong> {getConnectionStateLabel(connectionState)}
+      <strong>{t("glitchGame.connection.label")}</strong> {getConnectionStateLabel(connectionState)}
       {connectionState === CONNECTION_STATES.RECONNECTING ? " — trying to restore your room session…" : null}
       {connectionState === CONNECTION_STATES.DEGRADED ? " — high latency detected; effects may feel lighter." : null}
       {connectionState === CONNECTION_STATES.DISCONNECTED ? " — connection lost. Keep this tab open while we retry." : null}
     </div>
   );
   const answered = false;
+  const localizedConnectionBanner = (
+    <div className={`connection-banner ${connectionState}`} role="status" aria-live="polite">
+      <strong>{t("glitchGame.connection.label")}</strong> {getConnectionStateLabel(connectionState)}
+      {connectionState === CONNECTION_STATES.RECONNECTING ? ` ${t("glitchGame.connection.reconnectingNote")}` : null}
+      {connectionState === CONNECTION_STATES.DEGRADED ? ` ${t("glitchGame.connection.degradedNote")}` : null}
+      {connectionState === CONNECTION_STATES.DISCONNECTED ? ` ${t("glitchGame.connection.disconnectedNote")}` : null}
+    </div>
+  );
 
   const timeRemainingMs = useMemo(() => {
     if (!currentRound || typeof serverNow !== "number") return null;
@@ -416,7 +430,7 @@ function GlitchGamePage({ roomId, playerId, players, myGame, serverNow, onSubmit
   }, [currentRound, myGame, serverNow]);
 
   const isPregameCountdown = preGameCountdownNumber !== null;
-  const modeSubtitle = getModeSubtitle(selectedMode, myGame?.modeId || activeModeId);
+  const modeSubtitle = getModeSubtitle(selectedMode, myGame?.modeId || activeModeId, t);
   const pregameScreenClassName = [
     "glitch-game-screen",
     "pregame-screen",
@@ -699,8 +713,8 @@ function GlitchGamePage({ roomId, playerId, players, myGame, serverNow, onSubmit
         <h1 className="panel-title panel-title-logo">
           <GlitchLogo />
         </h1>
-        <p className="panel-meta">Room {roomId}</p>
-        <p className="panel-subtitle">Waiting for game state…</p>
+        <p className="panel-meta">{t("glitchGame.roomLabel", { roomId })}</p>
+        <p className="panel-subtitle">{t("glitchGame.waitingForGameState")}</p>
       </section>
     );
   }
@@ -711,7 +725,7 @@ function GlitchGamePage({ roomId, playerId, players, myGame, serverNow, onSubmit
         <div className="pregame-countdown" aria-live="assertive">
           <span>{preGameCountdownNumber}</span>
         </div>
-        <p className="pregame-status-label">Get ready</p>
+        <p className="pregame-status-label">{t("glitchGame.getReady")}</p>
       </>
     ));
   }
@@ -729,7 +743,7 @@ function GlitchGamePage({ roomId, playerId, players, myGame, serverNow, onSubmit
         >
           <span>{loadedCount}/{activePlayers.length}</span>
         </div>
-        <p className="pregame-status-label">Loading assets</p>
+        <p className="pregame-status-label">{t("glitchGame.loadingAssets")}</p>
         <div className="pregame-loading-bar" aria-hidden="true">
           <span style={{ width: `${Math.round(loadingProgress * 100)}%` }} />
         </div>
@@ -742,16 +756,16 @@ function GlitchGamePage({ roomId, playerId, players, myGame, serverNow, onSubmit
     const realityCheck = killScreen.realityCheck || {};
     const finalCombo = killScreen.combo ?? myGame.combo ?? 0;
     const finalScore = killScreen.score ?? myGame.score ?? 0;
-    const causeLabel = formatKillCause(killScreen.causeLabel);
+    const causeLabel = formatKillCause(killScreen.causeLabel, t);
     const decisivePlayers = killScreen.decisivePlayers || [];
     const decisiveNames = formatKillPlayerNames(decisivePlayers);
     const decisiveSummary = decisivePlayers.length
       ? decisivePlayers.map((entry) => {
-        if (entry.reason === "missed_input") return `${entry.name} missed the input`;
-        return `${entry.name} tapped ${getAnswerDisplay(entry.input).label}`;
+        if (entry.reason === "missed_input") return t("glitchGame.killScreen.missedInput", { name: entry.name });
+        return t("glitchGame.killScreen.tappedAnswer", { name: entry.name, answer: getAnswerDisplay(entry.input, t).label });
       }).join(", ")
-      : (killScreen.causeLabel === "preview ended" ? "Preview limit reached" : "No decisive player recorded");
-    const correctAnswer = getAnswerDisplay(killScreen.correctAnswer || realityCheck.expectedAnswer);
+      : (killScreen.causeLabel === "preview ended" ? t("glitchGame.killScreen.previewLimitReached") : t("glitchGame.killScreen.noDecisivePlayer"));
+    const correctAnswer = getAnswerDisplay(killScreen.correctAnswer || realityCheck.expectedAnswer, t);
     const standardStimulus = realityCheck.standardStimulus || currentRound?.yourStimulus || null;
     const alteredStimulus = realityCheck.alteredStimulus || null;
     const fallbackRealityPlayers = alteredStimulus ? [] : players.filter((player) => !player.waitingForNextGame);
@@ -779,8 +793,8 @@ function GlitchGamePage({ roomId, playerId, players, myGame, serverNow, onSubmit
       <section className="kill-screen-page">
         <span className="glitch-background-layers" aria-hidden="true" />
 
-        <div className="kill-screen-brand" aria-label="Vervus">
-          <img src={clearBackgroundLogo} alt="Vervus" />
+        <div className="kill-screen-brand" aria-label={t("app.name")}>
+          <img src={clearBackgroundLogo} alt={t("app.name")} />
         </div>
 
         <header className="kill-screen-hero">
@@ -788,17 +802,17 @@ function GlitchGamePage({ roomId, playerId, players, myGame, serverNow, onSubmit
             <GlitchLogo />
           </h1>
           <strong>{finalCombo}</strong>
-          <span>COMBO</span>
+          <span>{t("glitchGame.comboLabel")}</span>
         </header>
 
         <main className="kill-screen-content">
           <section className="kill-card kill-culprit-card">
             <div className="kill-card-header">
-              <span>Who broke the run</span>
+              <span>{t("glitchGame.killScreen.whoBrokeRun")}</span>
               <strong>{correctAnswer.label}</strong>
             </div>
             <div className="kill-culprit-row">
-              <span className={`kill-answer-orb ${correctAnswer.className}`} aria-hidden="true">{correctAnswer.label === "SYNC" ? "S" : "G"}</span>
+              <span className={`kill-answer-orb ${correctAnswer.className}`} aria-hidden="true">{correctAnswer.className === "sync" ? "S" : "G"}</span>
               <div>
                 <strong>{decisiveNames}</strong>
                 <span>{decisiveSummary}</span>
@@ -809,23 +823,23 @@ function GlitchGamePage({ roomId, playerId, players, myGame, serverNow, onSubmit
 
           <section className="kill-card kill-reality-card">
             <div className="kill-card-header">
-              <span>Reality check</span>
+              <span>{t("glitchGame.killScreen.realityCheck")}</span>
             </div>
             <div className="kill-reality-row">
               <div>
-                <strong>Standard {getStimulusLabel(standardStimulus)}</strong>
+                <strong>{t("glitchGame.killScreen.standardStimulus", { stimulus: getStimulusLabel(standardStimulus, t) })}</strong>
                 <span>{formatKillPlayerNames(standardPlayers)}</span>
               </div>
-              <span className="kill-symbol-disc" aria-label={standardIcon?.label || "Standard screen"}>
+              <span className="kill-symbol-disc" aria-label={standardIcon?.label || t("glitchGame.killScreen.standardScreen")}>
                 {renderKillSymbol(standardStimulus, "S")}
               </span>
             </div>
             <div className="kill-reality-row altered">
               <div>
-                <strong>{alteredStimulus ? `Altered ${getStimulusLabel(alteredStimulus)}` : "Altered screen"}</strong>
+                <strong>{alteredStimulus ? t("glitchGame.killScreen.alteredStimulus", { stimulus: getStimulusLabel(alteredStimulus, t) }) : t("glitchGame.killScreen.alteredScreen")}</strong>
                 <span>{formatKillPlayerNames(alteredPlayers)}</span>
               </div>
-              <span className="kill-symbol-disc" aria-label={alteredIcon?.label || "Altered screen"}>
+              <span className="kill-symbol-disc" aria-label={alteredIcon?.label || t("glitchGame.killScreen.alteredScreen")}>
                 {renderKillSymbol(alteredStimulus, "G")}
               </span>
             </div>
@@ -833,38 +847,38 @@ function GlitchGamePage({ roomId, playerId, players, myGame, serverNow, onSubmit
 
           <section className="kill-card kill-experience-card">
             <div className="kill-card-header">
-              <span>Experience</span>
+              <span>{t("glitchGame.killScreen.experience")}</span>
             </div>
             <div className="kill-mode-row">
               <div>
-                <strong>GLiTCH!</strong>
-                <span>{getModeSubtitle(selectedMode, myGame.modeId || selectedModeId)}</span>
+                <strong>{t("glitchGame.answers.glitch")}</strong>
+                <span>{getModeSubtitle(selectedMode, myGame.modeId || selectedModeId, t)}</span>
               </div>
-              <span>{finalScore} pts</span>
+              <span>{t("glitchGame.killScreen.points", { score: finalScore })}</span>
             </div>
           </section>
 
           <section className="kill-card kill-players-card">
             <div className="kill-card-header">
-              <span>Players</span>
+              <span>{t("glitchGame.killScreen.players")}</span>
             </div>
             <ul className="kill-player-list">
               {players.filter((player) => !player.waitingForNextGame).map((player) => {
                 const decisiveEntry = decisivePlayers.find((entry) => entry.playerId === player.playerId);
                 const realityEntry = getKillScreenPlayerEntry(realityCheck, player.playerId);
-                const answerDisplay = getAnswerDisplay(decisiveEntry?.input || realityEntry?.input);
+                const answerDisplay = getAnswerDisplay(decisiveEntry?.input || realityEntry?.input, t);
                 const hasMissedInput = decisiveEntry?.reason === "missed_input";
                 const statusClassName = hasMissedInput ? "missed" : answerDisplay.className;
-                const statusLabel = hasMissedInput ? "No response" : answerDisplay.label;
+                const statusLabel = hasMissedInput ? t("glitchGame.killScreen.noResponse") : answerDisplay.label;
                 return (
                   <li key={player.playerId} className="kill-player-row">
                     <span className="kill-player-avatar" style={{ "--player-color": player.color || "#8d5cff" }} aria-hidden="true">
                       <img src={getPlayerIcon(player.color)} alt="" />
                     </span>
-                    <strong>{player.playerId === playerId ? "You" : player.name}</strong>
+                    <strong>{player.playerId === playerId ? t("glitchGame.killScreen.you") : player.name}</strong>
                     <div>
                       <span className={`kill-mini-pill ${statusClassName}`}>{statusLabel}</span>
-                      <span className={`kill-mini-pill ${player.ready ? "ready" : "waiting"}`}>{player.ready ? "Ready" : "Waiting"}</span>
+                      <span className={`kill-mini-pill ${player.ready ? "ready" : "waiting"}`}>{player.ready ? t("glitchGame.killScreen.ready") : t("glitchGame.killScreen.waiting")}</span>
                     </div>
                   </li>
                 );
@@ -874,7 +888,7 @@ function GlitchGamePage({ roomId, playerId, players, myGame, serverNow, onSubmit
         </main>
 
         <footer className="kill-screen-actions">
-          <button type="button" className="kill-return-button" onClick={() => { onUiButtonClick?.(); onReturnRoom(); }}>Return to room</button>
+          <button type="button" className="kill-return-button" onClick={() => { onUiButtonClick?.(); onReturnRoom(); }}>{t("glitchGame.returnToRoom")}</button>
         </footer>
       </section>
     );
@@ -884,10 +898,10 @@ function GlitchGamePage({ roomId, playerId, players, myGame, serverNow, onSubmit
     return (
       <section className="panel">
         <div className="kill-screen">
-          <h2>Game Paused</h2>
-          <p>A participant disconnected. The game will resume once everyone reconnects.</p>
-          {connectionBanner}
-          <button className="btn btn-secondary" onClick={() => { onUiButtonClick?.(); onExit(); }}>Exit Room</button>
+          <h2>{t("glitchGame.paused.title")}</h2>
+          <p>{t("glitchGame.paused.description")}</p>
+          {localizedConnectionBanner}
+          <button className="btn btn-secondary" onClick={() => { onUiButtonClick?.(); onExit(); }}>{t("glitchGame.paused.exitRoom")}</button>
         </div>
       </section>
     );
@@ -967,7 +981,7 @@ function GlitchGamePage({ roomId, playerId, players, myGame, serverNow, onSubmit
         <span className="glitch-background-layers" aria-hidden="true" />
 
         {connectionState !== CONNECTION_STATES.CONNECTED ? (
-          <div className="glitch-connection-slot">{connectionBanner}</div>
+          <div className="glitch-connection-slot">{localizedConnectionBanner}</div>
         ) : null}
 
         <header className="glitch-game-heading">
@@ -975,11 +989,11 @@ function GlitchGamePage({ roomId, playerId, players, myGame, serverNow, onSubmit
             <GlitchLogo />
           </h1>
           <p>{modeSubtitle}</p>
-          {isPreviewRoom ? <span>Preview ends at {myGame.previewComboLimit ?? "X"} combo</span> : null}
+          {isPreviewRoom ? <span>{t("glitchGame.previewEndsAt", { combo: myGame.previewComboLimit ?? "X" })}</span> : null}
         </header>
 
         <main className="heat-surge-warning-stage" role="status" aria-live="assertive">
-          <img className="heat-surge-warning-icon" src={HEAT_SURGE_ICON_SOURCE} alt="Heat Surge" />
+          <img className="heat-surge-warning-icon" src={HEAT_SURGE_ICON_SOURCE} alt={t("glitchGame.heatSurge")} />
         </main>
 
         <footer className="glitch-game-footer">
@@ -996,35 +1010,35 @@ function GlitchGamePage({ roomId, playerId, players, myGame, serverNow, onSubmit
       {isWrongOrientation ? (
         <div className="orientation-warning-overlay" role="alert">
           <div className="orientation-warning-card">
-            Wrong orientation. Please rotate to <strong>{selectedModeOrientationLock}</strong>.
+            {t("glitchGame.orientationWarning")} <strong>{selectedModeOrientationLock}</strong>.
           </div>
         </div>
       ) : null}
 
       {connectionState !== CONNECTION_STATES.CONNECTED ? (
-        <div className="glitch-connection-slot">{connectionBanner}</div>
+        <div className="glitch-connection-slot">{localizedConnectionBanner}</div>
       ) : null}
 
       <header className="glitch-game-heading">
         <h1 className="glitch-logo-heading">
           <GlitchLogo />
         </h1>
-        <p>{isLastChanceTheme ? "Last Chance" : modeSubtitle}</p>
-        {isPreviewRoom ? <span>Preview ends at {myGame.previewComboLimit ?? "X"} combo</span> : null}
+        <p>{isLastChanceTheme ? t("glitchGame.lastChance") : modeSubtitle}</p>
+        {isPreviewRoom ? <span>{t("glitchGame.previewEndsAt", { combo: myGame.previewComboLimit ?? "X" })}</span> : null}
       </header>
 
       {isSaveItActive ? (
         <div className="save-it-splash" role="status" aria-live="assertive">
-          <span>SAVE IT!</span>
+          <span>{t("glitchGame.saveIt")}</span>
         </div>
       ) : (
         <>
-          <div className="glitch-combo-stack" aria-label={`${myGame.combo} combo`}>
+          <div className="glitch-combo-stack" aria-label={t("glitchGame.comboAriaLabel", { combo: myGame.combo })}>
             <strong>{myGame.combo}</strong>
-            <span>COMBO</span>
+            <span>{t("glitchGame.comboLabel")}</span>
           </div>
 
-          <div className="glitch-timer-stage" aria-label={`Time left ${formatTimeLeft(boundedTimeRemainingMs)}`}>
+          <div className="glitch-timer-stage" aria-label={t("glitchGame.timeLeftAriaLabel", { time: formatTimeLeft(boundedTimeRemainingMs) })}>
             <div className="glitch-timer-ring" style={timerRingStyle}>
               <svg className="glitch-timer-arc" viewBox="0 0 300 300" aria-hidden="true">
                 <circle className="glitch-timer-arc-track" cx="150" cy="150" r="138" />
@@ -1032,7 +1046,7 @@ function GlitchGamePage({ roomId, playerId, players, myGame, serverNow, onSubmit
               </svg>
               <div className="glitch-timer-marker"><span /></div>
               <div className="glitch-symbol-disc">
-                <div className={`glitch-icon ${stimulusClassName} ${isRoundTransitionShaking ? "round-transition-shake" : ""}`} role="img" aria-label={stimulusIcon?.label || "Current symbol"}>
+                <div className={`glitch-icon ${stimulusClassName} ${isRoundTransitionShaking ? "round-transition-shake" : ""}`} role="img" aria-label={stimulusIcon?.label || t("glitchGame.currentSymbol")}>
                   {stimulusIcon ? (
                     <span className="glitch-icon-mask" style={stimulusIconStyle} aria-hidden="true" />
                   ) : (
@@ -1043,12 +1057,12 @@ function GlitchGamePage({ roomId, playerId, players, myGame, serverNow, onSubmit
             </div>
           </div>
 
-          {isHeatSurgeEnabled ? <p className="glitch-state-callout" role="status" aria-live="assertive">Heat Surge active</p> : null}
+          {isHeatSurgeEnabled ? <p className="glitch-state-callout" role="status" aria-live="assertive">{t("glitchGame.heatSurgeActive")}</p> : null}
           {corruptionEffects ? (
-            <p className="glitch-state-meta">Corruption Lv {corruptionEffects.intensityLevel}</p>
+            <p className="glitch-state-meta">{t("glitchGame.corruptionLevel", { level: corruptionEffects.intensityLevel })}</p>
           ) : null}
 
-          <div className="glitch-vote-strip" aria-label="Players who have voted">
+          <div className="glitch-vote-strip" aria-label={t("glitchGame.playersWhoVoted")}>
             {players.filter((player) => !player.waitingForNextGame).map((player) => {
               const hasVoted = answeredPlayerIds.has(player.playerId);
               return (
@@ -1056,7 +1070,7 @@ function GlitchGamePage({ roomId, playerId, players, myGame, serverNow, onSubmit
                   key={player.playerId}
                   className={`vote-indicator ${hasVoted ? "voted" : "pending"}`}
                   style={{ backgroundColor: player.color || "#64748b", color: player.color || "#64748b" }}
-                  title={`${player.name}${hasVoted ? " has voted" : " has not voted yet"}`}
+                  title={hasVoted ? t("glitchGame.playerHasVoted", { name: player.name }) : t("glitchGame.playerHasNotVoted", { name: player.name })}
                 >
                   <img src={getPlayerIcon(player.color)} alt="" aria-hidden="true" />
                 </span>
@@ -1070,8 +1084,8 @@ function GlitchGamePage({ roomId, playerId, players, myGame, serverNow, onSubmit
         <div className="glitch-time-pill">{formatDigitalTime(displayTimeMs)}</div>
         {!isSaveItActive ? (
           <div className="glitch-answer-row">
-            <button className="glitch-answer-button sync" disabled={!canSubmitAnswer} onClick={() => onSubmitAnswer("sync")}>SYNC</button>
-            <button className="glitch-answer-button glitch" disabled={!canSubmitAnswer} onClick={() => onSubmitAnswer("glitch")}>GLiTCH!</button>
+            <button className="glitch-answer-button sync" disabled={!canSubmitAnswer} onClick={() => onSubmitAnswer("sync")}>{t("glitchGame.answers.sync")}</button>
+            <button className="glitch-answer-button glitch" disabled={!canSubmitAnswer} onClick={() => onSubmitAnswer("glitch")}>{t("glitchGame.answers.glitch")}</button>
           </div>
         ) : null}
       </footer>

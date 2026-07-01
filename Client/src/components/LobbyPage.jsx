@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { BrowserQRCodeReader } from "@zxing/browser";
+import { useTranslation } from "react-i18next";
 import clearBackgroundLogo from "../assets/images/Logos/Logo_ClearBackground.svg";
 import phoneIcon from "../assets/images/VervusIcons/Icons_Phone.png";
 import warningIcon from "../assets/images/VervusIcons/Icons_Warning.png";
@@ -7,10 +8,12 @@ import timerIcon from "../assets/images/VervusIcons/Icons_Timer.png";
 import {
   ContactPage,
   FaqPage,
+  LanguagePage,
   LandingHome,
   LandingMenu,
   LegalPage
 } from "./VervusPublicPages.jsx";
+import LanguageSwitcher from "./LanguageSwitcher.jsx";
 import {
   DEFAULT_LOBBY_CONTENT
 } from "../storyblok/lobbyContent.js";
@@ -18,26 +21,27 @@ import {
 const ROOM_CODE_MAX_LENGTH = 6;
 const MIN_SCANNABLE_ROOM_CODE_LENGTH = 4;
 const DESKTOP_MEDIA_QUERY = "(min-width: 1024px)";
-const ROOM_CODE_NOTICE_CONFIG = {
+
+const getRoomCodeNoticeConfig = (t) => ({
   not_found: {
-    title: "Room not found",
-    body: "Check the code with your host — it may have changed.",
+    title: t("lobby.roomCodeNotice.notFound.title"),
+    body: t("lobby.roomCodeNotice.notFound.body"),
     icon: warningIcon,
     variant: "warning"
   },
   full: {
-    title: "Room is full",
-    body: "This run already has 4 players.",
+    title: t("lobby.roomCodeNotice.full.title"),
+    body: t("lobby.roomCodeNotice.full.body"),
     icon: warningIcon,
     variant: "warning"
   },
   expired: {
-    title: "Room expired",
-    body: "This room has closed. Start a new run with your friends anytime.",
+    title: t("lobby.roomCodeNotice.expired.title"),
+    body: t("lobby.roomCodeNotice.expired.body"),
     icon: timerIcon,
     variant: "expired"
   }
-};
+});
 
 function normalizeRoomCodeInput(value) {
   return String(value || "")
@@ -82,43 +86,43 @@ function isExpectedScanMiss(error) {
     || errorKind === "FormatException";
 }
 
-function getCameraErrorMessage(error) {
+function getCameraErrorMessage(t, error) {
   const errorName = getErrorKind(error);
 
   if (errorName === "NotAllowedError" || errorName === "PermissionDeniedError") {
-    return "Camera permission was blocked. Allow camera access and try again.";
+    return t("lobby.qrScanner.errors.permissionBlocked");
   }
 
   if (errorName === "NotFoundError" || errorName === "DevicesNotFoundError") {
-    return "No camera was found on this device.";
+    return t("lobby.qrScanner.errors.noCamera");
   }
 
   if (errorName === "NotReadableError" || errorName === "TrackStartError") {
-    return "The camera is already in use by another app.";
+    return t("lobby.qrScanner.errors.cameraInUse");
   }
 
   if (errorName === "OverconstrainedError" || errorName === "ConstraintNotSatisfiedError") {
-    return "This camera cannot use the requested scan settings.";
+    return t("lobby.qrScanner.errors.unsupportedSettings");
   }
 
   if (errorName === "SecurityError") {
-    return "Camera access is blocked by this browser.";
+    return t("lobby.qrScanner.errors.browserBlocked");
   }
 
-  return "The camera could not start. Check permissions and try again.";
+  return t("lobby.qrScanner.errors.generic");
 }
 
-function formatRoomPreviewNames(playerNames = []) {
+function formatRoomPreviewNames(t, playerNames = []) {
   const names = playerNames
     .map((playerName) => String(playerName || "").trim())
     .filter(Boolean)
     .map((playerName) => playerName.toUpperCase());
 
   if (names.length === 0) return "";
-  if (names.length === 1) return `${names[0]} IS ALREADY IN`;
-  if (names.length === 2) return `${names[0]} & ${names[1]} ARE ALREADY IN`;
+  if (names.length === 1) return t("lobby.preview.players.one", { first: names[0] });
+  if (names.length === 2) return t("lobby.preview.players.two", { first: names[0], second: names[1] });
 
-  return `${names[0]}, ${names[1]} & ${names.length - 2} MORE ARE ALREADY IN`;
+  return t("lobby.preview.players.many", { first: names[0], second: names[1], count: names.length - 2 });
 }
 
 function getRoomPreviewModeTitle(roomPreview) {
@@ -130,14 +134,15 @@ function getRoomPreviewModeTitle(roomPreview) {
   return modeTitle;
 }
 
-function getRoomPreviewStatusLabel(roomPreview) {
-  if (roomPreview?.joinable) return "Room active";
-  if (roomPreview?.isFull) return "Room full";
-  return "Room closed";
+function getRoomPreviewStatusLabel(t, roomPreview) {
+  if (roomPreview?.joinable) return t("lobby.preview.status.active");
+  if (roomPreview?.isFull) return t("lobby.preview.status.full");
+  return t("lobby.preview.status.closed");
 }
 
 function RoomCodeNotice({ notice }) {
-  const config = ROOM_CODE_NOTICE_CONFIG[notice?.type];
+  const { t } = useTranslation();
+  const config = getRoomCodeNoticeConfig(t)[notice?.type];
   if (!config) return null;
 
   return (
@@ -162,6 +167,8 @@ function isDesktopLayout() {
 }
 
 function DesktopPhoneNotice({ onClose }) {
+  const { t } = useTranslation();
+
   useEffect(() => {
     const handleKeyDown = (event) => {
       if (event.key === "Escape") {
@@ -182,19 +189,19 @@ function DesktopPhoneNotice({ onClose }) {
         aria-labelledby="desktop-phone-notice-title"
         aria-describedby="desktop-phone-notice-description"
       >
-        <button className="desktop-phone-notice-close" type="button" aria-label="Close" onClick={onClose}>
+        <button className="desktop-phone-notice-close" type="button" aria-label={t("common.close")} onClick={onClose}>
           <span aria-hidden="true" />
         </button>
         <span className="desktop-phone-notice-icon" aria-hidden="true">
           <img src={phoneIcon} alt="" />
         </span>
-        <h2 id="desktop-phone-notice-title">Vervus is designed for phones.</h2>
+        <h2 id="desktop-phone-notice-title">{t("lobby.desktopPhone.title")}</h2>
         <p id="desktop-phone-notice-description">
-          Vervus is built around fast, touch-based multiplayer gameplay and is optimized for smartphones.
+          {t("lobby.desktopPhone.description")}
         </p>
-        <p>You can continue exploring on desktop, but gameplay requires a mobile device.</p>
+        <p>{t("lobby.desktopPhone.secondaryDescription")}</p>
         <button className="desktop-phone-notice-action" type="button" onClick={onClose}>
-          Explore on desktop
+          {t("lobby.desktopPhone.action")}
         </button>
       </section>
     </div>
@@ -202,19 +209,23 @@ function DesktopPhoneNotice({ onClose }) {
 }
 
 function QrScannerOverlay({
-  title = "Scan QR Code",
-  description = "Position the QR code within the frame.",
-  cancelLabel = "Cancel",
+  title,
+  description,
+  cancelLabel,
   onCancel,
   onDetected
 }) {
+  const { t } = useTranslation();
   const videoRef = useRef(null);
   const controlsRef = useRef(null);
   const onCancelRef = useRef(onCancel);
   const onDetectedRef = useRef(onDetected);
   const hasDetectedRef = useRef(false);
   const hasStartedCameraRef = useRef(false);
-  const [scannerMessage, setScannerMessage] = useState("Starting camera...");
+  const resolvedTitle = title || t("lobby.qrScanner.title");
+  const resolvedDescription = description || t("lobby.qrScanner.description");
+  const resolvedCancelLabel = cancelLabel || t("common.cancel");
+  const [scannerMessage, setScannerMessage] = useState(() => t("lobby.qrScanner.messages.startingCamera"));
   const [scannerMessageType, setScannerMessageType] = useState("info");
 
   useEffect(() => {
@@ -258,14 +269,14 @@ function QrScannerOverlay({
 
     const startScanner = async () => {
       if (!navigator.mediaDevices?.getUserMedia) {
-        setScannerMessage("This browser does not support in-app camera scanning.");
+        setScannerMessage(t("lobby.qrScanner.errors.browserUnsupported"));
         setScannerMessageType("error");
         return;
       }
 
       const isLocalHost = ["localhost", "127.0.0.1", "::1"].includes(window.location.hostname);
       if (!window.isSecureContext && !isLocalHost) {
-        setScannerMessage("Camera scanning requires HTTPS.");
+        setScannerMessage(t("lobby.qrScanner.errors.httpsRequired"));
         setScannerMessageType("error");
         return;
       }
@@ -286,7 +297,7 @@ function QrScannerOverlay({
         }
 
         hasStartedCameraRef.current = true;
-        setScannerMessage("Point your camera at the room QR code.");
+        setScannerMessage(t("lobby.qrScanner.messages.pointCamera"));
         setScannerMessageType("info");
 
         const codeReader = new BrowserQRCodeReader();
@@ -301,7 +312,7 @@ function QrScannerOverlay({
               const rawScanValue = result.getText();
               const roomCode = extractRoomCodeFromQrValue(rawScanValue);
               if (!roomCode) {
-                setScannerMessage("That QR code is not a Vervus room invite.");
+                setScannerMessage(t("lobby.qrScanner.errors.invalidInvite"));
                 setScannerMessageType("error");
                 return;
               }
@@ -313,7 +324,7 @@ function QrScannerOverlay({
             }
 
             if (error && !isExpectedScanMiss(error) && !hasStartedCameraRef.current) {
-              setScannerMessage(getCameraErrorMessage(error));
+              setScannerMessage(getCameraErrorMessage(t, error));
               setScannerMessageType("error");
             }
           }
@@ -327,7 +338,7 @@ function QrScannerOverlay({
 
       } catch (error) {
         if (!isActive) return;
-        setScannerMessage(getCameraErrorMessage(error));
+        setScannerMessage(getCameraErrorMessage(t, error));
         setScannerMessageType("error");
       }
     };
@@ -338,7 +349,7 @@ function QrScannerOverlay({
       isActive = false;
       stopPreviewStream();
     };
-  }, []);
+  }, [t]);
 
   return (
     <div className="qr-scanner-overlay" role="dialog" aria-modal="true" aria-labelledby="qr-scanner-title">
@@ -348,10 +359,10 @@ function QrScannerOverlay({
             <span />
           </div>
           <div className="qr-scanner-copy">
-            <h2 id="qr-scanner-title">{title}</h2>
-            <p>{description}</p>
+            <h2 id="qr-scanner-title">{resolvedTitle}</h2>
+            <p>{resolvedDescription}</p>
           </div>
-          <div className="qr-scanner-frame" aria-label="Camera preview">
+          <div className="qr-scanner-frame" aria-label={t("lobby.qrScanner.cameraPreviewLabel")}>
             <video ref={videoRef} className="qr-scanner-video" autoPlay muted playsInline />
             <div className="qr-scanner-grid" aria-hidden="true" />
             <div className="qr-scanner-corners" aria-hidden="true">
@@ -367,7 +378,7 @@ function QrScannerOverlay({
           </p>
         </div>
         <button type="button" className="qr-scanner-cancel" onClick={onCancel}>
-          {cancelLabel}
+          {resolvedCancelLabel}
         </button>
       </div>
     </div>
@@ -394,6 +405,7 @@ function LobbyPage({
   actionsLocked = false,
   lobbyContent = DEFAULT_LOBBY_CONTENT
 }) {
+  const { t } = useTranslation();
   const [lobbyStep, setLobbyStep] = useState(() => (roomIdInput ? "play" : "landing"));
   const [publicPage, setPublicPage] = useState("landing");
   const [isQrScannerOpen, setIsQrScannerOpen] = useState(false);
@@ -586,9 +598,9 @@ function LobbyPage({
       {roomPreview ? (
         <div className="lobby-room-preview" role="status" aria-live="polite">
           <strong>
-            ROOM FOUND
-            {formatRoomPreviewNames(roomPreview.playerNames) ? (
-              <> &mdash; {formatRoomPreviewNames(roomPreview.playerNames)}</>
+            {t("lobby.preview.roomFound")}
+            {formatRoomPreviewNames(t, roomPreview.playerNames) ? (
+              <> &mdash; {formatRoomPreviewNames(t, roomPreview.playerNames)}</>
             ) : null}
           </strong>
           <p>
@@ -596,7 +608,7 @@ function LobbyPage({
             {" "}&middot;{" "}
             {getRoomPreviewModeTitle(roomPreview)}
             {" "}&middot;{" "}
-            {getRoomPreviewStatusLabel(roomPreview)}
+            {getRoomPreviewStatusLabel(t, roomPreview)}
           </p>
         </div>
       ) : null}
@@ -640,6 +652,10 @@ function LobbyPage({
       return <FaqPage onBack={handleBackToMenu} />;
     }
 
+    if (publicPage === "language") {
+      return <LanguagePage onBack={handleBackToMenu} />;
+    }
+
     if (publicPage === "terms") {
       return <LegalPage kind="terms" onBack={handleBackToMenu} />;
     }
@@ -668,10 +684,11 @@ function LobbyPage({
   const shouldShowLegacyBrand = publicPage === "landing" && (lobbyStep === "host" || lobbyStep === "play");
 
   return (
-    <section className="lobby-start-page" aria-label="Vervus lobby">
+    <section className="lobby-start-page" aria-label={t("lobby.ariaLabel")}>
+      {publicPage === "landing" ? <LanguageSwitcher className="lobby-language-switcher" /> : null}
       {shouldShowLegacyBrand ? (
-        <div className="lobby-brand" aria-label="Vervus">
-          <img src={clearBackgroundLogo} alt="Vervus" />
+        <div className="lobby-brand" aria-label={t("app.name")}>
+          <img src={clearBackgroundLogo} alt={t("app.name")} />
         </div>
       ) : null}
 

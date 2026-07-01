@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { io } from "socket.io-client";
 import LobbyPage from "./components/LobbyPage";
 import RoomPage from "./components/RoomPage";
@@ -260,7 +261,7 @@ function formatProductPrice(product) {
 
 function formatProductAccess(product) {
   const hours = Math.max(1, Number(product?.validityDurationHours) || 24);
-  return `${hours} ${hours === 1 ? "hour" : "hours"}`;
+  return { hours, isSingular: hours === 1 };
 }
 
 function getProductModeCount(product) {
@@ -270,12 +271,12 @@ function getProductModeCount(product) {
 function getStoreProductLabel(product, allModeCount) {
   const modeCount = getProductModeCount(product);
   if (modeCount > 0 && allModeCount > 0 && modeCount >= allModeCount) {
-    return "All experiences";
+    return { type: "all_experiences", modeCount };
   }
   if (modeCount > 0) {
-    return `${modeCount} ${modeCount === 1 ? "experience" : "experiences"}`;
+    return { type: "count", modeCount };
   }
-  return product?.productName || "Experience";
+  return { type: "name", label: product?.productName || "" };
 }
 
 function getStoreProductDescriptionPoints(product) {
@@ -308,15 +309,40 @@ function StoreCheckoutPage({
   onCancel,
   onRetry
 }) {
+  const { t } = useTranslation();
   const hasProducts = products.length > 0;
   const selectedPrice = selectedProduct ? formatProductPrice(selectedProduct) : "-";
-  const selectedAccess = selectedProduct ? formatProductAccess(selectedProduct) : "-";
+  const selectedAccessDetails = selectedProduct ? formatProductAccess(selectedProduct) : null;
+  const selectedAccess = selectedAccessDetails
+    ? t(
+      selectedAccessDetails.isSingular
+        ? "store.access.hour"
+        : "store.access.hours",
+      { hours: selectedAccessDetails.hours }
+    )
+    : "-";
   const selectedPoints = getStoreProductDescriptionPoints(selectedProduct);
   const canPay = Boolean(selectedProduct && hasAcceptedTerms && !isCheckoutStarting && !actionsLocked);
   const selectedModeCount = getProductModeCount(selectedProduct);
+  const renderProductLabel = (product) => {
+    const label = getStoreProductLabel(product, allModeCount);
+    if (label.type === "all_experiences") return t("store.productLabel.allExperiences");
+    if (label.type === "count") {
+      return t(
+        label.modeCount === 1
+          ? "store.productLabel.singleExperience"
+          : "store.productLabel.multipleExperiences",
+        { count: label.modeCount }
+      );
+    }
+    return label.label || t("store.productLabel.defaultExperience");
+  };
   const checkoutHeading = selectedProduct && selectedModeCount > 0 && allModeCount > 0 && selectedModeCount >= allModeCount
-    ? `All experiences. All modes. ${selectedAccess}.`
-    : `${selectedProduct ? getStoreProductLabel(selectedProduct, allModeCount) : "All experiences"}. ${selectedAccess === "-" ? "24 hours" : selectedAccess}.`;
+    ? t("store.checkout.headingAllModes", { access: selectedAccess })
+    : t("store.checkout.headingDefault", {
+      product: selectedProduct ? renderProductLabel(selectedProduct) : t("store.productLabel.allExperiences"),
+      access: selectedAccess === "-" ? t("store.access.hours", { hours: 24 }) : selectedAccess
+    });
 
   return (
     <section className="store-checkout-page" aria-labelledby="store-checkout-title">
@@ -324,35 +350,35 @@ function StoreCheckoutPage({
         className="store-checkout-shell"
       >
         <header className="store-checkout-header">
-          <img src={clearBackgroundLogo} alt="Vervus" />
+          <img src={clearBackgroundLogo} alt={t("app.name")} />
           <span aria-hidden="true" />
         </header>
 
         <div className="store-checkout-content">
           <div className="store-checkout-title-block">
-            <p>Checkout</p>
+            <p>{t("store.checkout.kicker")}</p>
             <h2 id="store-checkout-title">{checkoutHeading}</h2>
-            <span>Room stays open while you pay.</span>
+            <span>{t("store.checkout.roomStaysOpen")}</span>
           </div>
 
           {isLoading ? (
-            <div className="store-checkout-message" role="status">Loading experiences...</div>
+            <div className="store-checkout-message" role="status">{t("store.checkout.loading")}</div>
           ) : null}
 
           {!isLoading && error ? (
             <div className="store-checkout-message error" role="alert">
               <p>{error}</p>
-              <button type="button" onClick={onRetry}>Retry</button>
+              <button type="button" onClick={onRetry}>{t("common.retry")}</button>
             </div>
           ) : null}
 
           {!isLoading && !error && !hasProducts ? (
-            <div className="store-checkout-message" role="status">No experiences are available right now.</div>
+            <div className="store-checkout-message" role="status">{t("store.checkout.empty")}</div>
           ) : null}
 
           {hasProducts ? (
             <>
-              <div className="store-experience-options" aria-label="Experience options">
+              <div className="store-experience-options" aria-label={t("store.checkout.experienceOptionsAriaLabel")}>
                 {products.map((product) => {
                   const isActive = product.productKey === selectedProductKey;
                   return (
@@ -363,7 +389,7 @@ function StoreCheckoutPage({
                       onClick={() => onSelectProduct(product.productKey)}
                       aria-pressed={isActive}
                     >
-                      <span>{getStoreProductLabel(product, allModeCount)}</span>
+                      <span>{renderProductLabel(product)}</span>
                       <strong>{formatProductPrice(product)}</strong>
                     </button>
                   );
@@ -371,7 +397,7 @@ function StoreCheckoutPage({
               </div>
 
               <article className="store-selected-product-card">
-                <h3>{selectedProduct?.productName || "Unlock Vervus"}</h3>
+                <h3>{selectedProduct?.productName || t("store.checkout.unlockVervus")}</h3>
                 <strong>{selectedPrice}</strong>
                 <div className="store-card-divider" />
                 {selectedPoints.length > 0 ? (
@@ -388,16 +414,16 @@ function StoreCheckoutPage({
 
               <div className="store-order-summary">
                 <div>
-                  <span>{selectedProduct?.productName || "Unlock Vervus"}</span>
+                  <span>{selectedProduct?.productName || t("store.checkout.unlockVervus")}</span>
                   <strong>{selectedPrice}</strong>
                 </div>
                 <div>
-                  <span>Access</span>
+                  <span>{t("store.checkout.accessLabel")}</span>
                   <strong>{selectedAccess}</strong>
                 </div>
                 <div className="store-card-divider" />
                 <div className="total">
-                  <span>Total</span>
+                  <span>{t("store.checkout.totalLabel")}</span>
                   <strong>{selectedPrice}</strong>
                 </div>
               </div>
@@ -409,14 +435,14 @@ function StoreCheckoutPage({
                   onChange={(event) => onAcceptTermsChange(event.target.checked)}
                 />
                 <span>
-                  I agree to the <span className="store-inline-link">Terms of Service</span> and{" "}
-                  <span className="store-inline-link">Privacy Policy</span>, and understand that digital access starts immediately after purchase and that my right of withdrawal no longer applies.
+                  {t("store.checkout.termsPrefix")} <span className="store-inline-link">{t("store.checkout.termsOfService")}</span> {t("store.checkout.termsAnd")}{" "}
+                  <span className="store-inline-link">{t("store.checkout.privacyPolicy")}</span>{t("store.checkout.termsSuffix")}
                 </span>
               </label>
 
               <div className="store-pay-divider">
                 <span />
-                <p>Pay another way</p>
+                <p>{t("store.checkout.payAnotherWay")}</p>
                 <span />
               </div>
 
@@ -426,14 +452,14 @@ function StoreCheckoutPage({
                 disabled={!canPay}
                 onClick={() => onPay(selectedProduct.productKey)}
               >
-                {isCheckoutStarting ? "Starting checkout..." : `Pay ${selectedPrice}`}
+                {isCheckoutStarting ? t("store.checkout.startingCheckout") : t("store.checkout.payButton", { price: selectedPrice })}
               </button>
 
               <button type="button" className="store-cancel-button" onClick={onCancel}>
-                Cancel
+                {t("common.cancel")}
               </button>
 
-              <p className="store-secure-note"><span aria-hidden="true" />Secure payment via Stripe</p>
+              <p className="store-secure-note"><span aria-hidden="true" />{t("store.checkout.securePayment")}</p>
             </>
           ) : null}
         </div>
@@ -454,6 +480,7 @@ function PostPurchaseUnlockMenu({
   onCopyTransferLink,
   onRetryTransferLink
 }) {
+  const { t } = useTranslation();
   const canContinue = isValidRecoveryEmail(email);
   const isTransferLoading = transferLinkStatus === "loading";
   const hasTransferError = transferLinkStatus === "error";
@@ -462,7 +489,7 @@ function PostPurchaseUnlockMenu({
     <section className="unlock-success-menu" role="dialog" aria-modal="true" aria-labelledby="unlock-success-title">
       <span className="unlock-success-side-glow" aria-hidden="true" />
       <span className="unlock-success-center-glow" aria-hidden="true" />
-      <button type="button" className="unlock-success-close" aria-label="Close" onClick={onClose}>
+      <button type="button" className="unlock-success-close" aria-label={t("common.close")} onClick={onClose}>
         <span aria-hidden="true" />
       </button>
 
@@ -473,62 +500,62 @@ function PostPurchaseUnlockMenu({
             <i />
             <i />
           </span>
-          <h2 id="unlock-success-title">Vervus unlocked</h2>
-          <p>24 hours - unlimited runs</p>
+          <h2 id="unlock-success-title">{t("store.unlockMenu.title")}</h2>
+          <p>{t("store.unlockMenu.subtitle")}</p>
         </div>
 
         <div className="unlock-success-divider" />
 
         <label className="unlock-email-field">
-          <span>Add recovery email</span>
+          <span>{t("store.unlockMenu.recoveryEmailLabel")}</span>
           <div className="unlock-email-input">
             <img src={emailIcon} alt="" aria-hidden="true" />
             <input
               type="email"
               autoComplete="email"
               inputMode="email"
-              placeholder="Email address"
+              placeholder={t("store.unlockMenu.recoveryEmailPlaceholder")}
               value={email}
               onChange={(event) => onEmailChange(event.target.value)}
             />
           </div>
-          <small>For receipts and access recovery</small>
+          <small>{t("store.unlockMenu.recoveryEmailHelp")}</small>
         </label>
 
         <div className="unlock-or-divider">
           <span />
-          <p>or</p>
+          <p>{t("store.unlockMenu.or")}</p>
           <span />
         </div>
 
         <div className="unlock-transfer-link-block">
-          <label htmlFor="unlock-transfer-link">Entitlement Transfer link</label>
+          <label htmlFor="unlock-transfer-link">{t("store.unlockMenu.transferLinkLabel")}</label>
           <div className="unlock-transfer-copy-row">
             <input
               id="unlock-transfer-link"
               type="text"
               readOnly
-              value={transferLink || (isTransferLoading ? "Preparing transfer link..." : "")}
-              placeholder={hasTransferError ? "Transfer link unavailable" : "Preparing transfer link..."}
+              value={transferLink || (isTransferLoading ? t("store.unlockMenu.transferPreparing") : "")}
+              placeholder={hasTransferError ? t("store.unlockMenu.transferUnavailable") : t("store.unlockMenu.transferPreparing")}
               onFocus={(event) => event.target.select()}
             />
             <button type="button" disabled={!transferLink} onClick={onCopyTransferLink}>
-              {transferLinkCopied ? "Copied" : "Copy"}
+              {transferLinkCopied ? t("common.copied") : t("common.copy")}
             </button>
           </div>
           {hasTransferError ? (
             <button type="button" className="unlock-transfer-retry" onClick={onRetryTransferLink}>
-              Retry transfer link
+              {t("store.unlockMenu.retryTransferLink")}
             </button>
           ) : null}
         </div>
 
         <div className="unlock-success-actions">
           <button type="button" className="unlock-success-secondary" onClick={onSkip}>
-            Skip
+            {t("common.skip")}
           </button>
           <button type="button" className="unlock-success-primary" disabled={!canContinue} onClick={onContinue}>
-            Continue
+            {t("common.continue")}
           </button>
         </div>
       </div>
@@ -537,6 +564,7 @@ function PostPurchaseUnlockMenu({
 }
 
 function App() {
+  const { t } = useTranslation();
   const [name, setName] = useState(() => localStorage.getItem("playerName") || "");
   const [roomIdInput, setRoomIdInput] = useState(initialRoomFromQuery);
   const [roomPreview, setRoomPreview] = useState({ status: "idle", roomId: "", room: null, error: "" });
@@ -821,7 +849,7 @@ function App() {
     })
       .then(async (response) => {
         const payload = await response.json();
-        if (!response.ok) throw new Error(payload?.error || "Failed to establish player session");
+        if (!response.ok) throw new Error(payload?.error || t("appAlerts.playerSessionFailed"));
         if (!isMounted) return;
         const previousProfileSessionToken = String(socket.auth?.profileSessionToken || "");
         applyProfileEntitlementResponse(payload);
@@ -835,13 +863,13 @@ function App() {
         }
       })
       .catch((error) => {
-        if (isMounted) alert(error.message || "Failed to establish player session");
+        if (isMounted) alert(error.message || t("appAlerts.playerSessionFailed"));
       });
 
     return () => {
       isMounted = false;
     };
-  }, [applyProfileEntitlementResponse, name]);
+  }, [applyProfileEntitlementResponse, name, t]);
 
   useEffect(() => {
     if (!profileId || hasTrackedPageViewRef.current || !hasAnalyticsConsent()) return;
@@ -887,7 +915,7 @@ function App() {
 
     const handleEntitlementTransferCompleted = ({ message } = {}) => {
       refreshProfileEntitlements();
-      alert(message || "Your entitlement was transferred to another device. Entitlements refreshed.");
+      alert(message || t("appAlerts.entitlementTransferredAway"));
     };
 
     const handleEntitlementRefresh = (payload = {}) => {
@@ -906,7 +934,7 @@ function App() {
       socket.off("entitlement:transfer:completed", handleEntitlementTransferCompleted);
       socket.off("entitlement:refresh", handleEntitlementRefresh);
     };
-  }, [applyProfileEntitlementResponse, clearSessionState, playPurchaseSoundWithFallback, refreshProfileEntitlements]);
+  }, [applyProfileEntitlementResponse, clearSessionState, playPurchaseSoundWithFallback, refreshProfileEntitlements, t]);
 
 
   useEffect(() => {
@@ -1023,14 +1051,14 @@ function App() {
       if (response?.error) {
         clearSessionState();
         if (response.code === "CREATOR_TIMED_OUT") {
-          alert("You timed out, so your room was disbanded.");
+          alert(t("appAlerts.roomDisbandedTimeout"));
         }
         return;
       }
 
       applyJoinResponse(response);
     });
-  }, [applyJoinResponse, clearSessionState]);
+  }, [applyJoinResponse, clearSessionState, t]);
 
   useEffect(() => {
     const handleConnect = () => {
@@ -1106,13 +1134,13 @@ function App() {
     })
       .then(async (response) => {
         const payload = await response.json();
-        if (!response.ok) throw new Error(payload?.error || "Failed to claim entitlement transfer");
+        if (!response.ok) throw new Error(payload?.error || t("appAlerts.claimEntitlementTransferFailed"));
         applyProfileEntitlementResponse(payload);
-        alert("Entitlement transferred to this device.");
+        alert(t("appAlerts.entitlementTransferredHere"));
         if (socket.connected) socket.disconnect();
         socket.connect();
       })
-      .catch((error) => alert(error.message || "Failed to claim entitlement transfer"))
+      .catch((error) => alert(error.message || t("appAlerts.claimEntitlementTransferFailed")))
       .finally(() => {
         const params = new URLSearchParams(window.location.search);
         params.delete("entitlementTransfer");
@@ -1120,7 +1148,7 @@ function App() {
         const nextUrl = `${window.location.pathname}${nextQuery ? `?${nextQuery}` : ""}${window.location.hash}`;
         window.history.replaceState({}, "", nextUrl);
       });
-  }, [applyProfileEntitlementResponse, isSocketConnected, name]);
+  }, [applyProfileEntitlementResponse, isSocketConnected, name, t]);
 
   useEffect(() => {
     if (!entitlementRefreshRequestedAtMs) return;
@@ -1157,7 +1185,7 @@ function App() {
       })
         .then(async (response) => {
           const payload = await response.json();
-          if (!response.ok) throw new Error(payload?.error || "Failed to refresh purchase status");
+          if (!response.ok) throw new Error(payload?.error || t("appAlerts.refreshPurchaseStatusFailed"));
           if (cancelled) return;
           applyProfileEntitlementResponse(payload);
           if (payload.paymentStatus === "paid" && payload.entitlementGrantedAtMs) {
@@ -1182,7 +1210,7 @@ function App() {
       cancelled = true;
       window.clearInterval(interval);
     };
-  }, [applyProfileEntitlementResponse, entitlementRefreshRequestedAtMs]);
+  }, [applyProfileEntitlementResponse, entitlementRefreshRequestedAtMs, t]);
 
 
   useEffect(() => {
@@ -1300,12 +1328,12 @@ function App() {
     if (normalizedRoomId.length < ROOM_PREVIEW_MIN_LENGTH) return;
 
     if (!isSocketConnected) {
-      alert("Connection is still restoring. Try again in a moment.");
+      alert(t("appAlerts.connectionRestoring"));
       return;
     }
 
     joinRoomWithCode(normalizedRoomId, name || createFallbackPlayerName());
-  }, [isSocketConnected, joinRoomWithCode, name]);
+  }, [isSocketConnected, joinRoomWithCode, name, t]);
 
   useEffect(() => {
     const pendingAutoJoinRoomId = pendingAutoJoinRoomIdRef.current;
@@ -1384,9 +1412,9 @@ function App() {
     });
 
     if (!didEmit) {
-      fail("Connect to the server before creating a transfer link.");
+      fail(t("appAlerts.connectBeforeTransferLink"));
     }
-  }), [emitIfConnected]);
+  }), [emitIfConnected, t]);
 
   useEffect(() => {
     if (!unlockMenuVisible) return undefined;
@@ -1477,7 +1505,7 @@ function App() {
       .then(async (response) => {
         const payload = await response.json();
         if (!response.ok) {
-          throw new Error(payload?.error || "Failed to load experiences");
+          throw new Error(payload?.error || t("appAlerts.loadExperiencesFailed"));
         }
 
         const activeProducts = Array.isArray(payload.products) ? payload.products : [];
@@ -1498,12 +1526,12 @@ function App() {
         });
       })
       .catch((error) => {
-        setStoreError(error.message || "Failed to load experiences");
+        setStoreError(error.message || t("appAlerts.loadExperiencesFailed"));
       })
       .finally(() => {
         setIsStoreLoading(false);
       });
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     if (!showStore || storeProducts.length || isStoreLoading) return;
@@ -1533,7 +1561,7 @@ function App() {
         .then(async (response) => {
           const payload = await response.json();
           if (!response.ok) {
-            throw new Error(payload?.error || "Failed to start checkout");
+            throw new Error(payload?.error || t("appAlerts.startCheckoutFailed"));
           }
           if (!payload?.url) {
             throw new Error("Stripe checkout URL missing");
@@ -1545,7 +1573,7 @@ function App() {
           window.location.assign(payload.url);
         })
         .catch((error) => {
-          alert(error.message || "Failed to start checkout");
+          alert(error.message || t("appAlerts.startCheckoutFailed"));
           setShowStore(false);
           if (roomId && playerId) {
             emitIfConnected("entitlement:purchase:result", { roomId, playerId, success: false });
@@ -1574,7 +1602,7 @@ function App() {
     });
 
     if (!didEmitPurchaseStart) {
-      alert("Connect to the server before starting checkout.");
+      alert(t("appAlerts.connectBeforeCheckout"));
       setIsCheckoutStarting(false);
     }
   };
@@ -1860,13 +1888,13 @@ function App() {
       {purchaseOverlayStatus ? (
         <div className="purchase-result-overlay" role="status" aria-live="polite">
           <div className={`purchase-result-card ${purchaseOverlayStatus}`}>
-            <h2>{purchaseOverlayStatus === "success" ? "Purchase Successful" : "Purchase Failed"}</h2>
+            <h2>{purchaseOverlayStatus === "success" ? t("appOverlay.purchaseSuccessTitle") : t("appOverlay.purchaseFailedTitle")}</h2>
             <p>
               {purchaseOverlayStatus === "success"
-                ? "Your purchase is complete and unlocks are now available."
-                : "Purchase was not completed. Please try again when you're ready."}
+                ? t("appOverlay.purchaseSuccessDescription")
+                : t("appOverlay.purchaseFailedDescription")}
             </p>
-            <button className="btn btn-primary" onClick={handleDismissPurchaseOverlay}>Continue</button>
+            <button className="btn btn-primary" onClick={handleDismissPurchaseOverlay}>{t("common.continue")}</button>
           </div>
         </div>
       ) : null}
@@ -1879,14 +1907,14 @@ function App() {
               <span className="removed-room-icon" aria-hidden="true">
                 <img src={warningIcon} alt="" />
               </span>
-              <h2 id="removed-room-title">You were removed from the room.</h2>
+              <h2 id="removed-room-title">{t("appOverlay.removedRoomTitle")}</h2>
               <p id="removed-room-description">
-                The host removed you from this session.<br />
-                You can host your own room anytime.
+                {t("appOverlay.removedRoomDescriptionLine1")}<br />
+                {t("appOverlay.removedRoomDescriptionLine2")}
               </p>
             </div>
             <button type="button" className="removed-room-home-button" onClick={handleRemovedRoomHome}>
-              Home
+              {t("appOverlay.home")}
             </button>
           </div>
         </div>

@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import GameModeSelector, { ModeDescriptionDialog } from "./GameModeSelector.jsx";
+import LanguageSwitcher from "./LanguageSwitcher.jsx";
 import ModeDebugOverlay from "./ModeDebugOverlay";
 import { CONNECTION_STATES, getConnectionStateLabel } from "../connectionState";
 import { DEFAULT_LOBBY_CONTENT } from "../storyblok/lobbyContent.js";
@@ -19,12 +21,6 @@ const ROOM_SOCIAL_LINKS = Object.freeze([
   { label: "Discord", href: "https://discord.com", icon: discordIcon },
   { label: "Instagram", href: "https://www.instagram.com", icon: instagramIcon },
   { label: "X", href: "https://x.com/PlayVervus", icon: xIcon }
-]);
-
-const HOST_PURCHASE_STEPS = Object.freeze([
-  { key: "selecting_experience", label: "Selecting experience" },
-  { key: "checkout", label: "Starting checkout" },
-  { key: "payment", label: "Payment in progress" }
 ]);
 
 const renderTemplate = (template, values) => String(template || "").replace(/\{([a-zA-Z0-9_]+)\}/g, (match, key) => (
@@ -71,6 +67,7 @@ function RoomPage({
   modeDebugConfigs = [],
   roomContent = DEFAULT_LOBBY_CONTENT.room
 }) {
+  const { t } = useTranslation();
   const [showQrCode, setShowQrCode] = useState(false);
   const [showDebug, setShowDebug] = useState(false);
   const [copyStatus, setCopyStatus] = useState("");
@@ -109,14 +106,19 @@ function RoomPage({
       orientationLock: availableMode.orientationLock || debugMode.orientationLock || "both"
     };
   }, [modeDebugConfigs, availableModes, selectedModeId]);
+  const hostPurchaseSteps = useMemo(() => ([
+    { key: "selecting_experience", label: t("room.purchase.steps.selectingExperience") },
+    { key: "checkout", label: t("room.purchase.steps.checkout") },
+    { key: "payment", label: t("room.purchase.steps.payment") }
+  ]), [t]);
 
   const formatRemainingTime = (remainingMs) => {
-    if (remainingMs <= 0) return "Expired";
+    if (remainingMs <= 0) return t("room.entitlement.expired");
     const totalMinutes = Math.floor(remainingMs / 60000);
     const hours = Math.floor(totalMinutes / 60);
     const minutes = totalMinutes % 60;
-    if (hours <= 0) return `${minutes}m left`;
-    return `${hours}h ${minutes}m left`;
+    if (hours <= 0) return t("room.entitlement.minutesLeft", { minutes });
+    return t("room.entitlement.hoursMinutesLeft", { hours, minutes });
   };
 
   const selectedModeOrientationLock = (selectedMode?.orientationLock || "both").toLowerCase();
@@ -153,12 +155,12 @@ function RoomPage({
   const showHostPurchaseFailed = !isHost && hostUnlockingFailed && !hostUnlockingPending;
   const hostPurchaseStageIndex = Math.max(
     0,
-    HOST_PURCHASE_STEPS.findIndex((step) => step.key === hostUnlockingStage)
+    hostPurchaseSteps.findIndex((step) => step.key === hostUnlockingStage)
   );
   const activeHostPurchaseStageIndex = hostUnlockingStage
     ? hostPurchaseStageIndex
-    : HOST_PURCHASE_STEPS.length - 1;
-  const activeHostPurchaseStage = HOST_PURCHASE_STEPS[activeHostPurchaseStageIndex] || HOST_PURCHASE_STEPS[0];
+    : hostPurchaseSteps.length - 1;
+  const activeHostPurchaseStage = hostPurchaseSteps[activeHostPurchaseStageIndex] || hostPurchaseSteps[0];
   const roomStatusLabels = {
     lobby: content.statusLabelLobby,
     preview: content.statusLabelPreview,
@@ -193,8 +195,8 @@ function RoomPage({
     const remainingMs = hasTimedEntitlement ? (modeExpiryMs - currentTimeMs) : null;
     const hasActiveEntitlement = ownsMode && (!hasTimedEntitlement || remainingMs > 0);
     const entitlementStatus = hasActiveEntitlement
-      ? (hasTimedEntitlement ? formatRemainingTime(remainingMs) : "Owned")
-      : (mode.id === "standard" ? "Preview" : "Purchase Mode");
+      ? (hasTimedEntitlement ? formatRemainingTime(remainingMs) : t("room.entitlement.owned"))
+      : (mode.id === "standard" ? t("room.entitlement.preview") : t("room.entitlement.purchaseMode"));
     return {
       ...mode,
       disabled: mode.id !== "standard" && !hasActiveEntitlement,
@@ -456,16 +458,16 @@ function RoomPage({
     <section className="room-host-purchase-card room-host-purchase-card-pending" role="status" aria-live="polite">
       <img className="room-host-purchase-icon" src={cardIcon} alt="" aria-hidden="true" />
       <div className="room-host-purchase-copy">
-        <h2>{hostDisplayName} is unlocking Vervus.</h2>
-        <p>Room stays open while they pay. You'll be playing in a moment - stay here.</p>
+        <h2>{t("room.purchase.pending.title", { host: hostDisplayName })}</h2>
+        <p>{t("room.purchase.pending.description")}</p>
       </div>
       <div className="room-host-purchase-progress-card">
         <div className="room-host-purchase-progress-header">
           <span>{activeHostPurchaseStage.label}</span>
-          <strong>{activeHostPurchaseStageIndex + 1} / {HOST_PURCHASE_STEPS.length}</strong>
+          <strong>{activeHostPurchaseStageIndex + 1} / {hostPurchaseSteps.length}</strong>
         </div>
         <div className="room-host-purchase-progress" aria-hidden="true">
-          {HOST_PURCHASE_STEPS.map((step, index) => (
+          {hostPurchaseSteps.map((step, index) => (
             <span
               key={step.key}
               className={index <= activeHostPurchaseStageIndex ? "active" : ""}
@@ -480,9 +482,9 @@ function RoomPage({
     <section className="room-host-purchase-failed-card" role="status" aria-live="polite">
       <div className="room-host-purchase-failed-status">
         <span aria-hidden="true" />
-        <strong>Waiting for {hostDisplayName}</strong>
+        <strong>{t("room.purchase.failed.waitingTitle", { host: hostDisplayName })}</strong>
       </div>
-      <p>{hostDisplayName} can retry the payment or start a free preview.</p>
+      <p>{t("room.purchase.failed.waitingDescription", { host: hostDisplayName })}</p>
     </section>
   );
 
@@ -490,8 +492,8 @@ function RoomPage({
     <section className="room-host-purchase-failed-hero">
       <img className="room-host-purchase-face" src={failIcon} alt="" aria-hidden="true" />
       <div className="room-host-purchase-copy">
-        <h2>{hostDisplayName} came back.</h2>
-        <p>Looks like the payment didn't go through. {hostDisplayName} might try again.</p>
+        <h2>{t("room.purchase.failed.heroTitle", { host: hostDisplayName })}</h2>
+        <p>{t("room.purchase.failed.heroDescription", { host: hostDisplayName })}</p>
       </div>
     </section>
   );
@@ -523,7 +525,7 @@ function RoomPage({
     <div className="qr-modal-backdrop" onClick={() => { onUiButtonClick?.(); setShowQrCode(false); }}>
       <div className="qr-modal" onClick={(event) => event.stopPropagation()}>
         <h2 className="qr-modal-title">{renderTemplate(content.qrModalTitleTemplate, { room: roomId })}</h2>
-        <img className="qr-image" src={roomInviteQrUrl} alt={`QR code to join room ${roomId}`} />
+        <img className="qr-image" src={roomInviteQrUrl} alt={t("room.qrModal.imageAlt", { room: roomId })} />
         <p className="qr-link">{roomInviteUrl}</p>
         <button
           type="button"
@@ -553,19 +555,19 @@ function RoomPage({
           <span className="leave-room-side-glow" aria-hidden="true" />
           <span className="leave-room-center-glow" aria-hidden="true" />
           <div className="leave-room-content">
-            <h2 id="leave-room-title">Leave room?</h2>
+            <h2 id="leave-room-title">{t("room.leave.title")}</h2>
             <p id="leave-room-description">
               {isHostLeaving
-                ? "You're the host. If you leave, the room will close for everyone."
-                : "You'll leave this room. The host and other players can keep going."}
+                ? t("room.leave.hostDescription")
+                : t("room.leave.playerDescription")}
             </p>
           </div>
           <div className="leave-room-actions">
             <button type="button" className="leave-room-stay-button" onClick={handleCancelLeave}>
-              Stay in the room
+              {t("room.leave.stayAction")}
             </button>
             <button type="button" className="leave-room-leave-button" onClick={handleConfirmLeave}>
-              Leave room
+              {t("room.leave.leaveAction")}
             </button>
           </div>
         </div>
@@ -578,38 +580,43 @@ function RoomPage({
       {isWrongOrientation ? (
         <div className="orientation-warning-overlay" role="alert">
           <div className="orientation-warning-card">
-            Wrong orientation. Please rotate to <strong>{selectedModeOrientationLock}</strong>.
+            {t("room.orientationWarning.prefix")} <strong>{selectedModeOrientationLock}</strong>.
           </div>
         </div>
       ) : null}
       {canShowDebug ? (
-        <button type="button" className="btn btn-secondary debug-button" onClick={() => { onUiButtonClick?.(); setShowDebug(true); }}>Debug</button>
+        <button type="button" className="btn btn-secondary debug-button" onClick={() => { onUiButtonClick?.(); setShowDebug(true); }}>{t("room.debugButton")}</button>
       ) : null}
       {canShowDebug && showDebug ? <ModeDebugOverlay mode={selectedMode} heatSurgeConfig={selectedMode?.heatSurgeConfig} onClose={() => { onUiButtonClick?.(); setShowDebug(false); }} /> : null}
 
-      <div className="room-lobby-brand" aria-label="Vervus">
-        <img src={clearBackgroundLogo} alt="Vervus" />
+      <div className="room-lobby-brand" aria-label={t("app.name")}>
+        <img src={clearBackgroundLogo} alt={t("app.name")} />
       </div>
 
-      <header className="room-desktop-header" aria-label="Room navigation">
-        <div className="room-desktop-brand" aria-label="Vervus">
-          <img src={clearBackgroundLogo} alt="Vervus" />
+      <LanguageSwitcher className="room-language-switcher room-language-switcher-mobile" />
+
+      <header className="room-desktop-header" aria-label={t("room.desktop.navAriaLabel")}>
+        <div className="room-desktop-brand" aria-label={t("app.name")}>
+          <img src={clearBackgroundLogo} alt={t("app.name")} />
         </div>
-        <nav className="room-desktop-nav" aria-label="Vervus sections">
-          <span>How Vervus works</span>
-          <span>Experiences</span>
-          <span>Unlock</span>
-          <span>FAQ</span>
+        <nav className="room-desktop-nav" aria-label={t("room.desktop.sectionsAriaLabel")}>
+          <span>{t("room.desktop.nav.howItWorks")}</span>
+          <span>{t("room.desktop.nav.experiences")}</span>
+          <span>{t("room.desktop.nav.unlock")}</span>
+          <span>{t("room.desktop.nav.faq")}</span>
         </nav>
-        <span className="room-desktop-host-pill">Host a room</span>
+        <div className="room-desktop-header-actions">
+          <LanguageSwitcher className="room-language-switcher" />
+          <span className="room-desktop-host-pill">{t("room.desktop.hostPill")}</span>
+        </div>
       </header>
 
       {connectionState !== CONNECTION_STATES.CONNECTED ? (
         <div className={`connection-banner ${connectionState}`} role="status" aria-live="polite">
-          <strong>Connection:</strong> {getConnectionStateLabel(connectionState)}
-          {connectionState === CONNECTION_STATES.RECONNECTING ? " - trying to restore your room session." : null}
-          {connectionState === CONNECTION_STATES.DEGRADED ? " - high latency detected; effects may feel lighter." : null}
-          {connectionState === CONNECTION_STATES.DISCONNECTED ? " - connection lost. Keep this tab open while we retry." : null}
+          <strong>{t("room.connection.label")}</strong> {getConnectionStateLabel(connectionState)}
+          {connectionState === CONNECTION_STATES.RECONNECTING ? ` ${t("room.connection.reconnectingNote")}` : null}
+          {connectionState === CONNECTION_STATES.DEGRADED ? ` ${t("room.connection.degradedNote")}` : null}
+          {connectionState === CONNECTION_STATES.DISCONNECTED ? ` ${t("room.connection.disconnectedNote")}` : null}
         </div>
       ) : null}
 
@@ -634,7 +641,7 @@ function RoomPage({
                 </button>
               </div>
               <div className="room-qr-frame">
-                <img src={roomInviteQrUrl} alt={`QR code to join room ${roomId}`} />
+                <img src={roomInviteQrUrl} alt={t("room.qrModal.imageAlt", { room: roomId })} />
               </div>
               <span className="room-share-label">{content.inviteShareLabel}</span>
               <button type="button" className="room-copy-button" onClick={handleCopyInvite}>
@@ -678,7 +685,7 @@ function RoomPage({
           type="button"
           className="room-bottom-action"
           disabled={!canHostStart}
-          data-desktop-disabled-reason={!canHostStart ? "Play on your phone to start" : undefined}
+          data-desktop-disabled-reason={!canHostStart ? t("room.desktop.disabledStartReason") : undefined}
           onClick={handleHostStart}
         >
           {hostStartLabel}
@@ -697,7 +704,7 @@ function RoomPage({
 
       {!isHost ? (
         <footer className="room-desktop-footer">
-          <div className="room-desktop-socials" aria-label="Vervus social links">
+          <div className="room-desktop-socials" aria-label={t("room.desktop.socialsAriaLabel")}>
             {ROOM_SOCIAL_LINKS.map((link) => (
               <a
                 key={link.label}
@@ -710,29 +717,29 @@ function RoomPage({
               </a>
             ))}
           </div>
-          <nav className="room-desktop-footer-nav" aria-label="Vervus legal pages">
-            <span>Terms of Service</span>
-            <span>Privacy Policy</span>
-            <span>Contact</span>
+          <nav className="room-desktop-footer-nav" aria-label={t("room.desktop.legalAriaLabel")}>
+            <span>{t("room.desktop.footer.terms")}</span>
+            <span>{t("room.desktop.footer.privacy")}</span>
+            <span>{t("room.desktop.footer.contact")}</span>
           </nav>
-          <p>&copy; 2026 Vervus Interactive. Built for chaos.</p>
+          <p>{t("room.desktop.footer.tagline")}</p>
         </footer>
       ) : null}
 
-      <div className="room-technical-meta" aria-label="Room diagnostics">
-        <span>Phase: {phase}</span>
-        <span>Ping: {pingMs === null ? "-" : `${pingMs} ms`}</span>
-        <span>Sync: {timeSyncStatus?.quality || "syncing"}</span>
-        <span>Server: {serverNow ? new Date(serverNow).toLocaleTimeString() : "-"}</span>
-        <span>Ready: {connectedReadyCount}/{connectedPlayers.length}</span>
-        <span>Preview: {isPreviewRoom ? `combo ${previewComboLimit ?? "X"}` : "off"}</span>
+      <div className="room-technical-meta" aria-label={t("room.diagnostics.ariaLabel")}>
+        <span>{t("room.diagnostics.phase", { phase })}</span>
+        <span>{t("room.diagnostics.ping", { ping: pingMs === null ? "-" : `${pingMs} ms` })}</span>
+        <span>{t("room.diagnostics.sync", { quality: timeSyncStatus?.quality || t("room.diagnostics.syncing") })}</span>
+        <span>{t("room.diagnostics.server", { server: serverNow ? new Date(serverNow).toLocaleTimeString() : "-" })}</span>
+        <span>{t("room.diagnostics.ready", { ready: connectedReadyCount, total: connectedPlayers.length })}</span>
+        <span>{t("room.diagnostics.preview", { preview: isPreviewRoom ? `combo ${previewComboLimit ?? "X"}` : t("room.diagnostics.off") })}</span>
       </div>
 
       {renderQrModal()}
       {renderLeaveConfirmation()}
       <ModeDescriptionDialog
         mode={descriptionMode}
-        gameTitle={selectedMode?.gameTitle || "GLiTCH!"}
+        gameTitle={selectedMode?.gameTitle || t("room.defaultGameTitle")}
         onClose={() => setDescriptionMode(null)}
       />
     </section>

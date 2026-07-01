@@ -1,0 +1,427 @@
+{
+  "app": {
+    "language": "English",
+    "name": "Vervus"
+  },
+  "appAlerts": {
+    "claimEntitlementTransferFailed": "Failed to claim entitlement transfer",
+    "connectBeforeCheckout": "Connect to the server before starting checkout.",
+    "connectBeforeTransferLink": "Connect to the server before creating a transfer link.",
+    "connectionRestoring": "Connection is still restoring. Try again in a moment.",
+    "entitlementTransferredAway": "Your entitlement was transferred to another device. Entitlements refreshed.",
+    "entitlementTransferredHere": "Entitlement transferred to this device.",
+    "loadExperiencesFailed": "Failed to load experiences",
+    "playerSessionFailed": "Failed to establish player session",
+    "refreshPurchaseStatusFailed": "Failed to refresh purchase status",
+    "roomDisbandedTimeout": "You timed out, so your room was disbanded.",
+    "startCheckoutFailed": "Failed to start checkout"
+  },
+  "appOverlay": {
+    "home": "Home",
+    "purchaseFailedDescription": "Purchase was not completed. Please try again when you're ready.",
+    "purchaseFailedTitle": "Purchase Failed",
+    "purchaseSuccessDescription": "Your purchase is complete and unlocks are now available.",
+    "purchaseSuccessTitle": "Purchase Successful",
+    "removedRoomDescriptionLine1": "The host removed you from this session.",
+    "removedRoomDescriptionLine2": "You can host your own room anytime.",
+    "removedRoomTitle": "You were removed from the room."
+  },
+  "common": {
+    "back": "Back",
+    "cancel": "Cancel",
+    "close": "Close",
+    "copied": "Copied",
+    "copy": "Copy",
+    "continue": "Continue",
+    "languageSelector": "Language",
+    "loading": "Loading...",
+    "retry": "Retry",
+    "skip": "Skip"
+  },
+  "languages": {
+    "af": "Afrikaans",
+    "en": "English"
+  },
+  "lobby": {
+    "ariaLabel": "Vervus lobby",
+    "desktopPhone": {
+      "title": "Vervus is designed for phones.",
+      "description": "Vervus is built around fast, touch-based multiplayer gameplay and is optimized for smartphones.",
+      "secondaryDescription": "You can continue exploring on desktop, but gameplay requires a mobile device.",
+      "action": "Explore on desktop"
+    },
+    "hostRoom": "Host room",
+    "joinRoom": "Join room",
+    "preview": {
+      "roomFound": "ROOM FOUND",
+      "players": {
+        "one": "{{first}} IS ALREADY IN",
+        "two": "{{first}} & {{second}} ARE ALREADY IN",
+        "many": "{{first}}, {{second}} & {{count}} MORE ARE ALREADY IN"
+      },
+      "status": {
+        "active": "Room active",
+        "full": "Room full",
+        "closed": "Room closed"
+      }
+    },
+    "qrScanner": {
+      "title": "Scan QR Code",
+      "description": "Position the QR code within the frame.",
+      "cameraPreviewLabel": "Camera preview",
+      "messages": {
+        "startingCamera": "Starting camera...",
+        "pointCamera": "Point your camera at the room QR code."
+      },
+      "errors": {
+        "browserUnsupported": "This browser does not support in-app camera scanning.",
+        "httpsRequired": "Camera scanning requires HTTPS.",
+        "invalidInvite": "That QR code is not a Vervus room invite.",
+        "permissionBlocked": "Camera permission was blocked. Allow camera access and try again.",
+        "noCamera": "No camera was found on this device.",
+        "cameraInUse": "The camera is already in use by another app.",
+        "unsupportedSettings": "This camera cannot use the requested scan settings.",
+        "browserBlocked": "Camera access is blocked by this browser.",
+        "generic": "The camera could not start. Check permissions and try again."
+      }
+    },
+    "roomCode": "Room code",
+    "roomCodeNotice": {
+      "notFound": {
+        "title": "Room not found",
+        "body": "Check the code with your host - it may have changed."
+      },
+      "full": {
+        "title": "Room is full",
+        "body": "This run already has 4 players."
+      },
+      "expired": {
+        "title": "Room expired",
+        "body": "This room has closed. Start a new run with your friends anytime."
+      }
+    }
+  },
+  "modeSelector": {
+    "aboutMode": "About {{mode}}",
+    "closeDescription": "Close mode description",
+    "gameModeLabel": "Game mode",
+    "gameModesAriaLabel": "{{game}} game modes",
+    "gamesAriaLabel": "Games",
+    "gotIt": "Got it",
+    "modeDetailsUnavailable": "Mode details are not available yet.",
+    "standardGlitch": {
+      "glitchHelp": "Tap GLiTCH! if no.",
+      "line1": "Stay in sync.",
+      "line2": "Everyone sees an icon.",
+      "line3Prefix": "Is everyone seeing the",
+      "line3Strong": "exact same thing?",
+      "line4Prefix": "Someone is about to be",
+      "line4Strong": "blamed.",
+      "syncHelp": "Tap SYNC if yes."
+    }
+  },
+  "publicPages": {
+    "contact": {
+      "defaultSubject": "Vervus support request",
+      "eyebrow": "Contact",
+      "fields": {
+        "email": "Email",
+        "message": "Message",
+        "subject": "Subject"
+      },
+      "placeholders": {
+        "email": "Your email address",
+        "message": "How can we help?",
+        "subject": "Brief summary of your request"
+      },
+      "status": {
+        "notConfigured": "Contact service is not configured.",
+        "sendFailed": "Unable to send message.",
+        "sending": "Sending message...",
+        "sent": "Message sent. We will get back to you soon."
+      },
+      "submit": "Send Message",
+      "submitSending": "Sending...",
+      "subtitle": "Send us a message.",
+      "title": "Need help?"
+    },
+    "cookie": {
+      "allow": "Allow",
+      "ariaLabel": "Cookie preferences",
+      "close": "Close cookie banner",
+      "essentialOnly": "Essential Only",
+      "message": "We use cookies for analytics and performance.",
+      "privacyPolicy": "Privacy Policy"
+    },
+    "faq": {
+      "eyebrow": "Support",
+      "title": "FAQ"
+    },
+    "language": {
+      "eyebrow": "Preferences",
+      "title": "Language"
+    },
+    "footer": {
+      "contact": "Contact",
+      "legalAriaLabel": "Vervus legal pages",
+      "privacy": "Privacy Policy",
+      "socialsAriaLabel": "Vervus social links",
+      "tagline": "© 2026 Vervus Interactive. Built for chaos.",
+      "terms": "Terms of Service"
+    },
+    "hostRoom": "Host a room",
+    "landing": {
+      "experiencesCopy": "Choose your reality.",
+      "experiencesTitle": "Experiences.",
+      "howCopy": "Instant social multiplayer games. Zero friction.",
+      "howItems": {
+        "host": "One player hosts. Everyone else joins instantly.",
+        "instant": "No downloads. No setup. Just play.",
+        "players": "2-4 players. Built for tension."
+      },
+      "howTitle": "How Vervus works.",
+      "preview": {
+        "action": "Start free preview",
+        "badge": "Free Preview",
+        "items": {
+          "join": "Instant join",
+          "mode": "Standard mode only",
+          "run": "Free preview run"
+        },
+        "titlePrefix": "Play",
+        "titleStrong": "GLiTCH!"
+      },
+      "realityTitle": "Different realities.",
+      "startCopy": "Try GLiTCH! or unlock everything.",
+      "startTitle": "Start playing.",
+      "unlock": {
+        "action": "Unlock Vervus",
+        "badge": "All Experiences",
+        "items": {
+          "access": "24-hour access",
+          "experiences": "All experiences & modes",
+          "join": "Everyone else joins free"
+        },
+        "titlePrefix": "Unlock",
+        "titleStrong": "Vervus"
+      }
+    },
+    "legal": {
+      "privacyEyebrow": "Privacy Policy",
+      "privacyTitle": "Your privacy matters.",
+      "termsEyebrow": "Terms of Service",
+      "termsTitle": "The rules of the room."
+    },
+    "menu": {
+      "close": "Close menu",
+      "items": {
+        "contact": "Contact",
+        "faq": "FAQ",
+        "language": "Language",
+        "privacy": "Privacy Policy",
+        "terms": "Terms of Service"
+      },
+      "open": "Open menu",
+      "pagesAriaLabel": "Vervus pages"
+    },
+    "nav": {
+      "experiences": "Experiences",
+      "faq": "FAQ",
+      "howItWorks": "How Vervus works",
+      "sectionsAriaLabel": "Vervus sections",
+      "unlock": "Unlock"
+    }
+  },
+  "glitchGame": {
+    "answers": {
+      "glitch": "GLiTCH!",
+      "sync": "SYNC"
+    },
+    "comboLabel": "COMBO",
+    "comboAriaLabel": "{{combo}} combo",
+    "connection": {
+      "degradedNote": "- high latency detected; effects may feel lighter.",
+      "disconnectedNote": "- connection lost. Keep this tab open while we retry.",
+      "label": "Connection:",
+      "reconnectingNote": "- trying to restore your room session."
+    },
+    "corruptionLevel": "Corruption Lv {{level}}",
+    "currentSymbol": "Current symbol",
+    "getReady": "Get ready",
+    "heatSurge": "Heat Surge",
+    "heatSurgeActive": "Heat Surge active",
+    "killScreen": {
+      "alteredScreen": "Altered screen",
+      "alteredStimulus": "Altered {{stimulus}}",
+      "experience": "Experience",
+      "missedInput": "{{name}} missed the input",
+      "noDecisivePlayer": "No decisive player recorded",
+      "noResponse": "No response",
+      "players": "Players",
+      "points": "{{score}} pts",
+      "previewEnded": "Preview ended",
+      "previewLimitReached": "Preview limit reached",
+      "ready": "Ready",
+      "realityCheck": "Reality check",
+      "runEnded": "Run ended",
+      "standardScreen": "Standard screen",
+      "standardStimulus": "Standard {{stimulus}}",
+      "tappedAnswer": "{{name}} tapped {{answer}}",
+      "waiting": "Waiting",
+      "whoBrokeRun": "Who broke the run"
+      ,"you": "You"
+    },
+    "lastChance": "Last Chance",
+    "loadingAssets": "Loading assets",
+    "mode": {
+      "standard": "Standard"
+    },
+    "orientationWarning": "Wrong orientation. Please rotate to",
+    "paused": {
+      "description": "A participant disconnected. The game will resume once everyone reconnects.",
+      "exitRoom": "Exit Room",
+      "title": "Game Paused"
+    },
+    "playersWhoVoted": "Players who have voted",
+    "playerHasNotVoted": "{{name}} has not voted yet",
+    "playerHasVoted": "{{name}} has voted",
+    "previewEndsAt": "Preview ends at {{combo}} combo",
+    "returnToRoom": "Return to room",
+    "roomLabel": "Room {{roomId}}",
+    "saveIt": "SAVE IT!",
+    "stimuli": {
+      "bolt": "Lightning",
+      "eye": "Eye",
+      "screen": "Screen",
+      "skull": "Skull",
+      "smiley": "Smiley",
+      "star": "Star"
+    },
+    "timeLeftAriaLabel": "Time left {{time}}",
+    "waitingForGameState": "Waiting for game state..."
+  },
+  "room": {
+    "connection": {
+      "degradedNote": "- high latency detected; effects may feel lighter.",
+      "disconnectedNote": "- connection lost. Keep this tab open while we retry.",
+      "label": "Connection:",
+      "reconnectingNote": "- trying to restore your room session."
+    },
+    "defaultGameTitle": "GLiTCH!",
+    "debugButton": "Debug",
+    "desktop": {
+      "disabledStartReason": "Play on your phone to start",
+      "footer": {
+        "contact": "Contact",
+        "privacy": "Privacy Policy",
+        "tagline": "© 2026 Vervus Interactive. Built for chaos.",
+        "terms": "Terms of Service"
+      },
+      "hostPill": "Host a room",
+      "legalAriaLabel": "Vervus legal pages",
+      "nav": {
+        "experiences": "Experiences",
+        "faq": "FAQ",
+        "howItWorks": "How Vervus works",
+        "unlock": "Unlock"
+      },
+      "navAriaLabel": "Room navigation",
+      "sectionsAriaLabel": "Vervus sections",
+      "socialsAriaLabel": "Vervus social links"
+    },
+    "diagnostics": {
+      "ariaLabel": "Room diagnostics",
+      "off": "off",
+      "syncing": "syncing",
+      "phase": "Phase: {{phase}}",
+      "ping": "Ping: {{ping}}",
+      "sync": "Sync: {{quality}}",
+      "server": "Server: {{server}}",
+      "ready": "Ready: {{ready}}/{{total}}",
+      "preview": "Preview: {{preview}}"
+    },
+    "entitlement": {
+      "expired": "Expired",
+      "owned": "Owned",
+      "preview": "Preview",
+      "purchaseMode": "Purchase Mode",
+      "minutesLeft": "{{minutes}}m left",
+      "hoursMinutesLeft": "{{hours}}h {{minutes}}m left"
+    },
+    "leave": {
+      "title": "Leave room?",
+      "hostDescription": "You're the host. If you leave, the room will close for everyone.",
+      "playerDescription": "You'll leave this room. The host and other players can keep going.",
+      "stayAction": "Stay in the room",
+      "leaveAction": "Leave room"
+    },
+    "orientationWarning": {
+      "prefix": "Wrong orientation. Please rotate to"
+    },
+    "purchase": {
+      "steps": {
+        "selectingExperience": "Selecting experience",
+        "checkout": "Starting checkout",
+        "payment": "Payment in progress"
+      },
+      "pending": {
+        "title": "{{host}} is unlocking Vervus.",
+        "description": "Room stays open while they pay. You'll be playing in a moment - stay here."
+      },
+      "failed": {
+        "waitingTitle": "Waiting for {{host}}",
+        "waitingDescription": "{{host}} can retry the payment or start a free preview.",
+        "heroTitle": "{{host}} came back.",
+        "heroDescription": "Looks like the payment didn't go through. {{host}} might try again."
+      }
+    },
+    "qrModal": {
+      "imageAlt": "QR code to join room {{room}}"
+    }
+  },
+  "store": {
+    "access": {
+      "hour": "{{hours}} hour",
+      "hours": "{{hours}} hours"
+    },
+    "checkout": {
+      "accessLabel": "Access",
+      "empty": "No experiences are available right now.",
+      "experienceOptionsAriaLabel": "Experience options",
+      "headingAllModes": "All experiences. All modes. {{access}}.",
+      "headingDefault": "{{product}}. {{access}}.",
+      "kicker": "Checkout",
+      "loading": "Loading experiences...",
+      "payAnotherWay": "Pay another way",
+      "payButton": "Pay {{price}}",
+      "privacyPolicy": "Privacy Policy",
+      "roomStaysOpen": "Room stays open while you pay.",
+      "securePayment": "Secure payment via Stripe",
+      "startingCheckout": "Starting checkout...",
+      "termsAnd": "and",
+      "termsOfService": "Terms of Service",
+      "termsPrefix": "I agree to the",
+      "termsSuffix": ", and understand that digital access starts immediately after purchase and that my right of withdrawal no longer applies.",
+      "totalLabel": "Total",
+      "unlockVervus": "Unlock Vervus"
+    },
+    "productLabel": {
+      "allExperiences": "All experiences",
+      "defaultExperience": "Experience",
+      "multipleExperiences": "{{count}} experiences",
+      "singleExperience": "{{count}} experience"
+    },
+    "unlockMenu": {
+      "or": "or",
+      "recoveryEmailHelp": "For receipts and access recovery",
+      "recoveryEmailLabel": "Add recovery email",
+      "recoveryEmailPlaceholder": "Email address",
+      "retryTransferLink": "Retry transfer link",
+      "subtitle": "24 hours - unlimited runs",
+      "title": "Vervus unlocked",
+      "transferLinkLabel": "Entitlement Transfer link",
+      "transferPreparing": "Preparing transfer link...",
+      "transferUnavailable": "Transfer link unavailable"
+    }
+  }
+}

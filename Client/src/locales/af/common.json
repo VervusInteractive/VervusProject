@@ -1,0 +1,427 @@
+{
+  "app": {
+    "language": "Afrikaans",
+    "name": "Vervus"
+  },
+  "appAlerts": {
+    "claimEntitlementTransferFailed": "Kon nie toegangoordrag opeis nie",
+    "connectBeforeCheckout": "Koppel eers aan die bediener voordat jy met betaling begin.",
+    "connectBeforeTransferLink": "Koppel eers aan die bediener voordat jy 'n oordragskakel skep.",
+    "connectionRestoring": "Die verbinding word nog herstel. Probeer weer oor 'n oomblik.",
+    "entitlementTransferredAway": "Jou toegang is na 'n ander toestel oorgedra. Toegang is verfris.",
+    "entitlementTransferredHere": "Toegang is na hierdie toestel oorgedra.",
+    "loadExperiencesFailed": "Kon nie ervarings laai nie",
+    "playerSessionFailed": "Kon nie 'n spelersessie vestig nie",
+    "refreshPurchaseStatusFailed": "Kon nie aankoopstatus verfris nie",
+    "roomDisbandedTimeout": "Jy het uitgetyd, daarom is jou kamer ontbind.",
+    "startCheckoutFailed": "Kon nie betaling begin nie"
+  },
+  "appOverlay": {
+    "home": "Tuis",
+    "purchaseFailedDescription": "Die aankoop is nie voltooi nie. Probeer weer wanneer jy gereed is.",
+    "purchaseFailedTitle": "Aankoop het misluk",
+    "purchaseSuccessDescription": "Jou aankoop is voltooi en ontsluitings is nou beskikbaar.",
+    "purchaseSuccessTitle": "Aankoop suksesvol",
+    "removedRoomDescriptionLine1": "Die gasheer het jou uit hierdie sessie verwyder.",
+    "removedRoomDescriptionLine2": "Jy kan enige tyd jou eie kamer skep.",
+    "removedRoomTitle": "Jy is uit die kamer verwyder."
+  },
+  "common": {
+    "back": "Terug",
+    "cancel": "Kanselleer",
+    "close": "Maak toe",
+    "copied": "Gekopieer",
+    "copy": "Kopieer",
+    "continue": "Gaan voort",
+    "languageSelector": "Taal",
+    "loading": "Laai...",
+    "retry": "Probeer weer",
+    "skip": "Slaan oor"
+  },
+  "languages": {
+    "af": "Afrikaans",
+    "en": "Engels"
+  },
+  "lobby": {
+    "ariaLabel": "Vervus voorportaal",
+    "desktopPhone": {
+      "title": "Vervus is vir fone ontwerp.",
+      "description": "Vervus is gebou vir vinnige, aanraking-gebaseerde multispeler spel en is vir slimfone geoptimaliseer.",
+      "secondaryDescription": "Jy kan steeds op rekenaar rondkyk, maar spel vereis 'n mobiele toestel.",
+      "action": "Verken op rekenaar"
+    },
+    "hostRoom": "Skep kamer",
+    "joinRoom": "Sluit aan",
+    "preview": {
+      "roomFound": "KAMER GEVIND",
+      "players": {
+        "one": "{{first}} IS REEDS IN",
+        "two": "{{first}} & {{second}} IS REEDS IN",
+        "many": "{{first}}, {{second}} & NOG {{count}} IS REEDS IN"
+      },
+      "status": {
+        "active": "Kamer aktief",
+        "full": "Kamer is vol",
+        "closed": "Kamer gesluit"
+      }
+    },
+    "qrScanner": {
+      "title": "Skandeer QR-kode",
+      "description": "Hou die QR-kode binne die raam.",
+      "cameraPreviewLabel": "Kameravoorskou",
+      "messages": {
+        "startingCamera": "Begin kamera...",
+        "pointCamera": "Rig jou kamera op die kamer se QR-kode."
+      },
+      "errors": {
+        "browserUnsupported": "Hierdie blaaier ondersteun nie ingeboude kameraskandering nie.",
+        "httpsRequired": "Kameraskandering vereis HTTPS.",
+        "invalidInvite": "Daardie QR-kode is nie 'n Vervus-kameruitnodiging nie.",
+        "permissionBlocked": "Kameratoestemming is geblokkeer. Laat toegang toe en probeer weer.",
+        "noCamera": "Geen kamera is op hierdie toestel gevind nie.",
+        "cameraInUse": "Die kamera word reeds deur 'n ander toepassing gebruik.",
+        "unsupportedSettings": "Hierdie kamera kan nie die gevraagde skanderinginstellings gebruik nie.",
+        "browserBlocked": "Kameratoegang word deur hierdie blaaier geblokkeer.",
+        "generic": "Die kamera kon nie begin nie. Gaan toestemmings na en probeer weer."
+      }
+    },
+    "roomCode": "Kamerkode",
+    "roomCodeNotice": {
+      "notFound": {
+        "title": "Kamer nie gevind nie",
+        "body": "Bevestig die kode by die gasheer - dit het moontlik verander."
+      },
+      "full": {
+        "title": "Kamer is vol",
+        "body": "Hierdie sessie het reeds 4 spelers."
+      },
+      "expired": {
+        "title": "Kamer het verval",
+        "body": "Hierdie kamer is gesluit. Begin enige tyd weer 'n nuwe sessie saam met jou vriende."
+      }
+    }
+  },
+  "modeSelector": {
+    "aboutMode": "Meer oor {{mode}}",
+    "closeDescription": "Maak modusbeskrywing toe",
+    "gameModeLabel": "Spelmodus",
+    "gameModesAriaLabel": "{{game}} spelmodusse",
+    "gamesAriaLabel": "Spele",
+    "gotIt": "Reg so",
+    "modeDetailsUnavailable": "Modusbesonderhede is nog nie beskikbaar nie.",
+    "standardGlitch": {
+      "glitchHelp": "Tik GLiTCH! as nee.",
+      "line1": "Bly in sinkronisasie.",
+      "line2": "Almal sien 'n ikoon.",
+      "line3Prefix": "Sien almal",
+      "line3Strong": "presies dieselfde ding?",
+      "line4Prefix": "Iemand gaan nou",
+      "line4Strong": "geblameer word.",
+      "syncHelp": "Tik SYNC as ja."
+    }
+  },
+  "publicPages": {
+    "contact": {
+      "defaultSubject": "Vervus ondersteuningsversoek",
+      "eyebrow": "Kontak",
+      "fields": {
+        "email": "E-pos",
+        "message": "Boodskap",
+        "subject": "Onderwerp"
+      },
+      "placeholders": {
+        "email": "Jou e-posadres",
+        "message": "Hoe kan ons help?",
+        "subject": "Kort opsomming van jou versoek"
+      },
+      "status": {
+        "notConfigured": "Kontakdiens is nie opgestel nie.",
+        "sendFailed": "Kon nie boodskap stuur nie.",
+        "sending": "Stuur boodskap...",
+        "sent": "Boodskap gestuur. Ons sal binnekort terugkom na jou."
+      },
+      "submit": "Stuur boodskap",
+      "submitSending": "Stuur...",
+      "subtitle": "Stuur vir ons 'n boodskap.",
+      "title": "Hulp nodig?"
+    },
+    "cookie": {
+      "allow": "Laat toe",
+      "ariaLabel": "Koekievoorkeure",
+      "close": "Maak koekiebanner toe",
+      "essentialOnly": "Slegs noodsaaklik",
+      "message": "Ons gebruik koekies vir analise en werkverrigting.",
+      "privacyPolicy": "Privaatheidsbeleid"
+    },
+    "faq": {
+      "eyebrow": "Ondersteuning",
+      "title": "FAQ"
+    },
+    "language": {
+      "eyebrow": "Voorkeure",
+      "title": "Taal"
+    },
+    "footer": {
+      "contact": "Kontak",
+      "legalAriaLabel": "Vervus regsblaaie",
+      "privacy": "Privaatheidsbeleid",
+      "socialsAriaLabel": "Vervus sosiale skakels",
+      "tagline": "© 2026 Vervus Interactive. Gebou vir chaos.",
+      "terms": "Diensbepalings"
+    },
+    "hostRoom": "Skep 'n kamer",
+    "landing": {
+      "experiencesCopy": "Kies jou werklikheid.",
+      "experiencesTitle": "Ervarings.",
+      "howCopy": "Onmiddellike sosiale multispeler-speletjies. Geen wrywing.",
+      "howItems": {
+        "host": "Een speler skep die kamer. Almal anders sluit onmiddellik aan.",
+        "instant": "Geen aflaaie. Geen opstelling. Speel net.",
+        "players": "2-4 spelers. Gebou vir spanning."
+      },
+      "howTitle": "Hoe Vervus werk.",
+      "preview": {
+        "action": "Begin gratis voorskou",
+        "badge": "Gratis voorskou",
+        "items": {
+          "join": "Onmiddellike aansluiting",
+          "mode": "Slegs standaardmodus",
+          "run": "Gratis voorskouronde"
+        },
+        "titlePrefix": "Speel",
+        "titleStrong": "GLiTCH!"
+      },
+      "realityTitle": "Verskillende werklikhede.",
+      "startCopy": "Probeer GLiTCH! of ontsluit alles.",
+      "startTitle": "Begin speel.",
+      "unlock": {
+        "action": "Ontsluit Vervus",
+        "badge": "Alle ervarings",
+        "items": {
+          "access": "24-uur toegang",
+          "experiences": "Alle ervarings en modusse",
+          "join": "Almal anders sluit gratis aan"
+        },
+        "titlePrefix": "Ontsluit",
+        "titleStrong": "Vervus"
+      }
+    },
+    "legal": {
+      "privacyEyebrow": "Privaatheidsbeleid",
+      "privacyTitle": "Jou privaatheid maak saak.",
+      "termsEyebrow": "Diensbepalings",
+      "termsTitle": "Die reëls van die kamer."
+    },
+    "menu": {
+      "close": "Maak kieslys toe",
+      "items": {
+        "contact": "Kontak",
+        "faq": "FAQ",
+        "language": "Taal",
+        "privacy": "Privaatheidsbeleid",
+        "terms": "Diensbepalings"
+      },
+      "open": "Maak kieslys oop",
+      "pagesAriaLabel": "Vervus bladsye"
+    },
+    "nav": {
+      "experiences": "Ervarings",
+      "faq": "FAQ",
+      "howItWorks": "Hoe Vervus werk",
+      "sectionsAriaLabel": "Vervus afdelings",
+      "unlock": "Ontsluit"
+    }
+  },
+  "glitchGame": {
+    "answers": {
+      "glitch": "GLiTCH!",
+      "sync": "SYNC"
+    },
+    "comboLabel": "KOMBO",
+    "comboAriaLabel": "{{combo}} kombinasie",
+    "connection": {
+      "degradedNote": "- hoë vertraging bespeur; effekte kan ligter voel.",
+      "disconnectedNote": "- verbinding verloor. Hou hierdie oortjie oop terwyl ons weer probeer.",
+      "label": "Verbinding:",
+      "reconnectingNote": "- probeer om jou kamersessie te herstel."
+    },
+    "corruptionLevel": "Korruptievlak {{level}}",
+    "currentSymbol": "Huidige simbool",
+    "getReady": "Maak gereed",
+    "heatSurge": "Heat Surge",
+    "heatSurgeActive": "Heat Surge aktief",
+    "killScreen": {
+      "alteredScreen": "Gewysigde skerm",
+      "alteredStimulus": "Gewysigde {{stimulus}}",
+      "experience": "Ervaring",
+      "missedInput": "{{name}} het die inset gemis",
+      "noDecisivePlayer": "Geen bepalende speler is aangeteken nie",
+      "noResponse": "Geen reaksie",
+      "players": "Spelers",
+      "points": "{{score}} punte",
+      "previewEnded": "Voorskou het geëindig",
+      "previewLimitReached": "Voorskoulimiet bereik",
+      "ready": "Gereed",
+      "realityCheck": "Werklikheidskontrole",
+      "runEnded": "Die sessie het geëindig",
+      "standardScreen": "Standaardskerm",
+      "standardStimulus": "Standaard {{stimulus}}",
+      "tappedAnswer": "{{name}} het {{answer}} getik",
+      "waiting": "Wag",
+      "whoBrokeRun": "Wie het die sessie gebreek"
+      ,"you": "Jy"
+    },
+    "lastChance": "Laaste kans",
+    "loadingAssets": "Laai hulpmiddels",
+    "mode": {
+      "standard": "Standaard"
+    },
+    "orientationWarning": "Verkeerde orientasie. Roteer asseblief na",
+    "paused": {
+      "description": "'n Deelnemer het ontkoppel. Die spel sal hervat sodra almal weer verbind.",
+      "exitRoom": "Verlaat kamer",
+      "title": "Spel onderbreek"
+    },
+    "playersWhoVoted": "Spelers wat gestem het",
+    "playerHasNotVoted": "{{name}} het nog nie gestem nie",
+    "playerHasVoted": "{{name}} het gestem",
+    "previewEndsAt": "Voorskou eindig by {{combo}} kombinasie",
+    "returnToRoom": "Terug na kamer",
+    "roomLabel": "Kamer {{roomId}}",
+    "saveIt": "RED DIT!",
+    "stimuli": {
+      "bolt": "Weerlig",
+      "eye": "Oog",
+      "screen": "Skerm",
+      "skull": "Skedel",
+      "smiley": "Glimlag",
+      "star": "Ster"
+    },
+    "timeLeftAriaLabel": "Tyd oor {{time}}",
+    "waitingForGameState": "Wag vir speltoestand..."
+  },
+  "room": {
+    "connection": {
+      "degradedNote": "- hoë vertraging bespeur; effekte kan ligter voel.",
+      "disconnectedNote": "- verbinding verloor. Hou hierdie oortjie oop terwyl ons weer probeer.",
+      "label": "Verbinding:",
+      "reconnectingNote": "- probeer om jou kamersessie te herstel."
+    },
+    "defaultGameTitle": "GLiTCH!",
+    "debugButton": "Ontfout",
+    "desktop": {
+      "disabledStartReason": "Speel op jou foon om te begin",
+      "footer": {
+        "contact": "Kontak",
+        "privacy": "Privaatheidsbeleid",
+        "tagline": "© 2026 Vervus Interactive. Gebou vir chaos.",
+        "terms": "Diensbepalings"
+      },
+      "hostPill": "Skep 'n kamer",
+      "legalAriaLabel": "Vervus regsbladsye",
+      "nav": {
+        "experiences": "Ervarings",
+        "faq": "FAQ",
+        "howItWorks": "Hoe Vervus werk",
+        "unlock": "Ontsluit"
+      },
+      "navAriaLabel": "Kamernavigasie",
+      "sectionsAriaLabel": "Vervus afdelings",
+      "socialsAriaLabel": "Vervus sosiale skakels"
+    },
+    "diagnostics": {
+      "ariaLabel": "Kamerdiagnostiek",
+      "off": "af",
+      "syncing": "sinchroniseer",
+      "phase": "Fase: {{phase}}",
+      "ping": "Ping: {{ping}}",
+      "sync": "Sinchronisering: {{quality}}",
+      "server": "Bediener: {{server}}",
+      "ready": "Gereed: {{ready}}/{{total}}",
+      "preview": "Voorskou: {{preview}}"
+    },
+    "entitlement": {
+      "expired": "Verval",
+      "owned": "Besit",
+      "preview": "Voorskou",
+      "purchaseMode": "Koop modus",
+      "minutesLeft": "{{minutes}}m oor",
+      "hoursMinutesLeft": "{{hours}}h {{minutes}}m oor"
+    },
+    "leave": {
+      "title": "Verlaat kamer?",
+      "hostDescription": "Jy is die gasheer. As jy vertrek, sluit die kamer vir almal.",
+      "playerDescription": "Jy sal hierdie kamer verlaat. Die gasheer en ander spelers kan aangaan.",
+      "stayAction": "Bly in die kamer",
+      "leaveAction": "Verlaat kamer"
+    },
+    "orientationWarning": {
+      "prefix": "Verkeerde orientasie. Roteer asseblief na"
+    },
+    "purchase": {
+      "steps": {
+        "selectingExperience": "Kies ervaring",
+        "checkout": "Begin betaalproses",
+        "payment": "Betaling aan die gang"
+      },
+      "pending": {
+        "title": "{{host}} ontsluit Vervus.",
+        "description": "Die kamer bly oop terwyl betaling plaasvind. Julle speel nou-nou - bly hier."
+      },
+      "failed": {
+        "waitingTitle": "Wag vir {{host}}",
+        "waitingDescription": "{{host}} kan die betaling weer probeer of 'n gratis voorskou begin.",
+        "heroTitle": "{{host}} is terug.",
+        "heroDescription": "Dit lyk of die betaling nie deurgegaan het nie. {{host}} kan weer probeer."
+      }
+    },
+    "qrModal": {
+      "imageAlt": "QR-kode om by kamer {{room}} aan te sluit"
+    }
+  },
+  "store": {
+    "access": {
+      "hour": "{{hours}} uur",
+      "hours": "{{hours}} uur"
+    },
+    "checkout": {
+      "accessLabel": "Toegang",
+      "empty": "Geen ervarings is tans beskikbaar nie.",
+      "experienceOptionsAriaLabel": "Ervaringsopsies",
+      "headingAllModes": "Alle ervarings. Alle modusse. {{access}}.",
+      "headingDefault": "{{product}}. {{access}}.",
+      "kicker": "Betaling",
+      "loading": "Laai ervarings...",
+      "payAnotherWay": "Betaal op 'n ander manier",
+      "payButton": "Betaal {{price}}",
+      "privacyPolicy": "Privaatheidsbeleid",
+      "roomStaysOpen": "Die kamer bly oop terwyl jy betaal.",
+      "securePayment": "Veilige betaling via Stripe",
+      "startingCheckout": "Begin betaling...",
+      "termsAnd": "en",
+      "termsOfService": "Diensbepalings",
+      "termsPrefix": "Ek stem in tot die",
+      "termsSuffix": ", en verstaan dat digitale toegang onmiddellik ná aankoop begin en dat my herroepingsreg nie meer van toepassing is nie.",
+      "totalLabel": "Totaal",
+      "unlockVervus": "Ontsluit Vervus"
+    },
+    "productLabel": {
+      "allExperiences": "Alle ervarings",
+      "defaultExperience": "Ervaring",
+      "multipleExperiences": "{{count}} ervarings",
+      "singleExperience": "{{count}} ervaring"
+    },
+    "unlockMenu": {
+      "or": "of",
+      "recoveryEmailHelp": "Vir kwitansies en toegangsherstel",
+      "recoveryEmailLabel": "Voeg herstel-e-pos by",
+      "recoveryEmailPlaceholder": "E-posadres",
+      "retryTransferLink": "Probeer oordragskakel weer",
+      "subtitle": "24 uur - onbeperkte spele",
+      "title": "Vervus ontsluit",
+      "transferLinkLabel": "Oordragskakel vir toegang",
+      "transferPreparing": "Berei oordragskakel voor...",
+      "transferUnavailable": "Oordragskakel onbeskikbaar"
+    }
+  }
+}

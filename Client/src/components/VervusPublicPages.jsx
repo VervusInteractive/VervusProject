@@ -1,15 +1,14 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import GameModeSelector from "./GameModeSelector.jsx";
+import LanguageSwitcher from "./LanguageSwitcher.jsx";
 import clearBackgroundLogo from "../assets/images/Logos/Logo_ClearBackground.svg";
 import discordIcon from "../assets/images/SocialIcons/SocialIcon_Discord.png";
 import instagramIcon from "../assets/images/SocialIcons/SocialIcon_Instagram.png";
 import tiktokIcon from "../assets/images/SocialIcons/SocialIcon_TikTok.png";
 import xIcon from "../assets/images/SocialIcons/SocialIcon_x.png";
 import {
-  COMPANY_DETAILS,
-  FAQ_ITEMS,
-  PRIVACY_SECTIONS,
-  TERMS_SECTIONS
+  getPublicPageContent
 } from "../data/publicPageContent.js";
 import {
   COOKIE_CONSENT_CHOICES,
@@ -26,27 +25,34 @@ const SOCIAL_LINKS = Object.freeze([
 
 const serverUrl = String(import.meta.env.VITE_SERVER_URL || "").replace(/\/+$/, "");
 
-function BrandHeader({ onOpenMenu, onNavigate, onHost, menuLabel = "Open menu" }) {
+function usePublicPageContent() {
+  const { i18n } = useTranslation();
+  return getPublicPageContent(i18n.resolvedLanguage || i18n.language);
+}
+
+function BrandHeader({ onOpenMenu, onNavigate, onHost, menuLabel }) {
+  const { t } = useTranslation();
+  const resolvedMenuLabel = menuLabel || t("publicPages.menu.open");
   return (
     <header className="landing-header">
-      <div className="landing-brand-mark" aria-label="Vervus">
-        <img src={clearBackgroundLogo} alt="Vervus" />
+      <div className="landing-brand-mark" aria-label={t("app.name")}>
+        <img src={clearBackgroundLogo} alt={t("app.name")} />
       </div>
       {onNavigate ? (
-        <nav className="landing-desktop-nav" aria-label="Vervus sections">
-          <button type="button" onClick={() => onNavigate("how")}>How Vervus works</button>
-          <button type="button" onClick={() => onNavigate("experiences")}>Experiences</button>
-          <button type="button" onClick={() => onNavigate("unlock")}>Unlock</button>
-          <button type="button" onClick={() => onNavigate("faq")}>FAQ</button>
+        <nav className="landing-desktop-nav" aria-label={t("publicPages.nav.sectionsAriaLabel")}>
+          <button type="button" onClick={() => onNavigate("how")}>{t("publicPages.nav.howItWorks")}</button>
+          <button type="button" onClick={() => onNavigate("experiences")}>{t("publicPages.nav.experiences")}</button>
+          <button type="button" onClick={() => onNavigate("unlock")}>{t("publicPages.nav.unlock")}</button>
+          <button type="button" onClick={() => onNavigate("faq")}>{t("publicPages.nav.faq")}</button>
         </nav>
       ) : null}
       {onHost ? (
         <button className="landing-desktop-host-button" type="button" onClick={onHost}>
-          Host a room
+          {t("publicPages.hostRoom")}
         </button>
       ) : null}
       {onOpenMenu ? (
-        <button className="landing-menu-button" type="button" aria-label={menuLabel} onClick={onOpenMenu}>
+        <button className="landing-menu-button" type="button" aria-label={resolvedMenuLabel} onClick={onOpenMenu}>
           <span />
           <span />
           <span />
@@ -56,23 +62,26 @@ function BrandHeader({ onOpenMenu, onNavigate, onHost, menuLabel = "Open menu" }
   );
 }
 
-function PageHeader({ onBack, backLabel = "Back" }) {
+function PageHeader({ onBack, backLabel }) {
+  const { t } = useTranslation();
+  const resolvedBackLabel = backLabel || t("common.back");
   return (
     <header className="public-page-header">
-      <button className="public-back-button" type="button" aria-label={backLabel} onClick={onBack}>
+      <button className="public-back-button" type="button" aria-label={resolvedBackLabel} onClick={onBack}>
         <span />
       </button>
-      <div className="landing-brand-mark" aria-label="Vervus">
-        <img src={clearBackgroundLogo} alt="Vervus" />
+      <div className="landing-brand-mark" aria-label={t("app.name")}>
+        <img src={clearBackgroundLogo} alt={t("app.name")} />
       </div>
     </header>
   );
 }
 
 function Footer({ onNavigate }) {
+  const { t } = useTranslation();
   return (
     <footer className="landing-footer">
-      <div className="social-icon-row" aria-label="Vervus social links">
+      <div className="social-icon-row" aria-label={t("publicPages.footer.socialsAriaLabel")}>
         {SOCIAL_LINKS.map((link) => (
           <a
             key={link.label}
@@ -87,19 +96,20 @@ function Footer({ onNavigate }) {
         ))}
       </div>
       {onNavigate ? (
-        <nav className="landing-footer-nav" aria-label="Vervus legal pages">
-          <button type="button" onClick={() => onNavigate("terms")}>Terms of Service</button>
-          <button type="button" onClick={() => onNavigate("privacy")}>Privacy Policy</button>
-          <button type="button" onClick={() => onNavigate("contact")}>Contact</button>
+        <nav className="landing-footer-nav" aria-label={t("publicPages.footer.legalAriaLabel")}>
+          <button type="button" onClick={() => onNavigate("terms")}>{t("publicPages.footer.terms")}</button>
+          <button type="button" onClick={() => onNavigate("privacy")}>{t("publicPages.footer.privacy")}</button>
+          <button type="button" onClick={() => onNavigate("contact")}>{t("publicPages.footer.contact")}</button>
         </nav>
       ) : null}
       <div className="landing-footer-rule" />
-      <p>&copy; 2026 Vervus Interactive. Built for chaos.</p>
+      <p>{t("publicPages.footer.tagline")}</p>
     </footer>
   );
 }
 
 function CookieBanner({ onNavigate }) {
+  const { t } = useTranslation();
   const [isVisible, setIsVisible] = useState(() => !hasCookieConsentChoice());
 
   const dismiss = (choice) => {
@@ -110,11 +120,11 @@ function CookieBanner({ onNavigate }) {
   if (!isVisible) return null;
 
   return (
-    <div className="landing-cookie-banner" role="region" aria-label="Cookie preferences">
+    <div className="landing-cookie-banner" role="region" aria-label={t("publicPages.cookie.ariaLabel")}>
       <div className="landing-cookie-content">
         <span className="landing-cookie-icon" aria-hidden="true" />
         <p>
-          We use cookies for analytics and performance.{" "}
+          {t("publicPages.cookie.message")}{" "}
           <button
             type="button"
             onClick={() => {
@@ -122,18 +132,18 @@ function CookieBanner({ onNavigate }) {
               onNavigate?.("privacy");
             }}
           >
-            Privacy Policy
+            {t("publicPages.cookie.privacyPolicy")}
           </button>
         </p>
       </div>
       <div className="landing-cookie-actions">
         <button type="button" className="landing-cookie-secondary" onClick={() => dismiss(COOKIE_CONSENT_CHOICES.ESSENTIAL)}>
-          Essential Only
+          {t("publicPages.cookie.essentialOnly")}
         </button>
         <button type="button" className="landing-cookie-primary" onClick={() => dismiss(COOKIE_CONSENT_CHOICES.ALLOW)}>
-          Allow
+          {t("publicPages.cookie.allow")}
         </button>
-        <button type="button" className="landing-cookie-close" aria-label="Close cookie banner" onClick={() => dismiss(COOKIE_CONSENT_CHOICES.CLOSED)}>
+        <button type="button" className="landing-cookie-close" aria-label={t("publicPages.cookie.close")} onClick={() => dismiss(COOKIE_CONSENT_CHOICES.CLOSED)}>
           <span aria-hidden="true" />
         </button>
       </div>
@@ -179,6 +189,7 @@ export function LandingHome({
   onSelectedModeChange,
   canSelectMode = true
 }) {
+  const { t } = useTranslation();
   const handleSectionNavigate = (target) => {
     if (target === "faq") {
       onNavigate?.("faq");
@@ -206,7 +217,7 @@ export function LandingHome({
       </section>
 
       <section className="landing-section landing-reality-section" aria-labelledby="reality-title">
-        <h2 id="reality-title">Different realities.</h2>
+        <h2 id="reality-title">{t("publicPages.landing.realityTitle")}</h2>
         <div className="landing-reality-card" aria-hidden="true">
           <span className="reality-scanline reality-scanline-a" />
           <span className="reality-scanline reality-scanline-b" />
@@ -214,20 +225,20 @@ export function LandingHome({
       </section>
 
       <section id="landing-how" className="landing-section" aria-labelledby="how-title">
-        <h2 id="how-title">How Vervus works.</h2>
-        <p className="landing-section-copy">Instant social multiplayer games. Zero friction.</p>
+        <h2 id="how-title">{t("publicPages.landing.howTitle")}</h2>
+        <p className="landing-section-copy">{t("publicPages.landing.howCopy")}</p>
         <div className="landing-info-card">
           <ul>
-            <li>One player hosts. Everyone else joins instantly.</li>
-            <li>No downloads. No setup. Just play.</li>
-            <li>2-4 players. Built for tension.</li>
+            <li>{t("publicPages.landing.howItems.host")}</li>
+            <li>{t("publicPages.landing.howItems.instant")}</li>
+            <li>{t("publicPages.landing.howItems.players")}</li>
           </ul>
         </div>
       </section>
 
       <section id="landing-experiences" className="landing-section" aria-labelledby="experiences-title">
-        <h2 id="experiences-title">Experiences.</h2>
-        <p className="landing-section-copy">Choose your reality.</p>
+        <h2 id="experiences-title">{t("publicPages.landing.experiencesTitle")}</h2>
+        <p className="landing-section-copy">{t("publicPages.landing.experiencesCopy")}</p>
         <GameModeSelector
           modes={availableModes}
           selectedModeId={selectedModeId}
@@ -238,24 +249,24 @@ export function LandingHome({
       </section>
 
       <section id="landing-unlock" className="landing-section landing-start-section" aria-labelledby="start-title">
-        <h2 id="start-title">Start playing.</h2>
-        <p className="landing-section-copy">Try GLiTCH! or unlock everything.</p>
+        <h2 id="start-title">{t("publicPages.landing.startTitle")}</h2>
+        <p className="landing-section-copy">{t("publicPages.landing.startCopy")}</p>
 
         <div className="pricing-card pricing-card-preview">
-          <span className="pricing-badge">Free Preview</span>
-          <h3>Play <span>GLiTCH!</span></h3>
-          <CheckList items={["Free preview run", "Standard mode only", "Instant join"]} />
+          <span className="pricing-badge">{t("publicPages.landing.preview.badge")}</span>
+          <h3>{t("publicPages.landing.preview.titlePrefix")} <span>{t("publicPages.landing.preview.titleStrong")}</span></h3>
+          <CheckList items={[t("publicPages.landing.preview.items.run"), t("publicPages.landing.preview.items.mode"), t("publicPages.landing.preview.items.join")]} />
           <button className="landing-pill-button landing-pill-button-primary" type="button" onClick={onStartPreview}>
-            Start free preview
+            {t("publicPages.landing.preview.action")}
           </button>
         </div>
 
         <div className="pricing-card pricing-card-unlock">
-          <span className="pricing-badge">All Experiences</span>
-          <h3>Unlock <span>Vervus</span></h3>
-          <CheckList items={["All experiences & modes", "24-hour access", "Everyone else joins free"]} />
+          <span className="pricing-badge">{t("publicPages.landing.unlock.badge")}</span>
+          <h3>{t("publicPages.landing.unlock.titlePrefix")} <span>{t("publicPages.landing.unlock.titleStrong")}</span></h3>
+          <CheckList items={[t("publicPages.landing.unlock.items.experiences"), t("publicPages.landing.unlock.items.access"), t("publicPages.landing.unlock.items.join")]} />
           <button className="landing-pill-button landing-pill-button-primary" type="button" onClick={onUnlock}>
-            Unlock Vervus
+            {t("publicPages.landing.unlock.action")}
           </button>
         </div>
       </section>
@@ -267,25 +278,27 @@ export function LandingHome({
 }
 
 export function LandingMenu({ onClose, onNavigate }) {
+  const { t } = useTranslation();
   const items = [
-    { id: "faq", label: "FAQ" },
-    { id: "terms", label: "Terms of Service" },
-    { id: "privacy", label: "Privacy Policy" },
-    { id: "contact", label: "Contact" }
+    { id: "faq", label: t("publicPages.menu.items.faq") },
+    { id: "language", label: t("publicPages.menu.items.language") },
+    { id: "terms", label: t("publicPages.menu.items.terms") },
+    { id: "privacy", label: t("publicPages.menu.items.privacy") },
+    { id: "contact", label: t("publicPages.menu.items.contact") }
   ];
 
   return (
     <div className="menu-screen">
       <header className="landing-header menu-header">
-        <div className="landing-brand-mark" aria-label="Vervus">
-          <img src={clearBackgroundLogo} alt="Vervus" />
+        <div className="landing-brand-mark" aria-label={t("app.name")}>
+          <img src={clearBackgroundLogo} alt={t("app.name")} />
         </div>
-        <button className="menu-close-button" type="button" aria-label="Close menu" onClick={onClose}>
+        <button className="menu-close-button" type="button" aria-label={t("publicPages.menu.close")} onClick={onClose}>
           <span />
         </button>
       </header>
 
-      <nav className="menu-link-list" aria-label="Vervus pages">
+      <nav className="menu-link-list" aria-label={t("publicPages.menu.pagesAriaLabel")}>
         {items.map((item) => (
           <button key={item.id} type="button" onClick={() => onNavigate(item.id)}>
             {item.label}
@@ -295,6 +308,24 @@ export function LandingMenu({ onClose, onNavigate }) {
 
       <Footer />
     </div>
+  );
+}
+
+export function LanguagePage({ onBack }) {
+  const { t } = useTranslation();
+
+  return (
+    <article className="public-page language-page">
+      <PageHeader onBack={onBack} />
+      <div className="public-page-content language-page-content">
+        <p className="public-eyebrow">{t("publicPages.language.eyebrow")}</p>
+        <h1 className="public-title">{t("publicPages.language.title")}</h1>
+        <div className="language-page-list">
+          <LanguageSwitcher className="language-page-switcher" variant="menu-list" showLabel={false} />
+        </div>
+      </div>
+      <Footer />
+    </article>
   );
 }
 
@@ -327,17 +358,19 @@ function FaqAnswer({ item }) {
 }
 
 export function FaqPage({ onBack }) {
+  const { t } = useTranslation();
+  const { faqItems } = usePublicPageContent();
   const [openQuestion, setOpenQuestion] = useState(null);
 
   return (
     <article className="public-page faq-page">
       <PageHeader onBack={onBack} />
       <div className="public-page-content">
-        <p className="public-eyebrow">Support</p>
-        <h1 className="public-title">FAQ</h1>
+        <p className="public-eyebrow">{t("publicPages.faq.eyebrow")}</p>
+        <h1 className="public-title">{t("publicPages.faq.title")}</h1>
 
         <div className="faq-list">
-          {FAQ_ITEMS.map((item, index) => {
+          {faqItems.map((item, index) => {
             const isOpen = openQuestion === index;
 
             return (
@@ -389,17 +422,19 @@ function LegalBlocks({ blocks }) {
 }
 
 export function LegalPage({ kind, onBack }) {
+  const { t } = useTranslation();
+  const { companyDetails, privacySections, termsSections } = usePublicPageContent();
   const isPrivacy = kind === "privacy";
-  const sections = isPrivacy ? PRIVACY_SECTIONS : TERMS_SECTIONS;
+  const sections = isPrivacy ? privacySections : termsSections;
 
   return (
     <article className="public-page legal-page">
       <PageHeader onBack={onBack} />
       <div className="public-page-content legal-page-content">
-        <p className="public-eyebrow">{isPrivacy ? "Privacy Policy" : "Terms of Service"}</p>
-        <h1 className="legal-hero-title">{isPrivacy ? "Your privacy matters." : "The rules of the room."}</h1>
+        <p className="public-eyebrow">{isPrivacy ? t("publicPages.legal.privacyEyebrow") : t("publicPages.legal.termsEyebrow")}</p>
+        <h1 className="legal-hero-title">{isPrivacy ? t("publicPages.legal.privacyTitle") : t("publicPages.legal.termsTitle")}</h1>
         <div className="legal-meta">
-          {COMPANY_DETAILS.map((detail) => (
+          {companyDetails.map((detail) => (
             <p key={detail}>{detail}</p>
           ))}
         </div>
@@ -419,6 +454,7 @@ export function LegalPage({ kind, onBack }) {
 }
 
 export function ContactPage({ onBack }) {
+  const { t } = useTranslation();
   const [status, setStatus] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -426,18 +462,18 @@ export function ContactPage({ onBack }) {
     event.preventDefault();
 
     if (!serverUrl) {
-      setStatus("Contact service is not configured.");
+      setStatus(t("publicPages.contact.status.notConfigured"));
       return;
     }
 
     const formElement = event.currentTarget;
     const form = new FormData(formElement);
     const email = String(form.get("email") || "").trim();
-    const subject = String(form.get("subject") || "Vervus support request").trim();
+    const subject = String(form.get("subject") || t("publicPages.contact.defaultSubject")).trim();
     const message = String(form.get("message") || "").trim();
 
     setIsSubmitting(true);
-    setStatus("Sending message...");
+    setStatus(t("publicPages.contact.status.sending"));
 
     try {
       const response = await fetch(`${serverUrl}/api/contact-messages`, {
@@ -447,12 +483,12 @@ export function ContactPage({ onBack }) {
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error(payload.error || "Unable to send message");
+        throw new Error(payload.error || t("publicPages.contact.status.sendFailed"));
       }
       formElement.reset();
-      setStatus("Message sent. We will get back to you soon.");
+      setStatus(t("publicPages.contact.status.sent"));
     } catch (error) {
-      setStatus(error.message || "Unable to send message.");
+      setStatus(error.message || t("publicPages.contact.status.sendFailed"));
     } finally {
       setIsSubmitting(false);
     }
@@ -462,28 +498,28 @@ export function ContactPage({ onBack }) {
     <article className="public-page contact-page">
       <PageHeader onBack={onBack} />
       <div className="public-page-content">
-        <p className="public-eyebrow">Contact</p>
-        <h1 className="public-title contact-title">Need help?</h1>
-        <p className="contact-subtitle">Send us a message.</p>
+        <p className="public-eyebrow">{t("publicPages.contact.eyebrow")}</p>
+        <h1 className="public-title contact-title">{t("publicPages.contact.title")}</h1>
+        <p className="contact-subtitle">{t("publicPages.contact.subtitle")}</p>
 
         <form className="contact-form" onSubmit={handleSubmit}>
           <label>
-            <span>Email</span>
-            <input name="email" type="email" autoComplete="email" placeholder="Your email address" required />
+            <span>{t("publicPages.contact.fields.email")}</span>
+            <input name="email" type="email" autoComplete="email" placeholder={t("publicPages.contact.placeholders.email")} required />
           </label>
           <label>
-            <span>Subject</span>
-            <input name="subject" type="text" placeholder="Brief summary of your request" required />
+            <span>{t("publicPages.contact.fields.subject")}</span>
+            <input name="subject" type="text" placeholder={t("publicPages.contact.placeholders.subject")} required />
           </label>
           <label>
-            <span>Message</span>
-            <textarea name="message" placeholder="How can we help?" required />
+            <span>{t("publicPages.contact.fields.message")}</span>
+            <textarea name="message" placeholder={t("publicPages.contact.placeholders.message")} required />
           </label>
 
           <p className="contact-status" aria-live="polite">{status}</p>
 
           <button className="landing-pill-button landing-pill-button-primary contact-submit" type="submit" disabled={isSubmitting}>
-            {isSubmitting ? "Sending..." : "Send Message"}
+            {isSubmitting ? t("publicPages.contact.submitSending") : t("publicPages.contact.submit")}
           </button>
         </form>
       </div>

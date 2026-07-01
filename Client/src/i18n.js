@@ -86,6 +86,27 @@ const LOCALE_OVERRIDES = {
       },
       hostRoom: "Créer une salle",
       joinRoom: "Rejoindre une salle",
+      hostPage: {
+        back: "Retour",
+        kicker: "Créer une salle",
+        headline: "Comment doit-on vous appeler ?",
+        description: "Entrez un nom affiché pour créer votre salle.",
+        nameLabel: "Nom affiché",
+        namePlaceholder: "ex. Alex",
+        submitLabel: "Créer la salle"
+      },
+      playPage: {
+        back: "Retour",
+        kicker: "Rejoindre une salle",
+        headline: "Entrez. On vous attend.",
+        description: "Rejoignez la salle et commencez à jouer.\nAucun téléchargement. Aucun compte.",
+        nameLabel: "Nom affiché",
+        namePlaceholder: "ex. Alex",
+        roomCodeLabel: "Code de salle",
+        roomCodePlaceholder: "XX-XX-XX",
+        submitLabel: "Rejoindre la salle",
+        qrButtonLabel: "Scanner le QR code"
+      },
       preview: {
         roomFound: "SALLE TROUVÉE",
         players: {
@@ -306,6 +327,69 @@ const LOCALE_OVERRIDES = {
       waitingForGameState: "En attente de l'état de la partie..."
     },
     room: {
+      story: {
+        fallbackHostName: "Hôte",
+        status: {
+          active: "Salle active",
+          lobby: "Salon",
+          preview: "Aperçu",
+          paymentPending: "Paiement en attente",
+          premium: "Premium",
+          reconnecting: "Reconnexion",
+          ended: "Terminé",
+          expired: "Expiré"
+        },
+        hero: {
+          hostPrimary: "Envoyez-le.",
+          hostSecondary: "Faites entrer tout le monde.",
+          joinStatusPrefix: "Salle",
+          joinHeadline: "En attente de tout le monde.",
+          joinDescription: "{{host}} démarrera dès que tout le monde sera prêt."
+        },
+        invite: {
+          shareLabel: "Partagez avec votre groupe",
+          copyLabel: "Copier le lien",
+          copySuccess: "Copié",
+          copyError: "Échec de la copie",
+          openQr: "Ouvrir le QR code",
+          qrTitle: "Scannez pour rejoindre la salle {{room}}",
+          qrClose: "Fermer"
+        },
+        players: {
+          label: "Joueurs",
+          readyCount: "Prêts",
+          joinedCount: "rejoints",
+          currentPlayer: "Vous",
+          host: "Hôte",
+          ready: "Prêt",
+          waiting: "En attente...",
+          reconnecting: "Reconnexion...",
+          hostReconnecting: "Hôte en reconnexion...",
+          transferringHost: "Transfert de l'hôte...",
+          disconnected: "Déconnecté",
+          connected: "Connecté",
+          removed: "Retiré de la salle",
+          inGame: "En jeu",
+          changeColor: "Changer votre couleur",
+          leaveRoom: "Quitter la salle",
+          removePlayer: "Retirer {{player}}"
+        },
+        mode: {
+          previewLabel: "Aperçu gratuit",
+          experienceLabel: "Expérience",
+          selectedBy: "sélectionné par {{host}}",
+          aboutExperience: "À propos de cette expérience",
+          unlockButton: "Débloquer Vervus",
+          note: "Les salles d’aperçu sont limitées à GLiTCH!."
+        },
+        actions: {
+          waitingForNextGame: "Une partie est en cours. Vous êtes dans la file pour la suivante et pourrez vous préparer à la fin de cette manche.",
+          startPreview: "Lancer l’aperçu gratuit",
+          startGame: "Lancer la partie",
+          ready: "Je suis prêt",
+          notReady: "Je ne suis pas prêt"
+        }
+      },
       connection: {
         degradedNote: "- latence élevée détectée ; les effets peuvent sembler plus légers.",
         disconnectedNote: "- connexion perdue. Gardez cet onglet ouvert pendant la reconnexion.",
@@ -451,6 +535,27 @@ const LOCALE_OVERRIDES = {
       ariaLabel: "Vervus lobby",
       hostRoom: "Kamer hosten",
       joinRoom: "Kamer joinen",
+      hostPage: {
+        back: "Terug",
+        kicker: "Host kamer",
+        headline: "Hoe zullen we je noemen?",
+        description: "Voer een weergavenaam in om je kamer te maken.",
+        nameLabel: "Weergavenaam",
+        namePlaceholder: "bv. Alex",
+        submitLabel: "Kamer hosten"
+      },
+      playPage: {
+        back: "Terug",
+        kicker: "Kamer joinen",
+        headline: "Kom erin. We wachten.",
+        description: "Sluit je aan bij de kamer en begin te spelen.\nGeen download. Geen account.",
+        nameLabel: "Weergavenaam",
+        namePlaceholder: "bv. Alex",
+        roomCodeLabel: "Kamercode",
+        roomCodePlaceholder: "XX-XX-XX",
+        submitLabel: "Kamer joinen",
+        qrButtonLabel: "QR-code scannen"
+      },
       roomCode: "Kamercode"
     },
     modeSelector: {
@@ -543,6 +648,69 @@ const LOCALE_OVERRIDES = {
       waitingForGameState: "Wachten op spelstatus..."
     },
     room: {
+      story: {
+        fallbackHostName: "Host",
+        status: {
+          active: "Kamer actief",
+          lobby: "Lobby",
+          preview: "Preview",
+          paymentPending: "Betaling in behandeling",
+          premium: "Premium",
+          reconnecting: "Opnieuw verbinden",
+          ended: "Beëindigd",
+          expired: "Verlopen"
+        },
+        hero: {
+          hostPrimary: "Verstuur het.",
+          hostSecondary: "Krijg iedereen erin.",
+          joinStatusPrefix: "Kamer",
+          joinHeadline: "Wachten op iedereen.",
+          joinDescription: "{{host}} start zodra iedereen klaar is."
+        },
+        invite: {
+          shareLabel: "Deel met je groep",
+          copyLabel: "Joinlink kopiëren",
+          copySuccess: "Gekopieerd",
+          copyError: "Kopiëren mislukt",
+          openQr: "QR-code openen",
+          qrTitle: "Scan om kamer {{room}} te joinen",
+          qrClose: "Sluiten"
+        },
+        players: {
+          label: "Spelers",
+          readyCount: "Klaar",
+          joinedCount: "aangesloten",
+          currentPlayer: "Jij",
+          host: "Host",
+          ready: "Klaar",
+          waiting: "Wachten...",
+          reconnecting: "Opnieuw verbinden...",
+          hostReconnecting: "Host verbindt opnieuw...",
+          transferringHost: "Host wordt overgedragen...",
+          disconnected: "Verbroken",
+          connected: "Verbonden",
+          removed: "Uit kamer verwijderd",
+          inGame: "In spel",
+          changeColor: "Verander je kleur",
+          leaveRoom: "Kamer verlaten",
+          removePlayer: "Verwijder {{player}}"
+        },
+        mode: {
+          previewLabel: "Gratis preview",
+          experienceLabel: "Ervaring",
+          selectedBy: "geselecteerd door {{host}}",
+          aboutExperience: "Over deze ervaring",
+          unlockButton: "Ontgrendel Vervus",
+          note: "Previewkamers zijn vergrendeld op GLiTCH!."
+        },
+        actions: {
+          waitingForNextGame: "Er is momenteel een game bezig. Je staat in de wachtrij voor de volgende game en kunt je klaarmaken zodra deze ronde eindigt.",
+          startPreview: "Start gratis preview",
+          startGame: "Start game",
+          ready: "Ik ben klaar",
+          notReady: "Ik ben niet klaar"
+        }
+      },
       debugButton: "Debug",
       leave: {
         title: "Kamer verlaten?",
@@ -588,6 +756,27 @@ const LOCALE_OVERRIDES = {
       ariaLabel: "Лобби Vervus",
       hostRoom: "Создать комнату",
       joinRoom: "Присоединиться",
+      hostPage: {
+        back: "Назад",
+        kicker: "Создать комнату",
+        headline: "Как вас назвать?",
+        description: "Введите отображаемое имя, чтобы создать комнату.",
+        nameLabel: "Отображаемое имя",
+        namePlaceholder: "например, Alex",
+        submitLabel: "Создать комнату"
+      },
+      playPage: {
+        back: "Назад",
+        kicker: "Присоединиться",
+        headline: "Заходите. Мы ждём.",
+        description: "Присоединяйтесь к комнате и начинайте играть.\nБез загрузки. Без аккаунта.",
+        nameLabel: "Отображаемое имя",
+        namePlaceholder: "например, Alex",
+        roomCodeLabel: "Код комнаты",
+        roomCodePlaceholder: "XX-XX-XX",
+        submitLabel: "Войти в комнату",
+        qrButtonLabel: "Сканировать QR-код"
+      },
       roomCode: "Код комнаты"
     },
     modeSelector: {
@@ -680,6 +869,69 @@ const LOCALE_OVERRIDES = {
       waitingForGameState: "Ожидание состояния игры..."
     },
     room: {
+      story: {
+        fallbackHostName: "Хост",
+        status: {
+          active: "Комната активна",
+          lobby: "Лобби",
+          preview: "Превью",
+          paymentPending: "Ожидает оплаты",
+          premium: "Премиум",
+          reconnecting: "Переподключение",
+          ended: "Завершено",
+          expired: "Истекло"
+        },
+        hero: {
+          hostPrimary: "Отправляй.",
+          hostSecondary: "Собери всех.",
+          joinStatusPrefix: "Комната",
+          joinHeadline: "Ждём всех.",
+          joinDescription: "{{host}} начнет, когда все будут готовы."
+        },
+        invite: {
+          shareLabel: "Поделиться с группой",
+          copyLabel: "Скопировать ссылку",
+          copySuccess: "Скопировано",
+          copyError: "Не удалось скопировать",
+          openQr: "Открыть QR-код",
+          qrTitle: "Сканируйте, чтобы войти в комнату {{room}}",
+          qrClose: "Закрыть"
+        },
+        players: {
+          label: "Игроки",
+          readyCount: "Готовы",
+          joinedCount: "в комнате",
+          currentPlayer: "Вы",
+          host: "Хост",
+          ready: "Готов",
+          waiting: "Ожидание...",
+          reconnecting: "Переподключение...",
+          hostReconnecting: "Хост переподключается...",
+          transferringHost: "Передача хоста...",
+          disconnected: "Отключён",
+          connected: "Подключён",
+          removed: "Удалён из комнаты",
+          inGame: "В игре",
+          changeColor: "Изменить цвет игрока",
+          leaveRoom: "Покинуть комнату",
+          removePlayer: "Удалить {{player}}"
+        },
+        mode: {
+          previewLabel: "Бесплатное превью",
+          experienceLabel: "Опыт",
+          selectedBy: "выбрано {{host}}",
+          aboutExperience: "Об этой игре",
+          unlockButton: "Открыть Vervus",
+          note: "Превью-комнаты ограничены GLiTCH!."
+        },
+        actions: {
+          waitingForNextGame: "Сейчас идет игра. Вы в очереди на следующую и сможете подготовиться, когда этот раунд закончится.",
+          startPreview: "Запустить бесплатное превью",
+          startGame: "Начать игру",
+          ready: "Я готов",
+          notReady: "Я не готов"
+        }
+      },
       debugButton: "Debug",
       leave: {
         title: "Покинуть комнату?",
@@ -725,6 +977,27 @@ const LOCALE_OVERRIDES = {
       ariaLabel: "Lobby Vervus",
       hostRoom: "Criar sala",
       joinRoom: "Entrar na sala",
+      hostPage: {
+        back: "Voltar",
+        kicker: "Criar sala",
+        headline: "Como devemos chamar você?",
+        description: "Digite um nome de exibição para criar sua sala.",
+        nameLabel: "Nome de exibição",
+        namePlaceholder: "ex.: Alex",
+        submitLabel: "Criar sala"
+      },
+      playPage: {
+        back: "Voltar",
+        kicker: "Entrar na sala",
+        headline: "Entre. Estamos esperando.",
+        description: "Entre na sala e comece a jogar.\nSem download. Sem conta.",
+        nameLabel: "Nome de exibição",
+        namePlaceholder: "ex.: Alex",
+        roomCodeLabel: "Código da sala",
+        roomCodePlaceholder: "XX-XX-XX",
+        submitLabel: "Entrar na sala",
+        qrButtonLabel: "Escanear QR code"
+      },
       roomCode: "Código da sala"
     },
     modeSelector: {
@@ -817,6 +1090,69 @@ const LOCALE_OVERRIDES = {
       waitingForGameState: "Aguardando estado do jogo..."
     },
     room: {
+      story: {
+        fallbackHostName: "Host",
+        status: {
+          active: "Sala ativa",
+          lobby: "Lobby",
+          preview: "Prévia",
+          paymentPending: "Pagamento pendente",
+          premium: "Premium",
+          reconnecting: "Reconectando",
+          ended: "Encerrado",
+          expired: "Expirado"
+        },
+        hero: {
+          hostPrimary: "Manda ver.",
+          hostSecondary: "Coloque todo mundo dentro.",
+          joinStatusPrefix: "Sala",
+          joinHeadline: "Esperando todo mundo.",
+          joinDescription: "{{host}} vai começar assim que todos estiverem prontos."
+        },
+        invite: {
+          shareLabel: "Compartilhe com seu grupo",
+          copyLabel: "Copiar link",
+          copySuccess: "Copiado",
+          copyError: "Falha ao copiar",
+          openQr: "Abrir QR code",
+          qrTitle: "Escaneie para entrar na sala {{room}}",
+          qrClose: "Fechar"
+        },
+        players: {
+          label: "Jogadores",
+          readyCount: "Prontos",
+          joinedCount: "entraram",
+          currentPlayer: "Você",
+          host: "Host",
+          ready: "Pronto",
+          waiting: "Esperando...",
+          reconnecting: "Reconectando...",
+          hostReconnecting: "Host reconectando...",
+          transferringHost: "Transferindo host...",
+          disconnected: "Desconectado",
+          connected: "Conectado",
+          removed: "Removido da sala",
+          inGame: "Em jogo",
+          changeColor: "Mude sua cor",
+          leaveRoom: "Sair da sala",
+          removePlayer: "Remover {{player}}"
+        },
+        mode: {
+          previewLabel: "Prévia grátis",
+          experienceLabel: "Experiência",
+          selectedBy: "selecionado por {{host}}",
+          aboutExperience: "Sobre esta experiência",
+          unlockButton: "Desbloquear Vervus",
+          note: "As salas de prévia ficam limitadas a GLiTCH!."
+        },
+        actions: {
+          waitingForNextGame: "Uma partida está em andamento. Você entrou na fila da próxima e poderá se preparar quando esta rodada terminar.",
+          startPreview: "Iniciar prévia grátis",
+          startGame: "Iniciar jogo",
+          ready: "Estou pronto",
+          notReady: "Não estou pronto"
+        }
+      },
       debugButton: "Debug",
       leave: {
         title: "Sair da sala?",
@@ -862,6 +1198,27 @@ const LOCALE_OVERRIDES = {
       ariaLabel: "Lobby de Vervus",
       hostRoom: "Crear sala",
       joinRoom: "Unirse a la sala",
+      hostPage: {
+        back: "Atrás",
+        kicker: "Crear sala",
+        headline: "¿Cómo debemos llamarte?",
+        description: "Ingresa un nombre visible para crear tu sala.",
+        nameLabel: "Nombre visible",
+        namePlaceholder: "p. ej. Alex",
+        submitLabel: "Crear sala"
+      },
+      playPage: {
+        back: "Atrás",
+        kicker: "Unirse a la sala",
+        headline: "Entra. Te esperamos.",
+        description: "Únete a la sala y empieza a jugar.\nSin descargas. Sin cuenta.",
+        nameLabel: "Nombre visible",
+        namePlaceholder: "p. ej. Alex",
+        roomCodeLabel: "Código de sala",
+        roomCodePlaceholder: "XX-XX-XX",
+        submitLabel: "Unirse a la sala",
+        qrButtonLabel: "Escanear código QR"
+      },
       roomCode: "Código de sala"
     },
     modeSelector: {
@@ -954,6 +1311,69 @@ const LOCALE_OVERRIDES = {
       waitingForGameState: "Esperando el estado del juego..."
     },
     room: {
+      story: {
+        fallbackHostName: "Host",
+        status: {
+          active: "Sala activa",
+          lobby: "Lobby",
+          preview: "Vista previa",
+          paymentPending: "Pago pendiente",
+          premium: "Premium",
+          reconnecting: "Reconectando",
+          ended: "Finalizado",
+          expired: "Expirado"
+        },
+        hero: {
+          hostPrimary: "Envíalo.",
+          hostSecondary: "Haz entrar a todos.",
+          joinStatusPrefix: "Sala",
+          joinHeadline: "Esperando a todos.",
+          joinDescription: "{{host}} empezará cuando todos estén listos."
+        },
+        invite: {
+          shareLabel: "Compártelo con tu grupo",
+          copyLabel: "Copiar enlace",
+          copySuccess: "Copiado",
+          copyError: "Error al copiar",
+          openQr: "Abrir código QR",
+          qrTitle: "Escanea para unirte a la sala {{room}}",
+          qrClose: "Cerrar"
+        },
+        players: {
+          label: "Jugadores",
+          readyCount: "Listos",
+          joinedCount: "unidos",
+          currentPlayer: "Tú",
+          host: "Host",
+          ready: "Listo",
+          waiting: "Esperando...",
+          reconnecting: "Reconectando...",
+          hostReconnecting: "Host reconectando...",
+          transferringHost: "Transfiriendo host...",
+          disconnected: "Desconectado",
+          connected: "Conectado",
+          removed: "Eliminado de la sala",
+          inGame: "En juego",
+          changeColor: "Cambia tu color",
+          leaveRoom: "Salir de la sala",
+          removePlayer: "Eliminar a {{player}}"
+        },
+        mode: {
+          previewLabel: "Vista previa gratis",
+          experienceLabel: "Experiencia",
+          selectedBy: "seleccionado por {{host}}",
+          aboutExperience: "Sobre esta experiencia",
+          unlockButton: "Desbloquear Vervus",
+          note: "Las salas de vista previa están bloqueadas en GLiTCH!."
+        },
+        actions: {
+          waitingForNextGame: "Hay una partida activa en este momento. Estás en cola para la siguiente y podrás prepararte cuando esta ronda termine.",
+          startPreview: "Iniciar vista previa gratis",
+          startGame: "Iniciar partida",
+          ready: "Estoy listo",
+          notReady: "No estoy listo"
+        }
+      },
       debugButton: "Debug",
       leave: {
         title: "¿Salir de la sala?",

@@ -26,13 +26,11 @@ VITE_STORYBLOK_START_PAGE_SLUG=home
 VITE_STORYBLOK_CONTENT_VERSION=
 ```
 
-The Home content entry should use a `page` content type with these blocks in its `body`:
+The Home content entry should use a `page` content type with this block in its `body`:
 
 - `start_page`
-- `host_page`
-- `play_page`
 
-Run this to create or update those Storyblok block schemas and add missing blocks to Home:
+Run this to create or update the Storyblok schema and keep Home aligned with it:
 
 ```bash
 npm run sync:storyblok-lobby
@@ -48,37 +46,18 @@ The script reads the management token from `../Document/storyblok Token.txt`, or
 - `host_button_label`
 - `play_button_label`
 
-`host_page` fields:
-
-- `back_label`
-- `kicker`
-- `headline`
-- `description`
-- `name_label`
-- `name_placeholder`
-- `submit_label`
-
-`play_page` fields:
-
-- `back_label`
-- `kicker`
-- `headline`
-- `description`
-- `name_label`
-- `name_placeholder`
-- `room_code_label`
-- `room_code_placeholder`
-- `submit_label`
-- `qr_button_label`
-- `qr_modal_title`
-- `qr_modal_description`
-- `qr_modal_close_label`
-
 The client reads `draft` content in local development and inside the Storyblok Visual Editor. Normal production traffic reads `published` content unless `VITE_STORYBLOK_CONTENT_VERSION` is explicitly set.
 
 ## Storyblok locales
 
-This project keeps app UI translations in `src/locales` and editor-managed lobby copy in Storyblok.
+This project keeps product and UI translations in `src/locales` and editor-managed landing-page content in Storyblok.
+
+Use this ownership split consistently:
+
+- `i18n` owns nav labels, buttons, form copy, validation, room/lobby system messaging, auth text, and other app chrome.
+- `Storyblok` owns editorial landing-page copy such as the start-page kicker, headline, description, and CTA text that content editors may rewrite.
+
+Avoid duplicating the same string in both systems. If developers should change it in code, keep it in `i18n`. If editors should change it in the CMS, keep it in Storyblok.
 
 - App locale `en` maps to Storyblok `Default`
 - App locale `af` maps to Storyblok `af`

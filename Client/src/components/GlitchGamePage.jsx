@@ -953,8 +953,7 @@ function GlitchGamePage({ roomId, playerId, players, myGame, serverNow, onSubmit
     isLowTimeTheme ? "low-time-state" : "",
     currentRound?.isLastChanceReplay ? "last-chance-state" : "",
     isHeatSurgeEnabled && !showHeatSurgeIntro ? "heat-surge-state" : "",
-    showHeatSurgeIntro ? "heat-surge-intro-state" : "",
-    corruptionClasses
+    showHeatSurgeIntro ? "heat-surge-intro-state" : ""
   ].filter(Boolean).join(" ");
   const timerElapsedDegrees = Math.round((1 - timerProgress) * 360);
   const timerArcPath = getCounterClockwiseTimerArcPath(timerElapsedDegrees);
@@ -1040,7 +1039,7 @@ function GlitchGamePage({ roomId, playerId, players, myGame, serverNow, onSubmit
           </div>
 
           <div className="glitch-timer-stage" aria-label={t("glitchGame.timeLeftAriaLabel", { time: formatTimeLeft(boundedTimeRemainingMs) })}>
-            <div className="glitch-timer-ring" style={timerRingStyle}>
+            <div className={["glitch-timer-ring", corruptionClasses].filter(Boolean).join(" ")} style={timerRingStyle}>
               <svg className="glitch-timer-arc" viewBox="0 0 300 300" aria-hidden="true">
                 <circle className="glitch-timer-arc-track" cx="150" cy="150" r="138" />
                 {timerArcPath ? <path className="glitch-timer-arc-fill" d={timerArcPath} /> : null}

@@ -3,7 +3,6 @@ import { useTranslation } from "react-i18next";
 import GameModeSelector, { ModeDescriptionDialog } from "./GameModeSelector.jsx";
 import ModeDebugOverlay from "./ModeDebugOverlay";
 import { CONNECTION_STATES, getConnectionStateLabel } from "../connectionState";
-import { DEFAULT_LOBBY_CONTENT } from "../storyblok/lobbyContent.js";
 import clearBackgroundLogo from "../assets/images/Logos/Logo_ClearBackground.svg";
 import copyButtonImage from "../assets/images/Buttons/Button_Copy.png";
 import sendButtonImage from "../assets/images/Buttons/Button_Send.png";
@@ -63,8 +62,7 @@ function RoomPage({
   entitledModeExpiriesMs = {},
   onSetMode,
   onKickPlayer,
-  modeDebugConfigs = [],
-  roomContent = DEFAULT_LOBBY_CONTENT.room
+  modeDebugConfigs = []
 }) {
   const { t } = useTranslation();
   const [showQrCode, setShowQrCode] = useState(false);
@@ -73,11 +71,6 @@ function RoomPage({
   const [descriptionMode, setDescriptionMode] = useState(null);
   const [leaveConfirmation, setLeaveConfirmation] = useState(null);
   const [currentTimeMs, setCurrentTimeMs] = useState(() => Date.now());
-  const content = {
-    ...DEFAULT_LOBBY_CONTENT.room,
-    ...roomContent,
-    editableAttributes: roomContent?.editableAttributes || DEFAULT_LOBBY_CONTENT.room.editableAttributes
-  };
   const currentPlayer = useMemo(
     () => players.find((player) => player.playerId === playerId),
     [players, playerId]
@@ -87,7 +80,7 @@ function RoomPage({
   const roomInviteUrl = `${clientUrl}/?room=${encodeURIComponent(roomId)}`;
   const roomInviteQrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=420x420&color=111827&bgcolor=FFFFFF&data=${encodeURIComponent(roomInviteUrl)}`;
   const hostPlayer = players.find((player) => player.isHost) || players[0] || null;
-  const hostDisplayName = hostPlayer?.name || content.fallbackHostName;
+  const hostDisplayName = hostPlayer?.name || t("room.story.fallbackHostName");
   const isHost = Boolean(currentPlayer?.isHost);
   const connectedPlayers = players.filter((player) => player.connected);
   const readyCount = players.filter((player) => player.ready).length;
@@ -161,13 +154,13 @@ function RoomPage({
     : hostPurchaseSteps.length - 1;
   const activeHostPurchaseStage = hostPurchaseSteps[activeHostPurchaseStageIndex] || hostPurchaseSteps[0];
   const roomStatusLabels = {
-    lobby: content.statusLabelLobby,
-    preview: content.statusLabelPreview,
-    payment_pending: content.statusLabelPaymentPending,
-    premium: content.statusLabelPremium,
-    reconnecting: content.statusLabelReconnecting,
-    ended: content.statusLabelEnded,
-    expired: content.statusLabelExpired
+    lobby: t("room.story.status.lobby"),
+    preview: t("room.story.status.preview"),
+    payment_pending: t("room.story.status.paymentPending"),
+    premium: t("room.story.status.premium"),
+    reconnecting: t("room.story.status.reconnecting"),
+    ended: t("room.story.status.ended"),
+    expired: t("room.story.status.expired")
   };
   const roomStatusLabel = roomStatusLabels[roomStatus] || roomStatus;
   const canShowDebug = modeDebugConfigs.length > 0
@@ -179,7 +172,7 @@ function RoomPage({
     ? "Standard"
     : (selectedModeTitle.replace(/^GLiTCH!\s*/i, "").trim() || selectedModeId);
   const isSelectedModePreview = isPreviewRoom || !hostPlayer?.hasEntitlement;
-  const hostStartLabel = isSelectedModePreview ? content.hostStartPreviewLabel : content.hostStartGameLabel;
+  const hostStartLabel = isSelectedModePreview ? t("room.story.actions.startPreview") : t("room.story.actions.startGame");
   const canHostStart = canManageReady
     && isHost
     && !currentPlayer?.ready
@@ -227,9 +220,9 @@ function RoomPage({
     onUiButtonClick?.();
     try {
       await copyInviteWithFallback();
-      setCopyStatus(content.copySuccessLabel);
+      setCopyStatus(t("room.story.invite.copySuccess"));
     } catch {
-      setCopyStatus(content.copyErrorLabel);
+      setCopyStatus(t("room.story.invite.copyError"));
     }
   };
 
@@ -299,8 +292,8 @@ function RoomPage({
       <button
         type="button"
         className="room-player-avatar-button"
-        title={content.changeColorLabel}
-        aria-label={content.changeColorLabel}
+        title={t("room.story.players.changeColor")}
+        aria-label={t("room.story.players.changeColor")}
         onClick={handleCycleColor}
       >
         {avatar}
@@ -318,14 +311,14 @@ function RoomPage({
     if (player.removedFromRoom || player.wasRemoved || REMOVED_PLAYER_STATUSES.has(explicitStatus)) {
       return {
         className: "removed",
-        label: content.playerRemovedLabel
+        label: t("room.story.players.removed")
       };
     }
 
     if (player.unlockingInProgress) {
       return {
         className: "transferring-host",
-        label: content.playerTransferringHostLabel,
+        label: t("room.story.players.transferringHost"),
         showSpinner: true
       };
     }
@@ -333,7 +326,7 @@ function RoomPage({
     if (connectionState === "reconnecting" || connectionState === "connecting") {
       return {
         className: player.isHost ? "host-reconnecting" : "reconnecting",
-        label: player.isHost ? content.playerHostReconnectingLabel : content.playerReconnectingLabel,
+        label: player.isHost ? t("room.story.players.hostReconnecting") : t("room.story.players.reconnecting"),
         showSpinner: true
       };
     }
@@ -341,26 +334,26 @@ function RoomPage({
     if (connectionState === "disconnected") {
       return {
         className: "disconnected",
-        label: content.playerDisconnectedLabel
+        label: t("room.story.players.disconnected")
       };
     }
 
     if (isActivelyInGame) {
       return {
         className: "ready",
-        label: content.playerInGameLabel
+        label: t("room.story.players.inGame")
       };
     }
 
     if (usesReadyStatus) {
       return player.ready
-        ? { className: "ready", label: content.playerReadyLabel }
-        : { className: "waiting", label: content.playerWaitingLabel, showSpinner: true };
+        ? { className: "ready", label: t("room.story.players.ready") }
+        : { className: "waiting", label: t("room.story.players.waiting"), showSpinner: true };
     }
 
     return {
       className: "connected",
-      label: content.playerConnectedLabel
+      label: t("room.story.players.connected")
     };
   };
 
@@ -384,15 +377,15 @@ function RoomPage({
     const isCurrentPlayer = player.playerId === playerId;
     const canRemovePlayer = isHost || isCurrentPlayer;
     const removeLabel = isCurrentPlayer
-      ? content.leaveRoomLabel
-      : renderTemplate(content.removePlayerTemplate, { player: player.name });
+      ? t("room.story.players.leaveRoom")
+      : t("room.story.players.removePlayer", { player: player.name });
 
     return (
       <li key={player.playerId} className={`room-player-row${isCurrentPlayer ? " current" : ""}`}>
         {renderPlayerAvatar(player)}
         <div className="room-player-copy">
-          <strong>{isCurrentPlayer ? content.currentPlayerLabel : player.name}</strong>
-          {player.isHost && !isCurrentPlayer ? <span>{content.playerHostLabel}</span> : null}
+          <strong>{isCurrentPlayer ? t("room.story.players.currentPlayer") : player.name}</strong>
+          {player.isHost && !isCurrentPlayer ? <span>{t("room.story.players.host")}</span> : null}
         </div>
         <div className="room-player-actions">
           {renderReadyPill(player)}
@@ -415,8 +408,8 @@ function RoomPage({
   const renderPlayersPanel = (variant) => (
     <section className={`room-card room-players-card ${variant}`}>
       <div className="room-card-header">
-        <span>{variant === "host" ? content.playersLabel : formattedRoomCode}</span>
-        <strong>{variant === "host" ? `${readyCount} / ${maxPlayers} ${content.readyCountLabel}` : `${players.length} / ${maxPlayers} ${content.joinedCountLabel}`}</strong>
+        <span>{variant === "host" ? t("room.story.players.label") : formattedRoomCode}</span>
+        <strong>{variant === "host" ? `${readyCount} / ${maxPlayers} ${t("room.story.players.readyCount")}` : `${players.length} / ${maxPlayers} ${t("room.story.players.joinedCount")}`}</strong>
       </div>
       <ul className="room-player-list">
         {players.map(renderPlayerRow)}
@@ -429,8 +422,8 @@ function RoomPage({
       <div className="room-preview-kicker">
         {renderModeIcon()}
         <span>
-          {isSelectedModePreview ? content.previewLabel : content.experienceLabel}{" "}
-          {renderTemplate(content.selectedByTemplate, { host: hostDisplayName })}
+          {isSelectedModePreview ? t("room.story.mode.previewLabel") : t("room.story.mode.experienceLabel")}{" "}
+          {t("room.story.mode.selectedBy", { host: hostDisplayName })}
         </span>
       </div>
       <div className="room-selected-mode">
@@ -441,7 +434,7 @@ function RoomPage({
         <button
           type="button"
           className="room-help-button"
-          aria-label={content.aboutExperienceLabel}
+          aria-label={t("room.story.mode.aboutExperience")}
           onClick={() => {
             onUiButtonClick?.();
             setDescriptionMode(selectedMode);
@@ -503,7 +496,7 @@ function RoomPage({
         modes={visibleModeOptions}
         selectedModeId={selectedModeId}
         canSelectMode={canSelectMode}
-        label={content.experienceLabel}
+        label={t("room.story.mode.experienceLabel")}
         onSelectMode={(modeId) => {
           if (modeId === selectedModeId) return;
           onSelectionChanged?.();
@@ -513,17 +506,17 @@ function RoomPage({
       />
       {canOpenStore ? (
         <button type="button" className="room-unlock-button" onClick={() => { onUiButtonClick?.(); onOpenStore?.(); }}>
-          {content.unlockButtonLabel}
+          {t("room.story.mode.unlockButton")}
         </button>
       ) : null}
-      {!canSelectMode && !canOpenStore ? <span className="room-mode-note">{content.modeNote}</span> : null}
+      {!canSelectMode && !canOpenStore ? <span className="room-mode-note">{t("room.story.mode.note")}</span> : null}
     </section>
   );
 
   const renderQrModal = () => (showQrCode ? (
     <div className="qr-modal-backdrop" onClick={() => { onUiButtonClick?.(); setShowQrCode(false); }}>
       <div className="qr-modal" onClick={(event) => event.stopPropagation()}>
-        <h2 className="qr-modal-title">{renderTemplate(content.qrModalTitleTemplate, { room: roomId })}</h2>
+        <h2 className="qr-modal-title">{t("room.story.invite.qrTitle", { room: roomId })}</h2>
         <img className="qr-image" src={roomInviteQrUrl} alt={t("room.qrModal.imageAlt", { room: roomId })} />
         <p className="qr-link">{roomInviteUrl}</p>
         <button
@@ -531,7 +524,7 @@ function RoomPage({
           className="btn btn-primary"
           onClick={() => { onUiButtonClick?.(); setShowQrCode(false); }}
         >
-          {content.qrModalCloseLabel}
+          {t("room.story.invite.qrClose")}
         </button>
       </div>
     </div>
@@ -575,7 +568,7 @@ function RoomPage({
   };
 
   return (
-    <section className={`room-lobby-page ${isHost ? "room-lobby-page-host" : "room-lobby-page-join"}${showHostPurchasePending ? " room-lobby-page-host-purchase-pending" : ""}${showHostPurchaseFailed ? " room-lobby-page-host-purchase-failed" : ""}`} {...content.editableAttributes}>
+    <section className={`room-lobby-page ${isHost ? "room-lobby-page-host" : "room-lobby-page-join"}${showHostPurchasePending ? " room-lobby-page-host-purchase-pending" : ""}${showHostPurchaseFailed ? " room-lobby-page-host-purchase-failed" : ""}`}>
       {isWrongOrientation ? (
         <div className="orientation-warning-overlay" role="alert">
           <div className="orientation-warning-card">
@@ -619,8 +612,8 @@ function RoomPage({
       {isHost ? (
         <>
           <div className="room-host-hero">
-            <span className="room-status-chip"><span aria-hidden="true" />{roomStatusLabel === content.statusLabelLobby ? content.statusActiveLabel : roomStatusLabel}</span>
-            <h1><span>{content.hostHeadlinePrimary}</span><span>{content.hostHeadlineSecondary}</span></h1>
+            <span className="room-status-chip"><span aria-hidden="true" />{roomStatusLabel === t("room.story.status.lobby") ? t("room.story.status.active") : roomStatusLabel}</span>
+            <h1><span>{t("room.story.hero.hostPrimary")}</span><span>{t("room.story.hero.hostSecondary")}</span></h1>
           </div>
 
           <div className="room-host-content-grid">
@@ -630,7 +623,7 @@ function RoomPage({
                 <button
                   type="button"
                   className="room-icon-button"
-                  aria-label={content.qrOpenLabel}
+                  aria-label={t("room.story.invite.openQr")}
                   onClick={() => { onUiButtonClick?.(); setShowQrCode(true); }}
                 >
                   <img src={copyButtonImage} alt="" aria-hidden="true" />
@@ -639,10 +632,10 @@ function RoomPage({
               <div className="room-qr-frame">
                 <img src={roomInviteQrUrl} alt={t("room.qrModal.imageAlt", { room: roomId })} />
               </div>
-              <span className="room-share-label">{content.inviteShareLabel}</span>
+              <span className="room-share-label">{t("room.story.invite.shareLabel")}</span>
               <button type="button" className="room-copy-button" onClick={handleCopyInvite}>
                 <img src={sendButtonImage} alt="" aria-hidden="true" />
-                {copyStatus || content.copyInviteLabel}
+                {copyStatus || t("room.story.invite.copyLabel")}
               </button>
             </section>
 
@@ -657,9 +650,9 @@ function RoomPage({
           {!showHostPurchasePending && !showHostPurchaseFailed ? (
             <>
               <div className="room-join-hero">
-                <span className="room-status-chip"><span aria-hidden="true" />{content.joinStatusPrefix} {roomId}</span>
-                <h1>{content.joinHeadline}</h1>
-                <p>{renderTemplate(content.joinDescriptionTemplate, { host: hostDisplayName })}</p>
+                <span className="room-status-chip"><span aria-hidden="true" />{t("room.story.hero.joinStatusPrefix")} {roomId}</span>
+                <h1>{t("room.story.hero.joinHeadline")}</h1>
+                <p>{t("room.story.hero.joinDescription", { host: hostDisplayName })}</p>
               </div>
               {renderPreviewCard()}
             </>
@@ -672,7 +665,7 @@ function RoomPage({
 
       {waitingForNextGame ? (
         <p className="room-waiting-note">
-          {content.waitingForNextGameNote}
+          {t("room.story.actions.waitingForNextGame")}
         </p>
       ) : null}
 
@@ -693,7 +686,7 @@ function RoomPage({
             className="room-bottom-action"
             onClick={handleReadyToggle}
           >
-            {currentPlayer?.ready ? content.notReadyButtonLabel : content.readyButtonLabel}
+            {currentPlayer?.ready ? t("room.story.actions.notReady") : t("room.story.actions.ready")}
           </button>
         ) : null
       )}

@@ -1832,7 +1832,6 @@ function App() {
             onSetMode={setRoomMode}
             onKickPlayer={kickPlayer}
             modeDebugConfigs={modeDebugConfigs}
-            roomContent={lobbyContent.room}
           />
         )
       ) : isSoloChaosLabOpen ? (

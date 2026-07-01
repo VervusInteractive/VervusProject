@@ -52,6 +52,27 @@
     },
     "hostRoom": "Host room",
     "joinRoom": "Join room",
+    "hostPage": {
+      "back": "Back",
+      "kicker": "Host Room",
+      "headline": "What should we call you?",
+      "description": "Enter a display name to create your room.",
+      "nameLabel": "Display name",
+      "namePlaceholder": "e.g. Alex",
+      "submitLabel": "Host room"
+    },
+    "playPage": {
+      "back": "Back",
+      "kicker": "Join Room",
+      "headline": "Get in. We're waiting.",
+      "description": "Join the room and start playing.\nNo download. No account.",
+      "nameLabel": "Display name",
+      "namePlaceholder": "e.g. Alex",
+      "roomCodeLabel": "Room code",
+      "roomCodePlaceholder": "XX-XX-XX",
+      "submitLabel": "Join room",
+      "qrButtonLabel": "Scan QR code"
+    },
     "preview": {
       "roomFound": "ROOM FOUND",
       "players": {
@@ -301,6 +322,69 @@
     "waitingForGameState": "Waiting for game state..."
   },
   "room": {
+    "story": {
+      "fallbackHostName": "Host",
+      "status": {
+        "active": "Room active",
+        "lobby": "Lobby",
+        "preview": "Preview",
+        "paymentPending": "Payment pending",
+        "premium": "Premium",
+        "reconnecting": "Reconnecting",
+        "ended": "Ended",
+        "expired": "Expired"
+      },
+      "hero": {
+        "hostPrimary": "Send it.",
+        "hostSecondary": "Get everyone in.",
+        "joinStatusPrefix": "Room",
+        "joinHeadline": "Waiting for everyone.",
+        "joinDescription": "{{host}} will start once everyone is ready."
+      },
+      "invite": {
+        "shareLabel": "Share with your group",
+        "copyLabel": "Copy join link",
+        "copySuccess": "Copied",
+        "copyError": "Copy failed",
+        "openQr": "Open QR code",
+        "qrTitle": "Scan to join room {{room}}",
+        "qrClose": "Close"
+      },
+      "players": {
+        "label": "Players",
+        "readyCount": "Ready",
+        "joinedCount": "joined",
+        "currentPlayer": "You",
+        "host": "Host",
+        "ready": "Ready",
+        "waiting": "Waiting...",
+        "reconnecting": "Reconnecting...",
+        "hostReconnecting": "Host reconnecting...",
+        "transferringHost": "Transferring host...",
+        "disconnected": "Disconnected",
+        "connected": "Connected",
+        "removed": "Removed from room",
+        "inGame": "In Game",
+        "changeColor": "Change your player color",
+        "leaveRoom": "Leave room",
+        "removePlayer": "Remove {{player}}"
+      },
+      "mode": {
+        "previewLabel": "Free preview",
+        "experienceLabel": "Experience",
+        "selectedBy": "selected by {{host}}",
+        "aboutExperience": "About this experience",
+        "unlockButton": "Unlock Vervus",
+        "note": "Preview rooms are locked to GLiTCH!."
+      },
+      "actions": {
+        "waitingForNextGame": "A game is currently active. You are queued for the next game and can ready up once this round ends.",
+        "startPreview": "Start free preview",
+        "startGame": "Start game",
+        "ready": "I'm ready",
+        "notReady": "I'm not ready"
+      }
+    },
     "connection": {
       "degradedNote": "- high latency detected; effects may feel lighter.",
       "disconnectedNote": "- connection lost. Keep this tab open while we retry.",

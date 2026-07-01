@@ -523,25 +523,25 @@ function LobbyPage({
     </div>
   );
 
-  const renderHostStep = (hostPageContent = DEFAULT_LOBBY_CONTENT.host) => (
-    <form className="lobby-start-form" onSubmit={handleHostSubmit} {...hostPageContent.editableAttributes}>
+  const renderHostStep = () => (
+    <form className="lobby-start-form" onSubmit={handleHostSubmit}>
       <button className="lobby-back-button" type="button" onClick={() => handleSelectStep("landing")}>
-        {hostPageContent.backLabel}
+        {t("lobby.hostPage.back")}
       </button>
 
       <div className="lobby-heading-block">
-        <p className="lobby-kicker">{hostPageContent.kicker}</p>
-        <h1>{hostPageContent.headline}</h1>
-        <p>{renderTextWithBreaks(hostPageContent.description)}</p>
+        <p className="lobby-kicker">{t("lobby.hostPage.kicker")}</p>
+        <h1>{t("lobby.hostPage.headline")}</h1>
+        <p>{renderTextWithBreaks(t("lobby.hostPage.description"))}</p>
       </div>
 
       <label className="lobby-field">
-        <span>{hostPageContent.nameLabel}</span>
+        <span>{t("lobby.hostPage.nameLabel")}</span>
         <input
           type="text"
           autoComplete="name"
           inputMode="text"
-          placeholder={hostPageContent.namePlaceholder}
+          placeholder={t("lobby.hostPage.namePlaceholder")}
           value={name}
           onChange={(event) => onNameChange(event.target.value)}
         />
@@ -549,38 +549,38 @@ function LobbyPage({
 
       <div className="lobby-actions">
         <button className="lobby-primary-action" type="submit" disabled={!canHost}>
-          {hostPageContent.submitLabel}
+          {t("lobby.hostPage.submitLabel")}
         </button>
       </div>
     </form>
   );
 
-  const renderPlayStep = (playPageContent = DEFAULT_LOBBY_CONTENT.play) => (
-    <form className="lobby-start-form" onSubmit={handleJoinSubmit} {...playPageContent.editableAttributes}>
+  const renderPlayStep = () => (
+    <form className="lobby-start-form" onSubmit={handleJoinSubmit}>
       <button className="lobby-back-button" type="button" onClick={() => handleSelectStep("landing")}>
-        {playPageContent.backLabel}
+        {t("lobby.playPage.back")}
       </button>
 
       <div className="lobby-heading-block">
-        <p className="lobby-kicker">{playPageContent.kicker}</p>
-        <h1 id="join-room-title">{playPageContent.headline}</h1>
-        <p>{renderTextWithBreaks(playPageContent.description)}</p>
+        <p className="lobby-kicker">{t("lobby.playPage.kicker")}</p>
+        <h1 id="join-room-title">{t("lobby.playPage.headline")}</h1>
+        <p>{renderTextWithBreaks(t("lobby.playPage.description"))}</p>
       </div>
 
       <label className="lobby-field">
-        <span>{playPageContent.nameLabel}</span>
+        <span>{t("lobby.playPage.nameLabel")}</span>
         <input
           type="text"
           autoComplete="name"
           inputMode="text"
-          placeholder={playPageContent.namePlaceholder}
+          placeholder={t("lobby.playPage.namePlaceholder")}
           value={name}
           onChange={(event) => onNameChange(event.target.value)}
         />
       </label>
 
       <label className="lobby-field">
-        <span>{playPageContent.roomCodeLabel}</span>
+        <span>{t("lobby.playPage.roomCodeLabel")}</span>
         <input
           type="text"
           autoCapitalize="characters"
@@ -588,7 +588,7 @@ function LobbyPage({
           spellCheck="false"
           inputMode="text"
           maxLength={8}
-          placeholder={playPageContent.roomCodePlaceholder}
+          placeholder={t("lobby.playPage.roomCodePlaceholder")}
           value={formattedRoomCode}
           onChange={handleRoomCodeChange}
         />
@@ -616,24 +616,20 @@ function LobbyPage({
 
       <div className="lobby-actions">
         <button className="lobby-primary-action" type="submit" disabled={!canJoin}>
-          {playPageContent.submitLabel}
+          {t("lobby.playPage.submitLabel")}
         </button>
         <button className="lobby-secondary-action" type="button" onClick={handleOpenQrScanner} disabled={actionsLocked}>
-          {playPageContent.qrButtonLabel}
+          {t("lobby.playPage.qrButtonLabel")}
         </button>
       </div>
     </form>
   );
 
-  const renderQrScanner = (playPageContent = DEFAULT_LOBBY_CONTENT.play) => (
+  const renderQrScanner = () => (
     <QrScannerOverlay
-      title={playPageContent.qrModalTitle || DEFAULT_LOBBY_CONTENT.play.qrModalTitle}
-      description={/not connected/i.test(playPageContent.qrModalDescription || "")
-        ? DEFAULT_LOBBY_CONTENT.play.qrModalDescription
-        : (playPageContent.qrModalDescription || DEFAULT_LOBBY_CONTENT.play.qrModalDescription)}
-      cancelLabel={/^close$/i.test(playPageContent.qrModalCloseLabel || "")
-        ? DEFAULT_LOBBY_CONTENT.play.qrModalCloseLabel
-        : (playPageContent.qrModalCloseLabel || DEFAULT_LOBBY_CONTENT.play.qrModalCloseLabel)}
+      title={t("lobby.qrScanner.title")}
+      description={t("lobby.qrScanner.description")}
+      cancelLabel={t("common.cancel")}
       onCancel={() => {
         onUiButtonClick?.();
         setIsQrScannerOpen(false);
@@ -669,10 +665,10 @@ function LobbyPage({
 
     return (
       <>
-        {lobbyStep === "host" ? renderHostStep(lobbyContent.host) : null}
-        {lobbyStep === "play" ? renderPlayStep(lobbyContent.play) : null}
+        {lobbyStep === "host" ? renderHostStep() : null}
+        {lobbyStep === "play" ? renderPlayStep() : null}
         {lobbyStep === "landing" ? renderLandingStep(lobbyContent.start) : null}
-        {isQrScannerOpen ? renderQrScanner(lobbyContent.play) : null}
+        {isQrScannerOpen ? renderQrScanner() : null}
         {isDesktopPhoneNoticeOpen ? (
           <DesktopPhoneNotice onClose={() => setIsDesktopPhoneNoticeOpen(false)} />
         ) : null}

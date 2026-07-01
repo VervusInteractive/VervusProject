@@ -52,6 +52,27 @@
     },
     "hostRoom": "Skep kamer",
     "joinRoom": "Sluit aan",
+    "hostPage": {
+      "back": "Terug",
+      "kicker": "Skep Kamer",
+      "headline": "Wat moet ons jou noem?",
+      "description": "Voer 'n vertoonnaam in om jou kamer te skep.",
+      "nameLabel": "Vertoonnaam",
+      "namePlaceholder": "bv. Alex",
+      "submitLabel": "Skep kamer"
+    },
+    "playPage": {
+      "back": "Terug",
+      "kicker": "Sluit Aan",
+      "headline": "Kom in. Ons wag.",
+      "description": "Sluit by die kamer aan en begin speel.\nGeen aflaai. Geen rekening.",
+      "nameLabel": "Vertoonnaam",
+      "namePlaceholder": "bv. Alex",
+      "roomCodeLabel": "Kamerkode",
+      "roomCodePlaceholder": "XX-XX-XX",
+      "submitLabel": "Sluit aan",
+      "qrButtonLabel": "Skandeer QR-kode"
+    },
     "preview": {
       "roomFound": "KAMER GEVIND",
       "players": {
@@ -301,6 +322,69 @@
     "waitingForGameState": "Wag vir speltoestand..."
   },
   "room": {
+    "story": {
+      "fallbackHostName": "Gasheer",
+      "status": {
+        "active": "Kamer aktief",
+        "lobby": "Voorportaal",
+        "preview": "Voorskou",
+        "paymentPending": "Betaling hangend",
+        "premium": "Premium",
+        "reconnecting": "Herverbind",
+        "ended": "Beëindig",
+        "expired": "Verval"
+      },
+      "hero": {
+        "hostPrimary": "Stuur dit.",
+        "hostSecondary": "Kry almal in.",
+        "joinStatusPrefix": "Kamer",
+        "joinHeadline": "Wag vir almal.",
+        "joinDescription": "{{host}} sal begin sodra almal gereed is."
+      },
+      "invite": {
+        "shareLabel": "Deel met jou groep",
+        "copyLabel": "Kopieer aansluitskakel",
+        "copySuccess": "Gekopieer",
+        "copyError": "Kopieer het misluk",
+        "openQr": "Maak QR-kode oop",
+        "qrTitle": "Skandeer om by kamer {{room}} aan te sluit",
+        "qrClose": "Sluit"
+      },
+      "players": {
+        "label": "Spelers",
+        "readyCount": "Gereed",
+        "joinedCount": "aangesluit",
+        "currentPlayer": "Jy",
+        "host": "Gasheer",
+        "ready": "Gereed",
+        "waiting": "Wag...",
+        "reconnecting": "Herverbind...",
+        "hostReconnecting": "Gasheer herverbind...",
+        "transferringHost": "Gasheer word oorgedra...",
+        "disconnected": "Ontkoppel",
+        "connected": "Gekoppel",
+        "removed": "Uit die kamer verwyder",
+        "inGame": "In spel",
+        "changeColor": "Verander jou spelerskleur",
+        "leaveRoom": "Verlaat kamer",
+        "removePlayer": "Verwyder {{player}}"
+      },
+      "mode": {
+        "previewLabel": "Gratis voorskou",
+        "experienceLabel": "Ervaring",
+        "selectedBy": "gekies deur {{host}}",
+        "aboutExperience": "Oor hierdie ervaring",
+        "unlockButton": "Ontsluit Vervus",
+        "note": "Voorskoukamers is tot GLiTCH! beperk."
+      },
+      "actions": {
+        "waitingForNextGame": "'n Speletjie is tans aktief. Jy is in die ry vir die volgende speletjie en kan gereed maak sodra hierdie ronde eindig.",
+        "startPreview": "Begin gratis voorskou",
+        "startGame": "Begin speletjie",
+        "ready": "Ek is gereed",
+        "notReady": "Ek is nie gereed nie"
+      }
+    },
     "connection": {
       "degradedNote": "- hoë vertraging bespeur; effekte kan ligter voel.",
       "disconnectedNote": "- verbinding verloor. Hou hierdie oortjie oop terwyl ons weer probeer.",

@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import lockIcon from "../assets/images/Buttons/Button_Lock.png";
 import questionIcon from "../assets/images/Buttons/Button_Question.png";
+import glitchGameLogo from "../assets/images/GameLogos/GameLogos_Glitch.png";
 
 const DEFAULT_GAME_OPTIONS = Object.freeze([
   {
@@ -200,6 +201,14 @@ function GameModeSelector({
   const activeMode = modesForGame.find((mode) => mode.id === selectedModeId) || modesForGame[0] || selectedMode;
   const visibleGames = rotateGames(games, activeGame.id);
 
+  const renderGameCardContent = (game, isActive) => {
+    const isGlitchGame = game.id === "glitch";
+    if (isActive && isGlitchGame) {
+      return <img className="game-mode-game-card-logo" src={glitchGameLogo} alt={game.title} />;
+    }
+    return game.title;
+  };
+
   const handleSelectGame = (game) => {
     if (!game.hasModes || game.id === activeGame.id) return;
     const nextMode = normalizedModes.find((mode) => mode.gameKey === game.id && !mode.disabled)
@@ -229,7 +238,7 @@ function GameModeSelector({
                 aria-disabled={!game.hasModes || undefined}
                 onClick={Tag === "button" ? () => handleSelectGame(game) : undefined}
               >
-                {game.title}
+                {renderGameCardContent(game, isActive)}
               </Tag>
             );
           })}

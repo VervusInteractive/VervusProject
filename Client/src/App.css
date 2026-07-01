@@ -6262,6 +6262,10 @@
   text-shadow: 0 -1px 0 rgba(255, 255, 255, 0.18);
 }
 
+.glitch-answer-button.corrupted {
+  font-family: "Rubik Glitch", Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+}
+
 .glitch-answer-button.sync {
   border-color: #1ad064;
   background: #082012;

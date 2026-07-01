@@ -1177,8 +1177,8 @@ function GlitchGamePage({ roomId, playerId, players, myGame, serverNow, onSubmit
         <div className="glitch-time-pill">{formatDigitalTime(displayTimeMs)}</div>
         {!isSaveItActive ? (
           <div className="glitch-answer-row">
-            <button className="glitch-answer-button sync" disabled={!canSubmitAnswer} onClick={() => onSubmitAnswer("sync")}>{t("glitchGame.answers.sync")}</button>
-            <button className="glitch-answer-button glitch" disabled={!canSubmitAnswer} onClick={() => onSubmitAnswer("glitch")}>{t("glitchGame.answers.glitch")}</button>
+            <button className={hasCorruptionComboFont ? "glitch-answer-button sync corrupted" : "glitch-answer-button sync"} disabled={!canSubmitAnswer} onClick={() => onSubmitAnswer("sync")}>{t("glitchGame.answers.sync")}</button>
+            <button className={hasCorruptionComboFont ? "glitch-answer-button glitch corrupted" : "glitch-answer-button glitch"} disabled={!canSubmitAnswer} onClick={() => onSubmitAnswer("glitch")}>{t("glitchGame.answers.glitch")}</button>
           </div>
         ) : null}
       </footer>

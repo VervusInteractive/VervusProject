@@ -4,7 +4,40 @@ import afCommon from "./locales/af/common.json";
 import enCommon from "./locales/en/common.json";
 
 const DEFAULT_LANGUAGE = "en";
-const SUPPORTED_LANGUAGES = ["en", "af"];
+const SUPPORTED_LANGUAGES = ["en", "af", "fr", "nl", "ru", "pt", "es"];
+
+const LANGUAGE_LABELS = {
+  en: "English",
+  af: "Afrikaans",
+  fr: "Français",
+  nl: "Nederlands",
+  ru: "Русский",
+  pt: "Português",
+  es: "Español"
+};
+
+const LANGUAGE_SELECTOR_LABELS = {
+  en: "Language",
+  af: "Taal",
+  fr: "Langue",
+  nl: "Taal",
+  ru: "Язык",
+  pt: "Idioma",
+  es: "Idioma"
+};
+
+const buildLocaleCommon = (baseCommon, languageCode) => ({
+  ...baseCommon,
+  app: {
+    ...baseCommon.app,
+    language: LANGUAGE_LABELS[languageCode]
+  },
+  common: {
+    ...baseCommon.common,
+    languageSelector: LANGUAGE_SELECTOR_LABELS[languageCode]
+  },
+  languages: LANGUAGE_LABELS
+});
 
 const normalizeLanguage = (language) => {
   const normalized = String(language || "").trim().toLowerCase();
@@ -24,10 +57,25 @@ const getInitialLanguage = () => {
 
 const resources = {
   af: {
-    common: afCommon
+    common: buildLocaleCommon(afCommon, "af")
   },
   en: {
-    common: enCommon
+    common: buildLocaleCommon(enCommon, "en")
+  },
+  fr: {
+    common: buildLocaleCommon(enCommon, "fr")
+  },
+  nl: {
+    common: buildLocaleCommon(enCommon, "nl")
+  },
+  ru: {
+    common: buildLocaleCommon(enCommon, "ru")
+  },
+  pt: {
+    common: buildLocaleCommon(enCommon, "pt")
+  },
+  es: {
+    common: buildLocaleCommon(enCommon, "es")
   }
 };
 

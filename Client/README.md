@@ -76,6 +76,20 @@ The script reads the management token from `../Document/storyblok Token.txt`, or
 
 The client reads `draft` content in local development and inside the Storyblok Visual Editor. Normal production traffic reads `published` content unless `VITE_STORYBLOK_CONTENT_VERSION` is explicitly set.
 
+## Storyblok locales
+
+This project keeps app UI translations in `src/locales` and editor-managed lobby copy in Storyblok.
+
+- App locale `en` maps to Storyblok `Default`
+- App locale `af` maps to Storyblok `af`
+- App locale `fr` maps to Storyblok `fr`
+- App locale `nl` maps to Storyblok `nl`
+- App locale `ru` maps to Storyblok `ru`
+- App locale `pt` maps to Storyblok `pt`
+- App locale `es` maps to Storyblok `es`
+
+Because Storyblok does not assign a locale code to its default language, the client omits the Storyblok `language` query parameter for English and sends the explicit locale code for the translated variants such as `af`, `fr`, `nl`, `ru`, `pt`, and `es`.
+
 Vite only exposes environment variables to client-side code when they begin with the `VITE_` prefix.
 
 ## React Compiler

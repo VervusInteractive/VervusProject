@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   GAME_AUDIO_KEYS,
@@ -47,6 +47,9 @@ CHAOS_BACKGROUND_FRAME_GROUPS.forEach((frames, intensityLevel) => {
   CHAOS_BACKGROUND_FRAME_GROUPS.set(intensityLevel, frames.map((frame) => frame.source));
 });
 const HEAT_SURGE_ICON_SOURCE = new URL("../assets/images/GameIcons/GameIcons_HeatSurge.png", import.meta.url).href;
+const TIMER_MASK_GLITCH_SOURCE = new URL("../assets/images/GameTimerEffectImages/Mask_Glitch.png", import.meta.url).href;
+const TIMER_MASK_NOISE_SOURCE = new URL("../assets/images/GameTimerEffectImages/Mask_Noise.png", import.meta.url).href;
+const TIMER_MASK_NOISE_SOFT_SOURCE = new URL("../assets/images/GameTimerEffectImages/Mask_Noise2.png", import.meta.url).href;
 
 const GAME_ICON_IMAGES = {
   eye: { label: "Eye", src: new URL("../assets/images/GameIcons/Eye_Base.png", import.meta.url).href, aspect: "280 / 154", width: "78%" },
@@ -345,6 +348,7 @@ function GlitchLogo({ className = "", alt = "GLiTCH!" }) {
 
 
 function GlitchGamePage({ roomId, playerId, players, myGame, serverNow, onSubmitAnswer, onAssetsLoaded, onReturnRoom, onExit, connectionState = CONNECTION_STATES.CONNECTING, onUiButtonClick, isPreviewRoom = false, availableModes = [], selectedModeId = "standard" }) {
+  const timerEffectIdBase = useId().replace(/:/g, "");
   const { t } = useTranslation();
   const currentRound = myGame?.currentRound;
   const currentRoundCorruptionEffects = currentRound?.corruptionEffects ?? null;
@@ -921,6 +925,7 @@ function GlitchGamePage({ roomId, playerId, players, myGame, serverNow, onSubmit
   const displayTimeMs = isSaveItActive ? Math.min(3000, roundTimerMs || 3000) : boundedTimeRemainingMs;
   const isLowTimeTheme = Boolean(!isSaveItActive && roundTimerMs > 0 && timerProgress <= 0.1);
   const isLastChanceTheme = Boolean(currentRound?.isLastChanceReplay || isSaveItActive);
+  const isTimerShaderActive = isLastChanceTheme;
   const isDangerTheme = Boolean(isLastChanceTheme || isHeatSurgeEnabled || isLowTimeTheme);
   const showHeatSurgeIntro = Boolean(isBlitzMode && isHeatSurgeIntroActive && !isSaveItActive && myGame.status === "active");
   const comboIntensity = clamp01((Number(myGame.combo) || 0) / 40);
@@ -957,6 +962,16 @@ function GlitchGamePage({ roomId, playerId, players, myGame, serverNow, onSubmit
   ].filter(Boolean).join(" ");
   const timerElapsedDegrees = Math.round((1 - timerProgress) * 360);
   const timerArcPath = getCounterClockwiseTimerArcPath(timerElapsedDegrees);
+  const timerArcMaskId = `${timerEffectIdBase}-timer-arc-mask`;
+  const timerArcHaloMaskId = `${timerEffectIdBase}-timer-arc-halo-mask`;
+  const timerNoisePatternId = `${timerEffectIdBase}-timer-noise-pattern`;
+  const timerNoiseSoftPatternId = `${timerEffectIdBase}-timer-noise-soft-pattern`;
+  const timerGlitchPatternId = `${timerEffectIdBase}-timer-glitch-pattern`;
+  const timerGlitchTextureMaskId = `${timerEffectIdBase}-timer-glitch-texture-mask`;
+  const timerGlitchTextureMaskAltId = `${timerEffectIdBase}-timer-glitch-texture-mask-alt`;
+  const timerGlitchHaloTextureMaskId = `${timerEffectIdBase}-timer-glitch-halo-texture-mask`;
+  const timerGlowFilterId = `${timerEffectIdBase}-timer-glow-filter`;
+  const timerCoreGradientId = `${timerEffectIdBase}-timer-core-gradient`;
   const timerRingStyle = {
     "--timer-progress": `${timerElapsedDegrees}deg`,
     "--timer-marker-angle": `${-timerElapsedDegrees - 90}deg`
@@ -1041,8 +1056,86 @@ function GlitchGamePage({ roomId, playerId, players, myGame, serverNow, onSubmit
           <div className="glitch-timer-stage" aria-label={t("glitchGame.timeLeftAriaLabel", { time: formatTimeLeft(boundedTimeRemainingMs) })}>
             <div className={["glitch-timer-ring", corruptionClasses].filter(Boolean).join(" ")} style={timerRingStyle}>
               <svg className="glitch-timer-arc" viewBox="0 0 300 300" aria-hidden="true">
+                <defs>
+                  {isTimerShaderActive ? (
+                    <>
+                      <linearGradient id={timerCoreGradientId} x1="24" y1="30" x2="276" y2="270" gradientUnits="userSpaceOnUse">
+                        <stop offset="0%" stopColor="#fff6d5" />
+                        <stop offset="16%" stopColor="#ffb07d" />
+                        <stop offset="42%" stopColor="#ff6038" />
+                        <stop offset="72%" stopColor="#ff2a2a" />
+                        <stop offset="100%" stopColor="#ff7e59" />
+                      </linearGradient>
+                      <filter id={timerGlowFilterId} x="-40%" y="-40%" width="180%" height="180%" colorInterpolationFilters="sRGB">
+                        <feGaussianBlur in="SourceGraphic" stdDeviation="4" result="blur" />
+                        <feColorMatrix
+                          in="blur"
+                          type="matrix"
+                          values="1 0 0 0 0
+                                  0 0.42 0 0 0
+                                  0 0 0.3 0 0
+                                  0 0 0 1.18 0"
+                          result="glow"
+                        />
+                        <feMerge>
+                          <feMergeNode in="glow" />
+                          <feMergeNode in="SourceGraphic" />
+                        </feMerge>
+                      </filter>
+                      <pattern id={timerNoisePatternId} patternUnits="userSpaceOnUse" width="300" height="300">
+                        <image href={TIMER_MASK_NOISE_SOURCE} width="300" height="300" preserveAspectRatio="xMidYMid slice" />
+                      </pattern>
+                      <pattern id={timerNoiseSoftPatternId} patternUnits="userSpaceOnUse" width="300" height="300">
+                        <image href={TIMER_MASK_NOISE_SOFT_SOURCE} width="300" height="300" preserveAspectRatio="xMidYMid slice" />
+                      </pattern>
+                      <pattern id={timerGlitchPatternId} patternUnits="userSpaceOnUse" width="300" height="300">
+                        <image href={TIMER_MASK_GLITCH_SOURCE} width="300" height="300" preserveAspectRatio="xMidYMid slice" />
+                      </pattern>
+                      <mask id={timerGlitchTextureMaskId} maskUnits="userSpaceOnUse" maskContentUnits="userSpaceOnUse">
+                        <rect className="glitch-timer-texture-mask" x="-64" y="0" width="428" height="300" fill={`url(#${timerGlitchPatternId})`} />
+                      </mask>
+                      <mask id={timerGlitchTextureMaskAltId} maskUnits="userSpaceOnUse" maskContentUnits="userSpaceOnUse">
+                        <rect className="glitch-timer-texture-mask alt" x="-44" y="-36" width="388" height="372" fill={`url(#${timerGlitchPatternId})`} />
+                      </mask>
+                      <mask id={timerGlitchHaloTextureMaskId} maskUnits="userSpaceOnUse" maskContentUnits="userSpaceOnUse">
+                        <rect className="glitch-timer-texture-mask halo" x="-82" y="-32" width="464" height="364" fill={`url(#${timerGlitchPatternId})`} />
+                      </mask>
+                      <mask id={timerArcMaskId} maskUnits="userSpaceOnUse">
+                        <rect width="300" height="300" fill="black" />
+                        {timerArcPath ? (
+                          <path d={timerArcPath} fill="none" stroke="white" strokeWidth="32" strokeLinecap="round" />
+                        ) : null}
+                      </mask>
+                      <mask id={timerArcHaloMaskId} maskUnits="userSpaceOnUse">
+                        <rect width="300" height="300" fill="black" />
+                        {timerArcPath ? (
+                          <path d={timerArcPath} fill="none" stroke="white" strokeWidth="52" strokeLinecap="round" />
+                        ) : null}
+                      </mask>
+                    </>
+                  ) : null}
+                </defs>
                 <circle className="glitch-timer-arc-track" cx="150" cy="150" r="138" />
-                {timerArcPath ? <path className="glitch-timer-arc-fill" d={timerArcPath} /> : null}
+                {timerArcPath ? (
+                  isTimerShaderActive ? (
+                    <>
+                      <path className="glitch-timer-arc-fill glow" d={timerArcPath} filter={`url(#${timerGlowFilterId})`} />
+                      <path className="glitch-timer-arc-fill core" d={timerArcPath} stroke={`url(#${timerCoreGradientId})`} />
+                      <path className="glitch-timer-arc-fill hot" d={timerArcPath} />
+                      <g className="glitch-timer-shader-stack halo" mask={`url(#${timerArcHaloMaskId})`}>
+                        <rect className="glitch-timer-shader-layer glitch halo" x="-82" y="-32" width="464" height="364" fill="#a45cff" mask={`url(#${timerGlitchHaloTextureMaskId})`} />
+                      </g>
+                      <g className="glitch-timer-shader-stack" mask={`url(#${timerArcMaskId})`}>
+                        <rect className="glitch-timer-shader-layer noise" x="-36" y="-28" width="372" height="356" fill={`url(#${timerNoisePatternId})`} />
+                        <rect className="glitch-timer-shader-layer noise-soft" x="-30" y="-24" width="360" height="348" fill={`url(#${timerNoiseSoftPatternId})`} />
+                        <rect className="glitch-timer-shader-layer glitch" x="-64" y="0" width="428" height="300" fill="#c05cff" mask={`url(#${timerGlitchTextureMaskId})`} />
+                        <rect className="glitch-timer-shader-layer glitch alt" x="-44" y="-36" width="388" height="372" fill="#ff426f" mask={`url(#${timerGlitchTextureMaskAltId})`} />
+                      </g>
+                    </>
+                  ) : (
+                    <path className="glitch-timer-arc-fill default" d={timerArcPath} />
+                  )
+                ) : null}
               </svg>
               <div className="glitch-timer-marker"><span /></div>
               <div className="glitch-symbol-disc">

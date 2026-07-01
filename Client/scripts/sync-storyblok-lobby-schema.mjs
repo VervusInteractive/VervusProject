@@ -6,11 +6,11 @@ const SPACE_ID = process.env.STORYBLOK_SPACE_ID || "293406830388703";
 const API_BASE_URL = process.env.STORYBLOK_MANAGEMENT_API_URL || "https://mapi.storyblok.com/v1";
 const DEFAULT_TOKEN_FILE = resolve(process.cwd(), "../Document/storyblok Token.txt");
 
-const field = (displayName, pos, type = "text") => ({
+const field = (displayName, pos, type = "text", required = true) => ({
   type,
   pos,
   display_name: displayName,
-  required: true
+  required
 });
 
 const componentDefinitions = [
@@ -19,10 +19,10 @@ const componentDefinitions = [
     display_name: "Start Page",
     schema: {
       kicker: field("Kicker", 0),
-      headline: field("Headline", 1),
-      description: field("Description", 2),
-      host_button_label: field("Host Button Label", 3),
-      play_button_label: field("Play Button Label", 4)
+      headline: field("Headline", 1, "text", false),
+      description: field("Description", 2, "text", false),
+      host_button_label: field("Host Button Label", 3, "text", false),
+      play_button_label: field("Play Button Label", 4, "text", false)
     },
     defaults: {
       kicker: "Vervus Interactive",

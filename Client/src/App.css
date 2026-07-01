@@ -5869,6 +5869,10 @@
   font-weight: 1000;
 }
 
+.glitch-combo-value.corrupted {
+  font-family: "Rubik Glitch", Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+}
+
 .glitch-combo-stack span {
   color: #012bd9;
   font-size: 0.875rem;

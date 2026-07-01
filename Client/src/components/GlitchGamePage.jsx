@@ -912,6 +912,7 @@ function GlitchGamePage({ roomId, playerId, players, myGame, serverNow, onSubmit
   const stimulusClassName = getStimulusClassName(iconToken);
   const isHeatSurgeEnabled = Boolean(currentRound?.heatSurgeActive);
   const corruptionEffects = currentRound?.corruptionEffects;
+  const hasCorruptionComboFont = (Number(corruptionEffects?.intensityLevel) || 0) > 0;
   const corruptionClasses = getCorruptionVisualClasses(corruptionEffects).join(" ");
   const roundTimerMs = Number(currentRound?.timerMs) || 0;
   const safeTimeRemainingMs = typeof timeRemainingMs === "number" ? Math.max(0, timeRemainingMs) : 0;
@@ -1034,7 +1035,7 @@ function GlitchGamePage({ roomId, playerId, players, myGame, serverNow, onSubmit
       ) : (
         <>
           <div className="glitch-combo-stack" aria-label={t("glitchGame.comboAriaLabel", { combo: myGame.combo })}>
-            <strong>{myGame.combo}</strong>
+            <strong className={hasCorruptionComboFont ? "glitch-combo-value corrupted" : "glitch-combo-value"}>{myGame.combo}</strong>
             <span>{t("glitchGame.comboLabel")}</span>
           </div>
 

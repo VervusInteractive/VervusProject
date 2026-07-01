@@ -6249,6 +6249,9 @@
 }
 
 .glitch-answer-button {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
   min-height: clamp(82px, 13vh, 100px);
   border: 1px solid transparent;
   border-radius: 24px;
@@ -6260,6 +6263,54 @@
   text-transform: uppercase;
   cursor: pointer;
   text-shadow: 0 -1px 0 rgba(255, 255, 255, 0.18);
+}
+
+.glitch-answer-button > span {
+  pointer-events: none;
+}
+
+.glitch-answer-button-intensity-effect,
+.glitch-answer-button-glass,
+.glitch-answer-button-overlay {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+}
+
+.glitch-answer-button-intensity-effect {
+  z-index: 0;
+  inset: 14% 18%;
+  background:
+    url("./assets/images/GlitchChaos/Corruption_Buttons/Button_Corruption_Intesity9_Effect.png")
+    center / contain no-repeat;
+  opacity: 0.82;
+  filter: saturate(1.12) brightness(1.02);
+  animation: glitch-answer-button-intensity-jitter 720ms steps(2, end) infinite;
+  transform-origin: center;
+}
+
+.glitch-answer-button-glass {
+  z-index: 1;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0.08) 32%, rgba(255, 255, 255, 0.02) 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16);
+}
+
+.glitch-answer-button-overlay {
+  z-index: 2;
+  background: var(--button-corruption-overlay) center / cover no-repeat;
+  opacity: 0.96;
+  mix-blend-mode: screen;
+}
+
+.glitch-answer-button-label {
+  position: relative;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: inherit;
+  padding: 14px 16px;
 }
 
 .glitch-answer-button.corrupted {
@@ -6286,6 +6337,25 @@
   cursor: not-allowed;
   filter: grayscale(0.6);
   opacity: 0.48;
+}
+
+@keyframes glitch-answer-button-intensity-jitter {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+
+  25% {
+    transform: translate3d(1px, -1px, 0) scale(1.015);
+  }
+
+  50% {
+    transform: translate3d(-2px, 1px, 0) scale(0.99);
+  }
+
+  75% {
+    transform: translate3d(1px, 2px, 0) scale(1.01);
+  }
 }
 
 .glitch-game-screen.blitz-mode {

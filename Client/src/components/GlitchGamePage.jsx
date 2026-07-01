@@ -50,6 +50,18 @@ const HEAT_SURGE_ICON_SOURCE = new URL("../assets/images/GameIcons/GameIcons_Hea
 const TIMER_MASK_GLITCH_SOURCE = new URL("../assets/images/GameTimerEffectImages/Mask_Glitch.png", import.meta.url).href;
 const TIMER_MASK_NOISE_SOURCE = new URL("../assets/images/GameTimerEffectImages/Mask_Noise.png", import.meta.url).href;
 const TIMER_MASK_NOISE_SOFT_SOURCE = new URL("../assets/images/GameTimerEffectImages/Mask_Noise2.png", import.meta.url).href;
+const BUTTON_CORRUPTION_OVERLAY_SOURCES = {
+  1: new URL("../assets/images/GlitchChaos/Corruption_Buttons/Button_Corruption_Intesity1.png", import.meta.url).href,
+  2: new URL("../assets/images/GlitchChaos/Corruption_Buttons/Button_Corruption_Intesity2.png", import.meta.url).href,
+  3: new URL("../assets/images/GlitchChaos/Corruption_Buttons/Button_Corruption_Intesity3.png", import.meta.url).href,
+  4: new URL("../assets/images/GlitchChaos/Corruption_Buttons/Button_Corruption_Intesity4.png", import.meta.url).href,
+  5: new URL("../assets/images/GlitchChaos/Corruption_Buttons/Button_Corruption_Intesity5.png", import.meta.url).href,
+  6: new URL("../assets/images/GlitchChaos/Corruption_Buttons/Button_Corruption_Intesity6.png", import.meta.url).href,
+  7: new URL("../assets/images/GlitchChaos/Corruption_Buttons/Button_Corruption_Intesity7.png", import.meta.url).href,
+  8: new URL("../assets/images/GlitchChaos/Corruption_Buttons/Button_Corruption_Intesity8.png", import.meta.url).href,
+  9: new URL("../assets/images/GlitchChaos/Corruption_Buttons/Button_Corruption_Intesity9.png", import.meta.url).href
+};
+const BUTTON_CORRUPTION_INTENSITY9_EFFECT_SOURCE = new URL("../assets/images/GlitchChaos/Corruption_Buttons/Button_Corruption_Intesity9_Effect.png", import.meta.url).href;
 
 const GAME_ICON_IMAGES = {
   eye: { label: "Eye", src: new URL("../assets/images/GameIcons/Eye_Base.png", import.meta.url).href, aspect: "280 / 154", width: "78%" },
@@ -84,9 +96,14 @@ const GLITCH_BACKGROUND_IMAGE_SOURCES = [
   new URL("../assets/images/GlitchBackgrounds/glitch_grunge_frame_white_transparent.png", import.meta.url).href,
   new URL("../assets/images/GlitchBackgrounds/energy_burst_glitch_white_transparent.png", import.meta.url).href
 ];
+const BUTTON_CORRUPTION_IMAGE_SOURCES = [
+  ...Object.values(BUTTON_CORRUPTION_OVERLAY_SOURCES),
+  BUTTON_CORRUPTION_INTENSITY9_EFFECT_SOURCE
+];
 const GAME_IMAGE_SOURCES = Array.from(new Set([
   ...GAME_ICON_IMAGE_SOURCES,
   ...GLITCH_BACKGROUND_IMAGE_SOURCES,
+  ...BUTTON_CORRUPTION_IMAGE_SOURCES,
   HEAT_SURGE_ICON_SOURCE
 ]));
 const imagePreloadCache = new Map();
@@ -328,6 +345,11 @@ function getChaosBackgroundSource(modeId, corruptionEffects) {
   return CHAOS_BACKGROUND_FRAME_GROUPS.get(matchedIntensity)?.[0] || null;
 }
 
+function getButtonCorruptionOverlaySource(intensityLevel) {
+  const normalizedIntensity = Math.max(0, Math.min(9, Number(intensityLevel) || 0));
+  return BUTTON_CORRUPTION_OVERLAY_SOURCES[normalizedIntensity] || null;
+}
+
 function scheduleResultsTicks(combo, registerTimeout) {
   const tickCount = Math.min(120, Math.max(0, Math.floor(Number(combo) || 0)));
   if (tickCount <= 0) return;
@@ -344,6 +366,28 @@ function scheduleResultsTicks(combo, registerTimeout) {
 
 function GlitchLogo({ className = "", alt = "GLiTCH!" }) {
   return <img className={["glitch-logo-image", className].filter(Boolean).join(" ")} src={glitchGameLogo} alt={alt} />;
+}
+
+function GlitchAnswerButton({ variant, label, isCorrupted, corruptionIntensityLevel, disabled, onClick }) {
+  const className = [
+    "glitch-answer-button",
+    variant,
+    isCorrupted ? "corrupted" : "",
+    corruptionIntensityLevel >= 9 ? "intensity-nine-plus" : ""
+  ].filter(Boolean).join(" ");
+  const overlaySource = getButtonCorruptionOverlaySource(corruptionIntensityLevel);
+  const buttonStyle = overlaySource
+    ? { "--button-corruption-overlay": `url(${overlaySource})` }
+    : undefined;
+
+  return (
+    <button className={className} style={buttonStyle} disabled={disabled} onClick={onClick}>
+      {corruptionIntensityLevel >= 9 ? <span className="glitch-answer-button-intensity-effect" aria-hidden="true" /> : null}
+      <span className="glitch-answer-button-glass" aria-hidden="true" />
+      {overlaySource ? <span className="glitch-answer-button-overlay" aria-hidden="true" /> : null}
+      <span className="glitch-answer-button-label">{label}</span>
+    </button>
+  );
 }
 
 
@@ -916,7 +960,8 @@ function GlitchGamePage({ roomId, playerId, players, myGame, serverNow, onSubmit
   const stimulusClassName = getStimulusClassName(iconToken);
   const isHeatSurgeEnabled = Boolean(currentRound?.heatSurgeActive);
   const corruptionEffects = currentRound?.corruptionEffects;
-  const hasCorruptionComboFont = (Number(corruptionEffects?.intensityLevel) || 0) > 0;
+  const corruptionIntensityLevel = Number(corruptionEffects?.intensityLevel) || 0;
+  const hasCorruptionComboFont = corruptionIntensityLevel > 0;
   const corruptionClasses = getCorruptionVisualClasses(corruptionEffects).join(" ");
   const roundTimerMs = Number(currentRound?.timerMs) || 0;
   const safeTimeRemainingMs = typeof timeRemainingMs === "number" ? Math.max(0, timeRemainingMs) : 0;
@@ -1177,8 +1222,22 @@ function GlitchGamePage({ roomId, playerId, players, myGame, serverNow, onSubmit
         <div className="glitch-time-pill">{formatDigitalTime(displayTimeMs)}</div>
         {!isSaveItActive ? (
           <div className="glitch-answer-row">
-            <button className={hasCorruptionComboFont ? "glitch-answer-button sync corrupted" : "glitch-answer-button sync"} disabled={!canSubmitAnswer} onClick={() => onSubmitAnswer("sync")}>{t("glitchGame.answers.sync")}</button>
-            <button className={hasCorruptionComboFont ? "glitch-answer-button glitch corrupted" : "glitch-answer-button glitch"} disabled={!canSubmitAnswer} onClick={() => onSubmitAnswer("glitch")}>{t("glitchGame.answers.glitch")}</button>
+            <GlitchAnswerButton
+              variant="sync"
+              label={t("glitchGame.answers.sync")}
+              isCorrupted={hasCorruptionComboFont}
+              corruptionIntensityLevel={corruptionIntensityLevel}
+              disabled={!canSubmitAnswer}
+              onClick={() => onSubmitAnswer("sync")}
+            />
+            <GlitchAnswerButton
+              variant="glitch"
+              label={t("glitchGame.answers.glitch")}
+              isCorrupted={hasCorruptionComboFont}
+              corruptionIntensityLevel={corruptionIntensityLevel}
+              disabled={!canSubmitAnswer}
+              onClick={() => onSubmitAnswer("glitch")}
+            />
           </div>
         ) : null}
       </footer>
